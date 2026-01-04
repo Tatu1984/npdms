@@ -1,20 +1,5 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "name": "npdms",
   "framework": "nextjs",
-  "buildCommand": "cd ui/web && npm install && npm run build",
-  "outputDirectory": "ui/web/.next",
-  "installCommand": "cd ui/web && npm install",
-  "devCommand": "cd ui/web && npm run dev",
-  "ignoreCommand": "git diff HEAD^ HEAD --quiet -- ui/web/",
-  "regions": ["sin1"],
-  "env": {
-    "DATABASE_URL": "@database_url",
-    "POSTGRES_PRISMA_URL": "@postgres_prisma_url",
-    "POSTGRES_URL_NON_POOLING": "@postgres_url_non_pooling",
-    "NEXTAUTH_SECRET": "@nextauth_secret",
-    "NEXTAUTH_URL": "@nextauth_url",
-    "NEXT_PUBLIC_APP_URL": "@next_public_app_url"
-  }
+  "rootDirectory": "ui/web"
 }
