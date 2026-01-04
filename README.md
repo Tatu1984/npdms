@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# National Police Department Management System (NPDMS)
 
-## Getting Started
+## Overview
+NPDMS is a federated, edge-first police management system designed for nationwide deployment across India.
 
-First, run the development server:
+## Architecture
+- **Edge-First**: Police stations operate fully offline
+- **Federated**: No monolithic central system  
+- **AI-Assisted**: Human authority always retained
+- **Zero Trust**: Never trust, always verify
 
+## Quick Start
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+make setup-dev     # Setup development environment
+make start-dev     # Start all services
+make test          # Run tests
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Project Structure
+```
+npdms/
+├── services/     # Backend microservices (Go)
+├── ai/           # AI/ML services (Python)
+├── ui/           # Frontend applications (Next.js)
+├── infra/        # Infrastructure as Code
+├── edge/         # Edge deployment packages
+├── docs/         # Documentation
+└── scripts/      # Development scripts
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Documentation
+See `docs/architecture/` for complete system documentation:
+- PHASE_0_SYSTEM_BLUEPRINT.md
+- PHASE_1_UI_UX_DESIGN.md
+- PHASE_2_DEVELOPMENT_PLAN.md
+- PHASE_3_PROJECT_STRUCTURE.md
+- PHASE_4_TECH_STACK.md
+- PHASE_5_AI_IMPLEMENTATION.md
+- PHASE_6_DEVSECOPS.md
+- PHASE_7_SELF_AUDIT.md
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+RESTRICTED - Government of India
