@@ -471,17 +471,17 @@ export async function getDatabaseSize(): Promise<{ usage: number; quota: number 
  * Get count of pending offline items
  */
 export async function getPendingCount(): Promise<number> {
-  const firs = await db.firs.where('_pending').equals(true).count();
-  const cases = await db.cases.where('_pending').equals(true).count();
-  const evidence = await db.evidence.where('_pending').equals(true).count();
-  const warrants = await db.warrants.where('_pending').equals(true).count();
-  const bail = await db.bail.where('_pending').equals(true).count();
-  const forensics = await db.forensics.where('_pending').equals(true).count();
-  const personnel = await db.personnel.where('_pending').equals(true).count();
-  const vehicles = await db.vehicles.where('_pending').equals(true).count();
-  const hearings = await db.courtHearings.where('_pending').equals(true).count();
-  const orders = await db.courtOrders.where('_pending').equals(true).count();
-  const alerts = await db.alerts.where('_pending').equals(true).count();
+  const firs = await db.firs.where('_pending').equals(1).count();
+  const cases = await db.cases.where('_pending').equals(1).count();
+  const evidence = await db.evidence.where('_pending').equals(1).count();
+  const warrants = await db.warrants.where('_pending').equals(1).count();
+  const bail = await db.bail.where('_pending').equals(1).count();
+  const forensics = await db.forensics.where('_pending').equals(1).count();
+  const personnel = await db.personnel.where('_pending').equals(1).count();
+  const vehicles = await db.vehicles.where('_pending').equals(1).count();
+  const hearings = await db.courtHearings.where('_pending').equals(1).count();
+  const orders = await db.courtOrders.where('_pending').equals(1).count();
+  const alerts = await db.alerts.where('_pending').equals(1).count();
 
   return firs + cases + evidence + warrants + bail + forensics + personnel + vehicles + hearings + orders + alerts;
 }

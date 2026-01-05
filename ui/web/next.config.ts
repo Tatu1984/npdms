@@ -4,6 +4,7 @@ import withPWA from "next-pwa";
 const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
+  turbopack: {}, // Explicitly set empty turbopack config to silence build warnings
 };
 
 export default withPWA({

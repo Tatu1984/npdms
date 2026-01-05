@@ -6,8 +6,17 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tantml:parameter>@tanstack/react-query-devtools';
-import { useState, type ReactNode } from 'react';
+import { useState, type ReactNode, lazy, Suspense } from 'react';
+
+// Lazy load devtools to avoid bundling in production
+const ReactQueryDevtools =
+  process.env.NODE_ENV === 'development'
+    ? lazy(() =>
+        import('@tanstack/react-query-devtools').then((mod) => ({
+          default: mod.ReactQueryDevtools,
+        }))
+      )
+    : null;
 
 // Default options for React Query
 const defaultOptions = {
@@ -77,8 +86,10 @@ export function QueryProvider({ children }: QueryProviderProps) {
     <QueryClientProvider client={queryClient}>
       {children}
       {/* Show devtools in development */}
-      {process.env.NODE_ENV === 'development' && (
-        <ReactQueryDevtools initialIsOpen={false} position="bottom-right" />
+      {ReactQueryDevtools && (
+        <Suspense fallback={null}>
+          <ReactQueryDevtools initialIsOpen={false} />
+        </Suspense>
       )}
     </QueryClientProvider>
   );

@@ -65,6 +65,7 @@ func main() {
 	vehicleService := services.NewVehicleService(vehicleRepo, auditRepo)
 	courtService := services.NewCourtService(courtRepo, auditRepo)
 	alertService := services.NewAlertService(alertRepo, auditRepo)
+	mlService := services.NewMLService(firRepo, auditRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -78,6 +79,7 @@ func main() {
 	vehicleHandler := handlers.NewVehicleHandler(vehicleService)
 	courtHandler := handlers.NewCourtHandler(courtService)
 	alertHandler := handlers.NewAlertHandler(alertService)
+	mlHandler := handlers.NewMLHandler(mlService)
 	healthHandler := handlers.NewHealthHandler(db, rdb)
 
 	// Setup Gin router
@@ -236,6 +238,16 @@ func main() {
 				alerts.DELETE("/:id", middleware.RequireRole("SHO", "DSP", "SP"), alertHandler.Delete)
 				alerts.GET("/active", alertHandler.GetActiveAlerts)
 				alerts.GET("/unacknowledged", alertHandler.GetUnacknowledgedAlerts)
+			}
+
+			// ML routes (AI/ML features)
+			ml := protected.Group("/ml")
+			{
+				ml.GET("/health", mlHandler.HealthCheck)
+				ml.POST("/classify", mlHandler.ClassifyText)
+				ml.POST("/search", mlHandler.SearchSimilar)
+				ml.GET("/predictions", mlHandler.GetPredictions)
+				ml.GET("/hotspots", mlHandler.GetHotspots)
 			}
 
 			// Stats & Dashboard
