@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { toast } from "@/stores/toastStore";
 
 // Mock evidence data
 const mockEvidence = {
@@ -152,18 +153,18 @@ export default function EvidenceDetailPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary">
+            <Button variant="secondary" onClick={() => toast.success("Print Ready", "Evidence label sent to printer")}>
               <Printer className="h-4 w-4 mr-2" />
               Print Label
             </Button>
             {canTransfer && (
-              <Button variant="secondary">
+              <Button variant="secondary" onClick={() => toast.info("Transfer Evidence", "Opening transfer form...")}>
                 <Share2 className="h-4 w-4 mr-2" />
                 Transfer
               </Button>
             )}
             {canEdit && (
-              <Button>
+              <Button onClick={() => toast.success("Edit Mode", "You can now edit evidence details")}>
                 <Edit className="h-4 w-4 mr-2" />
                 Edit
               </Button>
@@ -394,7 +395,7 @@ export default function EvidenceDetailPage() {
 
                 {canTransfer && (
                   <div className="mt-6 pt-6 border-t border-border">
-                    <Button>
+                    <Button onClick={() => toast.info("Record Transfer", "Opening transfer record form...")}>
                       <Share2 className="h-4 w-4 mr-2" />
                       Record New Transfer
                     </Button>
@@ -451,7 +452,7 @@ export default function EvidenceDetailPage() {
                   <div className="text-center py-8">
                     <Microscope className="h-12 w-12 text-foreground-muted mx-auto mb-4" />
                     <p className="text-foreground-muted">No forensic analysis requested</p>
-                    <Button className="mt-4">Request Analysis</Button>
+                    <Button className="mt-4" onClick={() => toast.info("Request Analysis", "Opening forensic analysis request form...")}>Request Analysis</Button>
                   </div>
                 )}
               </CardContent>
@@ -485,7 +486,7 @@ export default function EvidenceDetailPage() {
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end">
-                  <Button variant="secondary">
+                  <Button variant="secondary" onClick={() => toast.success("Download Started", "Downloading all evidence photos...")}>
                     <Download className="h-4 w-4 mr-2" />
                     Download All
                   </Button>

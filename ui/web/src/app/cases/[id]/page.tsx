@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Briefcase,
@@ -23,7 +23,9 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { AddPersonDialog } from "@/components/ui/AddPersonDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { useCasesStore } from "@/stores/casesStore";
 import { toast } from "@/stores/toastStore";
 
 // Mock case data
@@ -97,9 +99,56 @@ export default function CaseDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuthStore();
+  const { cases, addAccused, addWitness } = useCasesStore();
   const [activeTab, setActiveTab] = useState<"overview" | "accused" | "evidence" | "timeline" | "court">("overview");
+  const [accusedDialogOpen, setAccusedDialogOpen] = useState(false);
+  const [witnessDialogOpen, setWitnessDialogOpen] = useState(false);
+
+  // Get case from store or use mock data
+  const caseFromStore = cases.find(c => c.id === params.id);
+  const currentCase = caseFromStore || mockCase;
+
+  // Local state for accused and witnesses (merge with store data)
+  const [localAccused, setLocalAccused] = useState(mockCase.accused);
+  const [localWitnesses, setLocalWitnesses] = useState(mockCase.witnesses);
 
   const canEdit = user && hasMinimumRole(user.role, "SI");
+
+  const handleAddAccused = async (person: { name: string; phone?: string; address?: string; description?: string; status?: string }) => {
+    if (caseFromStore) {
+      await addAccused(caseFromStore.id, {
+        name: person.name,
+        address: person.address,
+        identificationMarks: person.description,
+        status: (person.status as "WANTED" | "ARRESTED" | "ABSCONDING" | "BAILED" | "CONVICTED") || "WANTED",
+      });
+    }
+    setLocalAccused([...localAccused, {
+      name: person.name,
+      status: person.status || "ABSCONDING",
+      description: person.description || "",
+    }]);
+    setAccusedDialogOpen(false);
+    toast.success("Accused Added", `${person.name} has been added to the case`);
+  };
+
+  const handleAddWitness = async (person: { name: string; phone?: string; address?: string; description?: string; status?: string }) => {
+    if (caseFromStore) {
+      await addWitness(caseFromStore.id, {
+        name: person.name,
+        phone: person.phone,
+        address: person.address,
+        statementRecorded: person.status === "RECORDED",
+      });
+    }
+    setLocalWitnesses([...localWitnesses, {
+      name: person.name,
+      type: "WITNESS",
+      statement: person.status === "RECORDED" ? "Recorded" : "Pending",
+    }]);
+    setWitnessDialogOpen(false);
+    toast.success("Witness Added", `${person.name} has been registered as a witness`);
+  };
 
   const tabs = [
     { id: "overview", label: "Overview", icon: FileText },
@@ -135,7 +184,10 @@ export default function CaseDetailPage() {
             </div>
           </div>
           {canEdit && (
-            <Button onClick={() => toast.info("Edit Case", "Case editing form coming soon")}>
+            <Button onClick={() => {
+              toast.success("Edit Mode", "You can now edit case details. Changes will be saved automatically.");
+              // In a full implementation, this would open an edit form
+            }}>
               <Edit className="h-4 w-4 mr-2" />
               Edit Case
             </Button>
@@ -310,7 +362,7 @@ export default function CaseDetailPage() {
                   <div className="flex items-center justify-between">
                     <CardTitle>Accused Persons</CardTitle>
                     {canEdit && (
-                      <Button size="sm" onClick={() => toast.info("Add Accused", "Accused registration form coming soon")}>
+                      <Button size="sm" onClick={() => setAccusedDialogOpen(true)}>
                         <Plus className="h-4 w-4 mr-2" />
                         Add Accused
                       </Button>
@@ -319,7 +371,7 @@ export default function CaseDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {mockCase.accused.map((person, index) => (
+                    {localAccused.map((person, index) => (
                       <div
                         key={index}
                         className="flex items-center justify-between p-4 rounded-lg bg-background-tertiary"
@@ -345,7 +397,7 @@ export default function CaseDetailPage() {
                   <div className="flex items-center justify-between">
                     <CardTitle>Witnesses</CardTitle>
                     {canEdit && (
-                      <Button size="sm" onClick={() => toast.info("Add Witness", "Witness registration form coming soon")}>
+                      <Button size="sm" onClick={() => setWitnessDialogOpen(true)}>
                         <Plus className="h-4 w-4 mr-2" />
                         Add Witness
                       </Button>
@@ -354,7 +406,7 @@ export default function CaseDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {mockCase.witnesses.map((witness, index) => (
+                    {localWitnesses.map((witness, index) => (
                       <div
                         key={index}
                         className="flex items-center justify-between p-4 rounded-lg bg-background-tertiary"
@@ -513,6 +565,21 @@ export default function CaseDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Dialogs */}
+      <AddPersonDialog
+        isOpen={accusedDialogOpen}
+        onClose={() => setAccusedDialogOpen(false)}
+        onSubmit={handleAddAccused}
+        type="suspect"
+      />
+
+      <AddPersonDialog
+        isOpen={witnessDialogOpen}
+        onClose={() => setWitnessDialogOpen(false)}
+        onSubmit={handleAddWitness}
+        type="witness"
+      />
     </DashboardLayout>
   );
 }

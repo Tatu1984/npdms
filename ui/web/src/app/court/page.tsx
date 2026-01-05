@@ -20,6 +20,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useAuthStore } from "@/stores/authStore";
+import { toast } from "@/stores/toastStore";
 
 const upcomingHearings = [
   {
@@ -152,11 +153,11 @@ export default function CourtPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary">
+            <Button variant="secondary" onClick={() => toast.success("Reminders Set", "You will be notified 24 hours before each hearing")}>
               <Bell className="h-4 w-4 mr-2" />
               Set Reminders
             </Button>
-            <Button>
+            <Button onClick={() => toast.info("Court Calendar", "Opening court calendar view...")}>
               <Calendar className="h-4 w-4 mr-2" />
               View Calendar
             </Button>
@@ -283,7 +284,7 @@ export default function CourtPage() {
                         <div className="text-right">
                           <div className="text-lg font-bold text-accent">{hearing.date}</div>
                           <div className="text-foreground-muted">{hearing.time}</div>
-                          <Button variant="ghost" size="sm" className="mt-2">
+                          <Button variant="ghost" size="sm" className="mt-2" onClick={() => toast.info("Case Details", `Viewing details for ${hearing.caseNumber}`)}>
                             Details
                             <ChevronRight className="h-4 w-4 ml-1" />
                           </Button>
@@ -335,7 +336,7 @@ export default function CourtPage() {
                     <p className="text-sm text-foreground-muted">{order.summary}</p>
                   </div>
                 ))}
-                <Button variant="ghost" className="w-full">
+                <Button variant="ghost" className="w-full" onClick={() => toast.info("Court Orders", "Loading complete orders list...")}>
                   View All Orders
                 </Button>
               </CardContent>

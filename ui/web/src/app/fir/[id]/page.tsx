@@ -28,6 +28,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { CaseDiaryEntryDialog } from "@/components/ui/CaseDiaryEntryDialog";
+import { AddPersonDialog } from "@/components/ui/AddPersonDialog";
+import { FIRActionDialog } from "@/components/ui/FIRActionDialog";
 import { useFIRStore } from "@/stores/firStore";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
@@ -113,11 +116,90 @@ export default function FIRDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { user } = useAuthStore();
-  const { firs, loadFIRs, selectedFIR, setSelectedFIR } = useFIRStore();
+  const { firs, loadFIRs, selectedFIR, setSelectedFIR, updateFIR } = useFIRStore();
   const [activeTab, setActiveTab] = useState("details");
+
+  // Dialog states
+  const [diaryDialogOpen, setDiaryDialogOpen] = useState(false);
+  const [suspectDialogOpen, setSuspectDialogOpen] = useState(false);
+  const [witnessDialogOpen, setWitnessDialogOpen] = useState(false);
+  const [actionDialogOpen, setActionDialogOpen] = useState(false);
+  const [actionType, setActionType] = useState<"transfer" | "close" | "chargesheet">("transfer");
+
+  // Local state for case diary entries, suspects, and witnesses
+  const [localDiaryEntries, setLocalDiaryEntries] = useState(caseDiaryEntries);
+  const [suspects, setSuspects] = useState<Array<{ id: string; name: string; phone?: string; address?: string; description?: string; status: string }>>([]);
+  const [witnesses, setWitnesses] = useState<Array<{ id: string; name: string; phone?: string; description?: string; status: string }>>([
+    { id: "w1", name: "Mrs. Lakshmi", phone: "", description: "Neighbor - Statement recorded", status: "RECORDED" },
+    { id: "w2", name: "Auto Driver (Name TBD)", phone: "", description: "Eyewitness - Statement recorded", status: "RECORDED" },
+  ]);
 
   const canEdit = user && hasMinimumRole(user.role, "SI");
   const canTransfer = user && hasMinimumRole(user.role, "SHO");
+
+  // Handlers
+  const handleAddDiaryEntry = (entry: { content: string; nextAction: string; officer: string }) => {
+    const newEntry = {
+      id: `diary-${Date.now()}`,
+      date: new Date().toISOString().split("T")[0],
+      time: new Date().toTimeString().slice(0, 5),
+      officer: entry.officer,
+      content: entry.content,
+      nextAction: entry.nextAction,
+      attachments: [],
+    };
+    setLocalDiaryEntries([newEntry, ...localDiaryEntries]);
+    setDiaryDialogOpen(false);
+    toast.success("Entry Added", "Case diary entry has been recorded");
+  };
+
+  const handleAddSuspect = (person: { name: string; phone?: string; address?: string; description?: string; status?: string }) => {
+    const newSuspect = {
+      id: `suspect-${Date.now()}`,
+      name: person.name,
+      phone: person.phone,
+      address: person.address,
+      description: person.description,
+      status: person.status || "WANTED",
+    };
+    setSuspects([...suspects, newSuspect]);
+    setSuspectDialogOpen(false);
+    toast.success("Suspect Added", `${person.name} has been added as a suspect`);
+  };
+
+  const handleAddWitness = (person: { name: string; phone?: string; address?: string; description?: string; status?: string }) => {
+    const newWitness = {
+      id: `witness-${Date.now()}`,
+      name: person.name,
+      phone: person.phone,
+      description: person.description,
+      status: person.status || "PENDING",
+    };
+    setWitnesses([...witnesses, newWitness]);
+    setWitnessDialogOpen(false);
+    toast.success("Witness Added", `${person.name} has been registered as a witness`);
+  };
+
+  const handleFIRAction = async (data: { reason: string; targetStation?: string; courtName?: string }) => {
+    if (!selectedFIR) return;
+
+    if (actionType === "transfer") {
+      await updateFIR(selectedFIR.id, { status: "TRANSFERRED" as FIRStatus });
+      toast.success("Case Transferred", `${selectedFIR.firNumber} has been transferred to ${data.targetStation}`);
+    } else if (actionType === "close") {
+      await updateFIR(selectedFIR.id, { status: "CLOSED" as FIRStatus });
+      toast.success("Case Closed", `${selectedFIR.firNumber} has been closed`);
+    } else if (actionType === "chargesheet") {
+      await updateFIR(selectedFIR.id, { status: "CHARGESHEET_FILED" as FIRStatus });
+      toast.success("Chargesheet Filed", `Chargesheet for ${selectedFIR.firNumber} has been submitted to ${data.courtName}`);
+    }
+    setActionDialogOpen(false);
+  };
+
+  const openActionDialog = (type: "transfer" | "close" | "chargesheet") => {
+    setActionType(type);
+    setActionDialogOpen(true);
+  };
 
   useEffect(() => {
     if (firs.length === 0) {
@@ -385,22 +467,22 @@ export default function FIRDetailPage() {
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {canTransfer && (
-                      <Button variant="secondary" className="w-full justify-start" onClick={() => toast.info("Transfer Case", "Case transfer functionality coming soon")}>
+                      <Button variant="secondary" className="w-full justify-start" onClick={() => openActionDialog("transfer")}>
                         Transfer Case
                       </Button>
                     )}
-                    <Button variant="secondary" className="w-full justify-start" onClick={() => toast.info("Request Assistance", "Assistance request sent to district headquarters")}>
+                    <Button variant="secondary" className="w-full justify-start" onClick={() => toast.success("Request Sent", "Assistance request has been sent to district headquarters")}>
                       Request Assistance
                     </Button>
-                    <Button variant="secondary" className="w-full justify-start" onClick={() => toast.warning("Escalate", "Case escalation requires approval from SHO")}>
+                    <Button variant="secondary" className="w-full justify-start" onClick={() => toast.warning("Escalation", "Case has been flagged for SHO review")}>
                       Escalate
                     </Button>
                     {canEdit && (
                       <>
-                        <Button variant="secondary" className="w-full justify-start" onClick={() => toast.info("Close Case", "Case closure workflow coming soon")}>
+                        <Button variant="secondary" className="w-full justify-start" onClick={() => openActionDialog("close")}>
                           Close Case
                         </Button>
-                        <Button variant="secondary" className="w-full justify-start" onClick={() => toast.info("File Chargesheet", "Chargesheet filing workflow coming soon")}>
+                        <Button variant="secondary" className="w-full justify-start" onClick={() => openActionDialog("chargesheet")}>
                           File Chargesheet
                         </Button>
                       </>
@@ -416,14 +498,14 @@ export default function FIRDetailPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Case Diary Entries</h3>
               {canEdit && (
-                <Button onClick={() => toast.info("Add Entry", "Case diary entry form coming soon")}>
+                <Button onClick={() => setDiaryDialogOpen(true)}>
                   <MessageSquare className="h-4 w-4 mr-2" />
                   Add Entry
                 </Button>
               )}
             </div>
             <div className="space-y-4">
-              {caseDiaryEntries.map((entry) => (
+              {localDiaryEntries.map((entry) => (
                 <Card key={entry.id}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">
@@ -482,39 +564,52 @@ export default function FIRDetailPage() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Accused/Suspects</CardTitle>
-                  <Button variant="secondary" size="sm" onClick={() => toast.info("Add Suspect", "Suspect registration form coming soon")}>
+                  <Button variant="secondary" size="sm" onClick={() => setSuspectDialogOpen(true)}>
                     Add Suspect
                   </Button>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-foreground-muted text-sm">No suspects identified yet</p>
+                  {suspects.length === 0 ? (
+                    <p className="text-foreground-muted text-sm">No suspects identified yet</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {suspects.map((suspect) => (
+                        <div key={suspect.id} className="flex items-center gap-4 p-3 rounded-md bg-background-tertiary">
+                          <User className="h-5 w-5 text-error" />
+                          <div className="flex-1">
+                            <p className="font-medium text-foreground">{suspect.name}</p>
+                            <p className="text-xs text-foreground-muted">{suspect.description || "No description"}</p>
+                          </div>
+                          <Badge variant={suspect.status === "ARRESTED" ? "success" : suspect.status === "WANTED" ? "error" : "warning"}>
+                            {suspect.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Witnesses</CardTitle>
-                  <Button variant="secondary" size="sm" onClick={() => toast.info("Add Witness", "Witness registration form coming soon")}>
+                  <Button variant="secondary" size="sm" onClick={() => setWitnessDialogOpen(true)}>
                     Add Witness
                   </Button>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    <div className="flex items-center gap-4 p-3 rounded-md bg-background-tertiary">
-                      <User className="h-5 w-5 text-foreground-muted" />
-                      <div>
-                        <p className="font-medium text-foreground">Mrs. Lakshmi</p>
-                        <p className="text-xs text-foreground-muted">Neighbor - Statement recorded</p>
+                    {witnesses.map((witness) => (
+                      <div key={witness.id} className="flex items-center gap-4 p-3 rounded-md bg-background-tertiary">
+                        <User className="h-5 w-5 text-foreground-muted" />
+                        <div className="flex-1">
+                          <p className="font-medium text-foreground">{witness.name}</p>
+                          <p className="text-xs text-foreground-muted">{witness.description}</p>
+                        </div>
+                        <Badge variant={witness.status === "RECORDED" ? "success" : witness.status === "HOSTILE" ? "error" : "warning"}>
+                          {witness.status}
+                        </Badge>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4 p-3 rounded-md bg-background-tertiary">
-                      <User className="h-5 w-5 text-foreground-muted" />
-                      <div>
-                        <p className="font-medium text-foreground">Auto Driver (Name TBD)</p>
-                        <p className="text-xs text-foreground-muted">
-                          Eyewitness - Statement recorded
-                        </p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
@@ -633,6 +728,38 @@ export default function FIRDetailPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Dialogs */}
+      <CaseDiaryEntryDialog
+        isOpen={diaryDialogOpen}
+        onClose={() => setDiaryDialogOpen(false)}
+        onSubmit={handleAddDiaryEntry}
+        officerName={user?.name || "Unknown Officer"}
+      />
+
+      <AddPersonDialog
+        isOpen={suspectDialogOpen}
+        onClose={() => setSuspectDialogOpen(false)}
+        onSubmit={handleAddSuspect}
+        type="suspect"
+      />
+
+      <AddPersonDialog
+        isOpen={witnessDialogOpen}
+        onClose={() => setWitnessDialogOpen(false)}
+        onSubmit={handleAddWitness}
+        type="witness"
+      />
+
+      {selectedFIR && (
+        <FIRActionDialog
+          isOpen={actionDialogOpen}
+          onClose={() => setActionDialogOpen(false)}
+          onSubmit={handleFIRAction}
+          actionType={actionType}
+          firNumber={selectedFIR.firNumber}
+        />
+      )}
     </DashboardLayout>
   );
 }

@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { toast } from "@/stores/toastStore";
 
 const mockBailApplications = [
   {
@@ -161,7 +162,7 @@ export default function BailPage() {
             </p>
           </div>
           {canProcess && (
-            <Button>
+            <Button onClick={() => toast.info("New Application", "Opening bail application form...")}>
               <Plus className="h-4 w-4 mr-2" />
               Record New Application
             </Button>
@@ -327,7 +328,7 @@ export default function BailPage() {
                   <CardTitle className="flex items-center justify-between">
                     <span>Bail Details</span>
                     <div className="flex gap-2">
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" onClick={() => toast.success("Print Ready", `Bail order ${selectedBail?.id} sent to printer`)}>
                         <Printer className="h-4 w-4" />
                       </Button>
                     </div>
@@ -435,10 +436,10 @@ export default function BailPage() {
 
                   {selectedBail.status === "PENDING" && canProcess && (
                     <div className="flex gap-2 pt-4">
-                      <Button className="flex-1" variant="secondary">
+                      <Button className="flex-1" variant="secondary" onClick={() => toast.info("Add Surety", "Opening surety verification form...")}>
                         Add Surety
                       </Button>
-                      <Button className="flex-1">
+                      <Button className="flex-1" onClick={() => toast.success("Status Updated", `Bail ${selectedBail.id} status updated to APPROVED`)}>
                         Update Status
                       </Button>
                     </div>

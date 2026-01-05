@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -17,22 +18,19 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { ReportGeneratorDialog } from "@/components/ui/ReportGeneratorDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
+import { useFIRStore } from "@/stores/firStore";
+import { useCasesStore } from "@/stores/casesStore";
+import { usePersonnelStore } from "@/stores/personnelStore";
+import { useAlertsStore } from "@/stores/alertsStore";
+import { useEvidenceStore } from "@/stores/evidenceStore";
+import { useVehiclesStore } from "@/stores/vehiclesStore";
+import { useArmouryStore } from "@/stores/armouryStore";
 
-// Mock data for demonstration
-const stats = {
-  firsToday: 12,
-  firsThisMonth: 245,
-  pendingCases: 89,
-  closedCases: 156,
-  officersOnDuty: 24,
-  totalOfficers: 32,
-  vehiclesActive: 8,
-  totalVehicles: 12,
-};
-
-const recentFIRs = [
+// Fallback mock data (used when stores are empty)
+const fallbackFIRs = [
   {
     id: "1",
     firNumber: "KOR/2024/00123",
@@ -62,7 +60,7 @@ const recentFIRs = [
   },
 ];
 
-const alerts = [
+const fallbackAlerts = [
   {
     id: "1",
     type: "FLASH",
@@ -177,19 +175,82 @@ function getAlertStyle(type: string) {
   }
 }
 
+function getRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 60) return `${diffMins} min ago`;
+  if (diffHours < 24) return `${diffHours} hours ago`;
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return date.toLocaleDateString();
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
+  const { firs, loadFIRs } = useFIRStore();
+  const { cases } = useCasesStore();
+  const { personnel } = usePersonnelStore();
+  const { alerts } = useAlertsStore();
+  const { evidence } = useEvidenceStore();
+  const { vehicles } = useVehiclesStore();
+  const { weapons } = useArmouryStore();
+
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+
   const isSHOOrAbove = user && hasMinimumRole(user.role, "SHO");
   const isSPOrAbove = user && hasMinimumRole(user.role, "SP");
 
+  // Load FIRs on mount
+  useEffect(() => {
+    loadFIRs();
+  }, [loadFIRs]);
+
+  // Compute real stats from stores
+  const computedStats = {
+    firsTotal: firs.length,
+    pendingCases: cases.filter(c => c.status === "INVESTIGATION" || c.status === "TRIAL").length,
+    closedCases: cases.filter(c => c.status === "CLOSED" || c.status === "JUDGMENT").length,
+    officersOnDuty: personnel.filter(p => p.status === "ON_DUTY").length,
+    totalOfficers: personnel.length,
+    vehiclesActive: vehicles.filter(v => v.status === "ON_DUTY").length,
+    totalVehicles: vehicles.length,
+    criticalAlerts: alerts.filter(a => a.type === "FLASH" && !a.acknowledged).length,
+    evidenceItems: evidence.length,
+    weaponsIssued: weapons.filter(w => w.status === "ISSUED").length,
+  };
+
+  // Get recent FIRs from store
+  const recentFIRsFromStore = firs.slice(0, 3).map(fir => ({
+    id: fir.id,
+    firNumber: fir.firNumber,
+    complainant: fir.complainantName,
+    offence: fir.offenceType,
+    status: fir.status,
+    priority: fir.priority,
+    time: getRelativeTime(fir.registeredAt),
+  }));
+
+  // Use store data if available, otherwise use fallback data
+  const displayFIRs = recentFIRsFromStore.length > 0 ? recentFIRsFromStore : fallbackFIRs;
+
+  // Get recent alerts from store
+  const recentAlertsFromStore = alerts.slice(0, 3).map(alert => ({
+    id: alert.id,
+    type: alert.type,
+    title: alert.title,
+    time: getRelativeTime(alert.issuedAt),
+  }));
+
+  const displayAlerts = recentAlertsFromStore.length > 0 ? recentAlertsFromStore : fallbackAlerts;
+
   const handleGenerateReport = () => {
-    addToast({
-      type: "info",
-      title: "Report Generation",
-      message: "Report generation feature coming soon",
-    });
+    setReportDialogOpen(true);
   };
 
   const handleAssignOfficers = () => {
@@ -210,31 +271,25 @@ export default function DashboardPage() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
-            title="FIRs Today"
-            value={stats.firsToday}
-            subtitle={`${stats.firsThisMonth} this month`}
+            title="Total FIRs"
+            value={computedStats.firsTotal}
+            subtitle={`${computedStats.vehiclesActive} vehicles active`}
             icon={FileText}
-            trend="up"
-            trendValue="+8% from yesterday"
           />
           <StatCard
             title="Pending Cases"
-            value={stats.pendingCases}
+            value={computedStats.pendingCases}
             icon={Briefcase}
-            trend="down"
-            trendValue="-3 from last week"
           />
           <StatCard
             title="Closed Cases"
-            value={stats.closedCases}
+            value={computedStats.closedCases}
             icon={CheckCircle}
-            trend="up"
-            trendValue="+12 this month"
           />
           {isSHOOrAbove && (
             <StatCard
               title="Officers on Duty"
-              value={`${stats.officersOnDuty}/${stats.totalOfficers}`}
+              value={`${computedStats.officersOnDuty}/${computedStats.totalOfficers}`}
               icon={Users}
             />
           )}
@@ -257,7 +312,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {recentFIRs.map((fir) => (
+                {displayFIRs.map((fir) => (
                   <Link href={`/fir/${fir.id}`} key={fir.id}>
                     <div
                       className="flex items-center justify-between p-4 rounded-lg bg-background-tertiary hover:bg-background-tertiary/80 transition-colors cursor-pointer"
@@ -297,12 +352,12 @@ export default function DashboardPage() {
                 Active Alerts
               </CardTitle>
               <Link href="/alerts">
-                <Badge variant="error" className="cursor-pointer">{alerts.length}</Badge>
+                <Badge variant="error" className="cursor-pointer">{displayAlerts.length}</Badge>
               </Link>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {alerts.map((alert) => (
+                {displayAlerts.map((alert) => (
                   <Link href="/alerts" key={alert.id}>
                     <div
                       className={`p-3 rounded-lg ${getAlertStyle(alert.type)} cursor-pointer hover:opacity-80 transition-opacity`}
@@ -368,6 +423,23 @@ export default function DashboardPage() {
           </Card>
         )}
       </div>
+
+      {/* Report Generator Dialog */}
+      <ReportGeneratorDialog
+        isOpen={reportDialogOpen}
+        onClose={() => setReportDialogOpen(false)}
+        stationName={user?.stationName || "Koramangala PS"}
+        reportData={{
+          totalFIRs: computedStats.firsTotal,
+          pendingCases: computedStats.pendingCases,
+          closedCases: computedStats.closedCases,
+          officersOnDuty: computedStats.officersOnDuty,
+          criticalAlerts: computedStats.criticalAlerts,
+          evidenceItems: computedStats.evidenceItems,
+          vehiclesActive: computedStats.vehiclesActive,
+          weaponsIssued: computedStats.weaponsIssued,
+        }}
+      />
     </DashboardLayout>
   );
 }

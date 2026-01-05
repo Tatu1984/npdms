@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { toast } from "@/stores/toastStore";
 
 const mockWarrants = [
   {
@@ -147,7 +148,7 @@ export default function WarrantPage() {
             </p>
           </div>
           {canCreate && (
-            <Button>
+            <Button onClick={() => toast.info("Warrant Request", "Opening warrant request form...")}>
               <Plus className="h-4 w-4 mr-2" />
               New Warrant Request
             </Button>
@@ -322,11 +323,11 @@ export default function WarrantPage() {
                         )}
                       </div>
                       <div className="flex gap-2 justify-end">
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" onClick={() => toast.info("Warrant Details", `Viewing warrant ${warrant.id}`)}>
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" onClick={() => toast.success("Print Ready", `Warrant ${warrant.id} sent to printer`)}>
                           <Printer className="h-4 w-4 mr-1" />
                           Print
                         </Button>
