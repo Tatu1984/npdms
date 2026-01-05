@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   FileWarning,
   Search,
@@ -27,7 +28,8 @@ import { toast } from "@/stores/toastStore";
 
 const mockWarrants = [
   {
-    id: "WAR-2024-00045",
+    id: "war-001",
+    warrantNumber: "WAR-2024-00045",
     type: "ARREST",
     status: "ACTIVE",
     issuedFor: "Rajesh Kumar Singh",
@@ -41,7 +43,8 @@ const mockWarrants = [
     priority: "HIGH",
   },
   {
-    id: "WAR-2024-00044",
+    id: "war-002",
+    warrantNumber: "WAR-2024-00044",
     type: "SEARCH",
     status: "EXECUTED",
     issuedFor: "Premises at 45, MG Road",
@@ -55,7 +58,8 @@ const mockWarrants = [
     priority: "MEDIUM",
   },
   {
-    id: "WAR-2024-00043",
+    id: "war-003",
+    warrantNumber: "WAR-2024-00043",
     type: "ARREST",
     status: "EXPIRED",
     issuedFor: "Unknown Male (Alias: Chotu)",
@@ -69,7 +73,8 @@ const mockWarrants = [
     priority: "LOW",
   },
   {
-    id: "WAR-2024-00042",
+    id: "war-004",
+    warrantNumber: "WAR-2024-00042",
     type: "SUMMONS",
     status: "ACTIVE",
     issuedFor: "Priya Sharma (Witness)",
@@ -82,7 +87,8 @@ const mockWarrants = [
     priority: "MEDIUM",
   },
   {
-    id: "WAR-2024-00041",
+    id: "war-005",
+    warrantNumber: "WAR-2024-00041",
     type: "NBW",
     status: "ACTIVE",
     issuedFor: "Mohammed Farooq",
@@ -121,7 +127,7 @@ export default function WarrantPage() {
 
   const filteredWarrants = mockWarrants.filter((warrant) => {
     const matchesSearch =
-      warrant.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      warrant.warrantNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       warrant.issuedFor.toLowerCase().includes(searchQuery.toLowerCase()) ||
       warrant.caseNumber.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = filterType === "ALL" || warrant.type === filterType;
@@ -265,7 +271,7 @@ export default function WarrantPage() {
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center gap-3">
-                          <span className="font-bold text-foreground">{warrant.id}</span>
+                          <span className="font-bold text-foreground">{warrant.warrantNumber}</span>
                           <Badge variant={typeConfig.color as any}>{typeConfig.label}</Badge>
                           <Badge variant={status.color as any}>
                             <StatusIcon className="h-3 w-3 mr-1" />
@@ -323,11 +329,13 @@ export default function WarrantPage() {
                         )}
                       </div>
                       <div className="flex gap-2 justify-end">
-                        <Button variant="ghost" size="sm" onClick={() => toast.info("Warrant Details", `Viewing warrant ${warrant.id}`)}>
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => toast.success("Print Ready", `Warrant ${warrant.id} sent to printer`)}>
+                        <Link href={`/warrant/${warrant.id}`}>
+                          <Button variant="ghost" size="sm">
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
+                        </Link>
+                        <Button variant="ghost" size="sm" onClick={() => { toast.info("Print", "Opening print dialog..."); window.print(); }}>
                           <Printer className="h-4 w-4 mr-1" />
                           Print
                         </Button>

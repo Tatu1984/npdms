@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Scale,
   Search,
@@ -17,6 +18,7 @@ import {
   Eye,
   Printer,
   UserCheck,
+  ExternalLink,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -28,7 +30,8 @@ import { toast } from "@/stores/toastStore";
 
 const mockBailApplications = [
   {
-    id: "BAIL-2024-00089",
+    id: "bail-001",
+    applicationNumber: "BAIL-2024-00089",
     accused: "Raju Kumar",
     caseNumber: "CASE-2024-00156",
     firNumber: "KOR/2024/00089",
@@ -52,7 +55,8 @@ const mockBailApplications = [
     ],
   },
   {
-    id: "BAIL-2024-00088",
+    id: "bail-002",
+    applicationNumber: "BAIL-2024-00088",
     accused: "Mohammed Farooq",
     caseNumber: "CASE-2024-00135",
     firNumber: "KOR/2024/00060",
@@ -67,7 +71,8 @@ const mockBailApplications = [
     judge: "Hon. Justice P.S. Reddy",
   },
   {
-    id: "BAIL-2024-00087",
+    id: "bail-003",
+    applicationNumber: "BAIL-2024-00087",
     accused: "Vijay Malhotra",
     caseNumber: "CASE-2024-00150",
     firNumber: "KOR/2024/00082",
@@ -81,7 +86,8 @@ const mockBailApplications = [
     lawyer: "Adv. Ramesh Verma",
   },
   {
-    id: "BAIL-2024-00086",
+    id: "bail-004",
+    applicationNumber: "BAIL-2024-00086",
     accused: "Anand Sharma",
     caseNumber: "CASE-2024-00145",
     firNumber: "KOR/2024/00077",
@@ -96,7 +102,8 @@ const mockBailApplications = [
     bailAmount: 100000,
   },
   {
-    id: "BAIL-2024-00085",
+    id: "bail-005",
+    applicationNumber: "BAIL-2024-00085",
     accused: "Priya Gupta",
     caseNumber: "CASE-2024-00142",
     firNumber: "KOR/2024/00072",
@@ -136,7 +143,7 @@ export default function BailPage() {
 
   const filteredApplications = mockBailApplications.filter((bail) => {
     const matchesSearch =
-      bail.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      bail.applicationNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       bail.accused.toLowerCase().includes(searchQuery.toLowerCase()) ||
       bail.caseNumber.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = filterStatus === "ALL" || bail.status === filterStatus;
@@ -277,7 +284,7 @@ export default function BailPage() {
                       <div className="flex items-start justify-between">
                         <div className="space-y-2">
                           <div className="flex items-center gap-3">
-                            <span className="font-bold text-foreground">{bail.id}</span>
+                            <span className="font-bold text-foreground">{bail.applicationNumber}</span>
                             <Badge variant={type.color as any}>{type.label}</Badge>
                             <Badge variant={status.color as any}>
                               <StatusIcon className="h-3 w-3 mr-1" />
@@ -328,16 +335,23 @@ export default function BailPage() {
                   <CardTitle className="flex items-center justify-between">
                     <span>Bail Details</span>
                     <div className="flex gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => toast.success("Print Ready", `Bail order ${selectedBail?.id} sent to printer`)}>
+                      <Button variant="ghost" size="sm" onClick={() => { toast.info("Print", "Opening print dialog..."); window.print(); }}>
                         <Printer className="h-4 w-4" />
                       </Button>
                     </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <Link href={`/bail/${selectedBail.id}`} className="block">
+                    <Button className="w-full" variant="secondary">
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      View Full Details
+                    </Button>
+                  </Link>
+
                   <div>
                     <p className="text-sm text-foreground-muted">Bail ID</p>
-                    <p className="font-medium text-foreground">{selectedBail.id}</p>
+                    <p className="font-medium text-foreground">{selectedBail.applicationNumber}</p>
                   </div>
 
                   <div>
@@ -439,7 +453,7 @@ export default function BailPage() {
                       <Button className="flex-1" variant="secondary" onClick={() => toast.info("Add Surety", "Opening surety verification form...")}>
                         Add Surety
                       </Button>
-                      <Button className="flex-1" onClick={() => toast.success("Status Updated", `Bail ${selectedBail.id} status updated to APPROVED`)}>
+                      <Button className="flex-1" onClick={() => toast.success("Status Updated", `Bail ${selectedBail.applicationNumber} status updated`)}>
                         Update Status
                       </Button>
                     </div>
