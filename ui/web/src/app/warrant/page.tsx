@@ -385,88 +385,116 @@ export default function WarrantPage() {
         description="Submit a request for a new warrant"
         size="lg"
       >
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Warrant Type *"
-              value={newWarrant.type}
-              onChange={(v: string) => setNewWarrant({ ...newWarrant, type: v as Warrant["type"] })}
-              options={warrantTypeOptions}
+        <div className="space-y-6">
+          {/* Warrant Type Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-foreground-muted uppercase tracking-wider">
+              Warrant Details
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Select
+                label="Warrant Type *"
+                value={newWarrant.type}
+                onChange={(v: string) => setNewWarrant({ ...newWarrant, type: v as Warrant["type"] })}
+                options={warrantTypeOptions}
+              />
+              <Select
+                label="Priority *"
+                value={newWarrant.priority}
+                onChange={(v: string) => setNewWarrant({ ...newWarrant, priority: v as Warrant["priority"] })}
+                options={priorityOptions}
+              />
+            </div>
+          </div>
+
+          {/* Subject Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-foreground-muted uppercase tracking-wider">
+              Subject Information
+            </h3>
+            <Input
+              label="Issued For (Person/Premises) *"
+              placeholder="Name of accused or address of premises"
+              value={newWarrant.issuedFor}
+              onChange={(v: string) => setNewWarrant({ ...newWarrant, issuedFor: v })}
             />
-            <Select
-              label="Priority *"
-              value={newWarrant.priority}
-              onChange={(v: string) => setNewWarrant({ ...newWarrant, priority: v as Warrant["priority"] })}
-              options={priorityOptions}
+            <Input
+              label="Last Known Location"
+              placeholder="Address or area"
+              value={newWarrant.lastKnownLocation}
+              onChange={(v: string) => setNewWarrant({ ...newWarrant, lastKnownLocation: v })}
+              icon={<MapPin className="h-4 w-4" />}
             />
           </div>
 
-          <Input
-            label="Issued For (Person/Premises) *"
-            placeholder="Name of accused or address of premises"
-            value={newWarrant.issuedFor}
-            onChange={(v: string) => setNewWarrant({ ...newWarrant, issuedFor: v })}
-          />
-
-          <div className="grid grid-cols-2 gap-4">
+          {/* Case Reference Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-foreground-muted uppercase tracking-wider">
+              Case Reference
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Case Number *"
+                placeholder="CASE-2024-XXXXX"
+                value={newWarrant.caseNumber}
+                onChange={(v: string) => setNewWarrant({ ...newWarrant, caseNumber: v })}
+              />
+              <Input
+                label="FIR Number *"
+                placeholder="KOR/2024/XXXXX"
+                value={newWarrant.firNumber}
+                onChange={(v: string) => setNewWarrant({ ...newWarrant, firNumber: v })}
+              />
+            </div>
             <Input
-              label="Case Number *"
-              placeholder="CASE-2024-XXXXX"
-              value={newWarrant.caseNumber}
-              onChange={(v: string) => setNewWarrant({ ...newWarrant, caseNumber: v })}
-            />
-            <Input
-              label="FIR Number *"
-              placeholder="KOR/2024/XXXXX"
-              value={newWarrant.firNumber}
-              onChange={(v: string) => setNewWarrant({ ...newWarrant, firNumber: v })}
-            />
-          </div>
-
-          <Input
-            label="Issuing Authority *"
-            placeholder="Sessions Court, Koramangala"
-            value={newWarrant.issuedBy}
-            onChange={(v: string) => setNewWarrant({ ...newWarrant, issuedBy: v })}
-          />
-
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Issue Date *"
-              type="date"
-              value={newWarrant.issuedDate}
-              onChange={(v: string) => setNewWarrant({ ...newWarrant, issuedDate: v })}
-            />
-            <Input
-              label="Valid Until *"
-              type="date"
-              value={newWarrant.validUntil}
-              onChange={(v: string) => setNewWarrant({ ...newWarrant, validUntil: v })}
+              label="Charges (comma separated)"
+              placeholder="IPC 392, IPC 397"
+              value={newWarrant.charges}
+              onChange={(v: string) => setNewWarrant({ ...newWarrant, charges: v })}
             />
           </div>
 
-          <Input
-            label="Charges (comma separated)"
-            placeholder="IPC 392, IPC 397"
-            value={newWarrant.charges}
-            onChange={(v: string) => setNewWarrant({ ...newWarrant, charges: v })}
-          />
+          {/* Court Information Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-foreground-muted uppercase tracking-wider">
+              Court Information
+            </h3>
+            <Input
+              label="Issuing Authority *"
+              placeholder="Sessions Court, Koramangala"
+              value={newWarrant.issuedBy}
+              onChange={(v: string) => setNewWarrant({ ...newWarrant, issuedBy: v })}
+              icon={<Gavel className="h-4 w-4" />}
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Issue Date *"
+                type="date"
+                value={newWarrant.issuedDate}
+                onChange={(v: string) => setNewWarrant({ ...newWarrant, issuedDate: v })}
+              />
+              <Input
+                label="Valid Until *"
+                type="date"
+                value={newWarrant.validUntil}
+                onChange={(v: string) => setNewWarrant({ ...newWarrant, validUntil: v })}
+              />
+            </div>
+          </div>
 
-          <Input
-            label="Last Known Location"
-            placeholder="Address or area"
-            value={newWarrant.lastKnownLocation}
-            onChange={(v: string) => setNewWarrant({ ...newWarrant, lastKnownLocation: v })}
-            icon={<MapPin className="h-4 w-4" />}
-          />
-
-          <Textarea
-            label="Description / Notes"
-            placeholder="Additional details about the warrant..."
-            value={newWarrant.description}
-            onChange={(v: string) => setNewWarrant({ ...newWarrant, description: v })}
-            rows={3}
-          />
+          {/* Additional Notes Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-foreground-muted uppercase tracking-wider">
+              Additional Notes
+            </h3>
+            <Textarea
+              label="Description / Notes"
+              placeholder="Additional details about the warrant..."
+              value={newWarrant.description}
+              onChange={(v: string) => setNewWarrant({ ...newWarrant, description: v })}
+              rows={3}
+            />
+          </div>
         </div>
 
         <ModalFooter>

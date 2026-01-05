@@ -44,20 +44,21 @@ export function Modal({
       />
 
       {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
         <div
           className={cn(
-            "w-full bg-background-secondary border border-border rounded-lg shadow-xl animate-slide-in",
+            "w-full bg-background-secondary border border-border rounded-lg shadow-xl animate-slide-in my-auto flex flex-col max-h-[90vh]",
             sizeClasses[size]
           )}
           role="dialog"
           aria-modal="true"
           aria-labelledby={title ? "modal-title" : undefined}
           aria-describedby={description ? "modal-description" : undefined}
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           {(title || showCloseButton) && (
-            <div className="flex items-center justify-between p-6 border-b border-border">
+            <div className="flex items-center justify-between p-6 border-b border-border flex-shrink-0">
               <div>
                 {title && (
                   <h2
@@ -90,7 +91,7 @@ export function Modal({
           )}
 
           {/* Content */}
-          <div className="p-6">{children}</div>
+          <div className="p-6 overflow-y-auto flex-1">{children}</div>
         </div>
       </div>
     </Fragment>
@@ -106,7 +107,7 @@ export function ModalFooter({ children, className }: ModalFooterProps) {
   return (
     <div
       className={cn(
-        "flex items-center justify-end gap-3 pt-4 border-t border-border -mx-6 -mb-6 px-6 py-4 mt-6 bg-background-tertiary/50 rounded-b-lg",
+        "flex items-center justify-end gap-3 pt-4 border-t border-border mt-6 -mx-6 px-6 py-4 bg-background-tertiary/50",
         className
       )}
     >
