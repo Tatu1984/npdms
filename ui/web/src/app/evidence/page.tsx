@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Package,
@@ -10,7 +10,7 @@ import {
   Eye,
   Download,
   FileText,
-  Camera,
+  Trash2,
   HardDrive,
   AlertCircle,
   CheckCircle,
@@ -26,7 +26,11 @@ import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { useEvidenceStore, type Evidence } from "@/stores/evidenceStore";
+import { exportToCSV, exportConfigs } from "@/lib/utils/export";
+import { toast } from "@/stores/toastStore";
 
 const typeOptions = [
   { value: "", label: "All Types" },
@@ -42,85 +46,6 @@ const statusOptions = [
   { value: "AT_LAB", label: "At Lab" },
   { value: "RETURNED", label: "Returned" },
   { value: "DISPOSED", label: "Disposed" },
-];
-
-// Mock evidence data
-const mockEvidence = [
-  {
-    id: "evd-001",
-    evidenceNumber: "EVD-2024-KOR-00123-001",
-    firNumber: "KOR/2024/00123",
-    type: "PHYSICAL",
-    category: "Fingerprint Sample",
-    description: "Fingerprint lifted from door handle at scene",
-    collectedBy: "SI Suresh",
-    collectedAt: "2024-01-15T15:45:00Z",
-    location: "Crime Scene - Door Handle",
-    status: "AT_LAB",
-    currentCustodian: "FSL Bangalore",
-    integrityVerified: true,
-    hash: "sha256:a3b4c5d6...",
-  },
-  {
-    id: "evd-002",
-    evidenceNumber: "EVD-2024-KOR-00123-002",
-    firNumber: "KOR/2024/00123",
-    type: "DIGITAL",
-    category: "CCTV Footage",
-    description: "Footage from Sharma Stores (14:00-15:00 hours)",
-    collectedBy: "SI Suresh",
-    collectedAt: "2024-01-16T10:30:00Z",
-    location: "Sharma Stores",
-    status: "IN_CUSTODY",
-    currentCustodian: "Evidence Vault",
-    integrityVerified: true,
-    hash: "sha256:d4e5f6g7...",
-    fileSize: "2.3 GB",
-  },
-  {
-    id: "evd-003",
-    evidenceNumber: "EVD-2024-KOR-00123-003",
-    firNumber: "KOR/2024/00123",
-    type: "PHYSICAL",
-    category: "Broken Lock",
-    description: "Broken padlock from main gate",
-    collectedBy: "Const. Ramesh",
-    collectedAt: "2024-01-15T16:00:00Z",
-    location: "Main Gate",
-    status: "IN_CUSTODY",
-    currentCustodian: "Station Malkhana",
-    integrityVerified: true,
-    sealNumber: "KOR-2024-0456",
-  },
-  {
-    id: "evd-004",
-    evidenceNumber: "EVD-2024-KOR-00122-001",
-    firNumber: "KOR/2024/00122",
-    type: "DOCUMENTARY",
-    category: "Witness Statement",
-    description: "Written statement of Mrs. Lakshmi",
-    collectedBy: "Const. Ramesh",
-    collectedAt: "2024-01-15T18:00:00Z",
-    location: "Police Station",
-    status: "IN_CUSTODY",
-    currentCustodian: "Case File",
-    integrityVerified: true,
-  },
-  {
-    id: "evd-005",
-    evidenceNumber: "EVD-2024-KOR-00121-001",
-    firNumber: "KOR/2024/00121",
-    type: "DIGITAL",
-    category: "Bank Statement",
-    description: "Transaction records showing fraudulent transfer",
-    collectedBy: "SI Suresh",
-    collectedAt: "2024-01-14T14:00:00Z",
-    location: "Received via email from bank",
-    status: "IN_CUSTODY",
-    currentCustodian: "Digital Evidence Server",
-    integrityVerified: true,
-    hash: "sha256:h8i9j0k1...",
-  },
 ];
 
 // Mock chain of custody entries
@@ -213,34 +138,71 @@ function getStatusBadgeVariant(status: string) {
 
 export default function EvidencePage() {
   const { user } = useAuthStore();
+  const { evidence, isLoading, loadEvidence, deleteEvidence, getFilteredEvidence, setFilters, filters } = useEvidenceStore();
   const [activeTab, setActiveTab] = useState("registry");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [evidenceToDelete, setEvidenceToDelete] = useState<Evidence | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const canAddEvidence = user && hasMinimumRole(user.role, "CONSTABLE");
   const canTransfer = user && hasMinimumRole(user.role, "SI");
+  const canDelete = user && hasMinimumRole(user.role, "SP");
 
-  const filteredEvidence = mockEvidence.filter((e) => {
-    if (typeFilter && e.type !== typeFilter) return false;
-    if (statusFilter && e.status !== statusFilter) return false;
-    if (searchQuery) {
-      const search = searchQuery.toLowerCase();
-      return (
-        e.evidenceNumber.toLowerCase().includes(search) ||
-        e.firNumber.toLowerCase().includes(search) ||
-        e.category.toLowerCase().includes(search) ||
-        e.description.toLowerCase().includes(search)
-      );
+  useEffect(() => {
+    loadEvidence();
+  }, [loadEvidence]);
+
+  const handleSearch = (value: string) => {
+    setSearchQuery(value);
+    setFilters({ ...filters, search: value });
+  };
+
+  const handleTypeFilter = (value: string) => {
+    setTypeFilter(value);
+    setFilters({ ...filters, type: value as Evidence["type"] | undefined });
+  };
+
+  const handleStatusFilter = (value: string) => {
+    setStatusFilter(value);
+    setFilters({ ...filters, status: value as Evidence["status"] | undefined });
+  };
+
+  const handleExport = () => {
+    const data = getFilteredEvidence();
+    exportToCSV(data, "evidence_export", exportConfigs.evidence as any);
+    toast.success("Export successful", "Evidence data exported to CSV");
+  };
+
+  const handleDeleteClick = (item: Evidence) => {
+    setEvidenceToDelete(item);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!evidenceToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteEvidence(evidenceToDelete.id);
+      toast.success("Evidence deleted", `Evidence ${evidenceToDelete.evidenceNumber} has been deleted`);
+      setDeleteDialogOpen(false);
+      setEvidenceToDelete(null);
+    } catch (error) {
+      toast.error("Error", "Failed to delete evidence");
+    } finally {
+      setIsDeleting(false);
     }
-    return true;
-  });
+  };
+
+  const filteredEvidence = getFilteredEvidence();
 
   const stats = {
-    total: mockEvidence.length,
-    physical: mockEvidence.filter((e) => e.type === "PHYSICAL").length,
-    digital: mockEvidence.filter((e) => e.type === "DIGITAL").length,
-    atLab: mockEvidence.filter((e) => e.status === "AT_LAB").length,
+    total: evidence.length,
+    physical: evidence.filter((e) => e.type === "PHYSICAL").length,
+    digital: evidence.filter((e) => e.type === "DIGITAL").length,
+    atLab: evidence.filter((e) => e.status === "AT_LAB").length,
   };
 
   return (
@@ -339,25 +301,25 @@ export default function EvidencePage() {
                     <Input
                       placeholder="Search by evidence number, FIR, or description..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={handleSearch}
                       icon={<Search className="h-4 w-4" />}
                     />
                   </div>
                   <Select
                     options={typeOptions}
                     value={typeFilter}
-                    onChange={setTypeFilter}
+                    onChange={handleTypeFilter}
                     className="w-full md:w-40"
                   />
                   <Select
                     options={statusOptions}
                     value={statusFilter}
-                    onChange={setStatusFilter}
+                    onChange={handleStatusFilter}
                     className="w-full md:w-40"
                   />
-                  <Button variant="secondary">
-                    <Filter className="h-4 w-4 mr-2" />
-                    More Filters
+                  <Button variant="secondary" onClick={handleExport}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
                   </Button>
                 </div>
               </CardContent>
@@ -386,40 +348,40 @@ export default function EvidencePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredEvidence.map((evidence) => (
-                      <TableRow key={evidence.id} className="hover:bg-background-tertiary">
+                    {filteredEvidence.map((item) => (
+                      <TableRow key={item.id} className="hover:bg-background-tertiary">
                         <TableCell>
                           <span className="font-mono text-accent text-sm">
-                            {evidence.evidenceNumber}
+                            {item.evidenceNumber}
                           </span>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {getTypeIcon(evidence.type)}
-                            <span className="text-foreground">{evidence.type}</span>
+                            {getTypeIcon(item.type)}
+                            <span className="text-foreground">{item.type}</span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-foreground">{evidence.category}</span>
+                          <span className="text-foreground">{item.category}</span>
                         </TableCell>
                         <TableCell>
                           <Link
-                            href={`/fir/${evidence.firNumber}`}
+                            href={`/fir/${item.firId}`}
                             className="font-mono text-accent hover:underline"
                           >
-                            {evidence.firNumber}
+                            {item.firNumber}
                           </Link>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={getStatusBadgeVariant(evidence.status) as any}>
-                            {evidence.status.replace(/_/g, " ")}
+                          <Badge variant={getStatusBadgeVariant(item.status) as any}>
+                            {item.status.replace(/_/g, " ")}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <span className="text-foreground-muted">{evidence.currentCustodian}</span>
+                          <span className="text-foreground-muted">{item.currentCustodian}</span>
                         </TableCell>
                         <TableCell>
-                          {evidence.integrityVerified ? (
+                          {item.integrityVerified ? (
                             <div className="flex items-center gap-1 text-success">
                               <CheckCircle className="h-4 w-4" />
                               <span className="text-xs">Verified</span>
@@ -433,12 +395,23 @@ export default function EvidencePage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                            <Link href={`/evidence/${item.id}`}>
+                              <Button variant="ghost" size="sm">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </Link>
                             {canTransfer && (
                               <Button variant="ghost" size="sm">
                                 <LinkIcon className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {canDelete && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteClick(item)}
+                              >
+                                <Trash2 className="h-4 w-4 text-error" />
                               </Button>
                             )}
                           </div>
@@ -463,12 +436,12 @@ export default function EvidencePage() {
                     label="Select Evidence"
                     options={[
                       { value: "", label: "Select evidence to view chain" },
-                      ...mockEvidence.map((e) => ({
+                      ...evidence.map((e) => ({
                         value: e.id,
                         label: `${e.evidenceNumber} - ${e.category}`,
                       })),
                     ]}
-                    value="evd-001"
+                    value={evidence[0]?.id || ""}
                     onChange={() => {}}
                   />
                 </div>
@@ -598,6 +571,21 @@ export default function EvidencePage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => {
+          setDeleteDialogOpen(false);
+          setEvidenceToDelete(null);
+        }}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Evidence"
+        message={`Are you sure you want to delete evidence ${evidenceToDelete?.evidenceNumber}? This action cannot be undone.`}
+        confirmText="Delete"
+        type="danger"
+        isLoading={isDeleting}
+      />
     </DashboardLayout>
   );
 }

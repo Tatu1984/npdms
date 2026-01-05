@@ -307,7 +307,7 @@ export default function LookoutPage() {
                     <Input
                       placeholder="Search by ID, name, or description..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={setSearchQuery}
                       icon={<Search className="h-4 w-4" />}
                     />
                   </div>

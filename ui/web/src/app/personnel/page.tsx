@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Users,
   Search,
@@ -316,7 +317,7 @@ export default function PersonnelPage() {
                     <Input
                       placeholder="Search by name, badge number, or phone..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={setSearchQuery}
                       icon={<Search className="h-4 w-4" />}
                     />
                   </div>
@@ -397,9 +398,11 @@ export default function PersonnelPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                            <Link href={`/personnel/${person.id}`}>
+                              <Button variant="ghost" size="sm">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </Link>
                             {canManage && (
                               <Button variant="ghost" size="sm">
                                 <Briefcase className="h-4 w-4" />

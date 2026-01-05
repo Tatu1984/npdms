@@ -122,7 +122,7 @@ export default function SearchPage() {
                 <Input
                   placeholder="Search by FIR number, case number, name, vehicle number, phone number..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={setSearchQuery}
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   className="text-lg py-6"
                   icon={<Search className="h-5 w-5" />}

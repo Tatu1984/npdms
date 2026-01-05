@@ -19,6 +19,11 @@ import {
   Search,
   AlertTriangle,
   MapPin,
+  FileWarning,
+  Scale,
+  Gavel,
+  Microscope,
+  FileSearch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
@@ -36,10 +41,15 @@ const navigation: NavItem[] = [
   { name: "FIR Management", href: "/fir", icon: FileText },
   { name: "Case Tracking", href: "/cases", icon: Briefcase },
   { name: "Evidence", href: "/evidence", icon: Package },
+  { name: "Warrants", href: "/warrant", icon: FileWarning },
+  { name: "Bail Processing", href: "/bail", icon: Scale },
+  { name: "Court", href: "/court", icon: Gavel },
+  { name: "Forensics", href: "/forensics", icon: Microscope },
   { name: "Personnel", href: "/personnel", icon: Users, minRole: "SHO" },
   { name: "Vehicles", href: "/vehicles", icon: Car, minRole: "SHO" },
   { name: "Armoury", href: "/armoury", icon: Shield, minRole: "SHO" },
   { name: "Analytics", href: "/analytics", icon: BarChart3, minRole: "SP" },
+  { name: "Audit Logs", href: "/audit", icon: FileSearch, minRole: "DSP" },
   { name: "Alerts", href: "/alerts", icon: Bell },
   { name: "Lookout", href: "/lookout", icon: AlertTriangle },
   { name: "GIS Mapping", href: "/gis", icon: MapPin, minRole: "SHO" },

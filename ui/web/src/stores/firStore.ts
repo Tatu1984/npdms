@@ -140,6 +140,7 @@ interface FIRState {
   setFilters: (filters: FIRFilters) => void;
   createFIR: (fir: Omit<FIR, "id" | "firNumber" | "registeredAt" | "updatedAt">) => Promise<FIR>;
   updateFIR: (id: string, updates: Partial<FIR>) => Promise<void>;
+  deleteFIR: (id: string) => Promise<void>;
   getFilteredFIRs: () => FIR[];
 }
 
@@ -194,6 +195,17 @@ export const useFIRStore = create<FIRState>((set, get) => ({
         state.selectedFIR?.id === id
           ? { ...state.selectedFIR, ...updates, updatedAt: new Date().toISOString() }
           : state.selectedFIR,
+      isLoading: false,
+    }));
+  },
+
+  deleteFIR: async (id) => {
+    set({ isLoading: true });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    set((state) => ({
+      firs: state.firs.filter((fir) => fir.id !== id),
+      selectedFIR: state.selectedFIR?.id === id ? null : state.selectedFIR,
       isLoading: false,
     }));
   },

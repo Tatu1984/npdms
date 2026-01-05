@@ -10,6 +10,7 @@ import {
   Download,
   Eye,
   Edit,
+  Trash2,
   Clock,
   ChevronLeft,
   ChevronRight,
@@ -21,9 +22,12 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useFIRStore } from "@/stores/firStore";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
-import type { FIRStatus, FIRPriority } from "@/types";
+import { exportToCSV, exportConfigs } from "@/lib/utils/export";
+import { toast } from "@/stores/toastStore";
+import type { FIR, FIRStatus, FIRPriority } from "@/types";
 
 const statusOptions = [
   { value: "", label: "All Statuses" },
@@ -82,13 +86,17 @@ function formatTime(timeString: string) {
 
 export default function FIRListPage() {
   const { user } = useAuthStore();
-  const { firs, filters, isLoading, loadFIRs, setFilters, getFilteredFIRs } = useFIRStore();
+  const { firs, filters, isLoading, loadFIRs, setFilters, deleteFIR, getFilteredFIRs } = useFIRStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [firToDelete, setFirToDelete] = useState<FIR | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const itemsPerPage = 10;
 
   const canCreateFIR = user && hasMinimumRole(user.role, "CONSTABLE");
   const canEditFIR = user && hasMinimumRole(user.role, "SI");
+  const canDeleteFIR = user && hasMinimumRole(user.role, "SP");
 
   useEffect(() => {
     loadFIRs();
@@ -108,6 +116,32 @@ export default function FIRListPage() {
   const handlePriorityFilter = (value: string) => {
     setFilters({ ...filters, priority: value as FIRPriority | undefined });
     setCurrentPage(1);
+  };
+
+  const handleExport = () => {
+    const data = getFilteredFIRs();
+    exportToCSV(data, "fir_export", exportConfigs.firs as any);
+    toast.success("Export successful", "FIR data exported to CSV");
+  };
+
+  const handleDeleteClick = (fir: FIR) => {
+    setFirToDelete(fir);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!firToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteFIR(firToDelete.id);
+      toast.success("FIR deleted", `FIR ${firToDelete.firNumber} has been deleted`);
+      setDeleteDialogOpen(false);
+      setFirToDelete(null);
+    } catch (error) {
+      toast.error("Error", "Failed to delete FIR");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const filteredFIRs = getFilteredFIRs();
@@ -200,7 +234,7 @@ export default function FIRListPage() {
                 <Input
                   placeholder="Search by FIR number, complainant, or offence..."
                   value={searchQuery}
-                  onChange={(e) => handleSearch(e.target.value)}
+                  onChange={(v: string) => handleSearch(v)}
                   icon={<Search className="h-4 w-4" />}
                 />
               </div>
@@ -220,7 +254,7 @@ export default function FIRListPage() {
                 <Filter className="h-4 w-4 mr-2" />
                 More Filters
               </Button>
-              <Button variant="ghost">
+              <Button variant="secondary" onClick={handleExport}>
                 <Download className="h-4 w-4 mr-2" />
                 Export
               </Button>
@@ -311,6 +345,15 @@ export default function FIRListPage() {
                                 </Button>
                               </Link>
                             )}
+                            {canDeleteFIR && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteClick(fir)}
+                              >
+                                <Trash2 className="h-4 w-4 text-error" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -356,6 +399,21 @@ export default function FIRListPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => {
+          setDeleteDialogOpen(false);
+          setFirToDelete(null);
+        }}
+        onConfirm={handleDeleteConfirm}
+        title="Delete FIR"
+        message={`Are you sure you want to delete FIR ${firToDelete?.firNumber}? This action cannot be undone.`}
+        confirmText="Delete"
+        type="danger"
+        isLoading={isDeleting}
+      />
     </DashboardLayout>
   );
 }

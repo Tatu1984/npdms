@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   FileText,
   Mic,
@@ -25,9 +28,62 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { useFIRStore } from "@/stores/firStore";
 import { useAuthStore } from "@/stores/authStore";
+import { sanitizeString } from "@/lib/validations";
+
+// Validation Schema
+const firFormSchema = z.object({
+  // Complainant
+  complainantName: z.string()
+    .min(2, "Name must be at least 2 characters")
+    .max(100, "Name must be less than 100 characters")
+    .transform(sanitizeString),
+  complainantFatherName: z.string().max(100).optional().transform(v => v ? sanitizeString(v) : v),
+  complainantAddress: z.string()
+    .min(10, "Address must be at least 10 characters")
+    .max(500, "Address must be less than 500 characters")
+    .transform(sanitizeString),
+  complainantPhone: z.string()
+    .regex(/^[6-9]\d{9}$/, "Invalid phone number (must be 10 digits starting with 6-9)"),
+  complainantAltPhone: z.string()
+    .regex(/^[6-9]\d{9}$/, "Invalid phone number")
+    .optional()
+    .or(z.literal("")),
+  complainantIdType: z.string().optional(),
+  complainantIdNumber: z.string().max(50).optional(),
+  complainantAge: z.string()
+    .min(1, "Age is required")
+    .refine(v => {
+      const age = parseInt(v);
+      return !isNaN(age) && age > 0 && age < 150;
+    }, "Age must be between 1 and 150"),
+  complainantGender: z.enum(["Male", "Female", "Other"], {
+    message: "Please select a gender"
+  }),
+  // Incident
+  incidentDate: z.string().min(1, "Incident date is required"),
+  incidentTime: z.string().optional(),
+  incidentTimeApprox: z.boolean().default(false),
+  incidentLocation: z.string()
+    .min(5, "Location must be at least 5 characters")
+    .max(500, "Location must be less than 500 characters")
+    .transform(sanitizeString),
+  incidentBeat: z.string().max(100).optional().transform(v => v ? sanitizeString(v) : v),
+  // Offence
+  offenceCategory: z.string().min(1, "Offence category is required"),
+  offenceType: z.string().min(1, "Offence type is required"),
+  ipcSections: z.array(z.string()).min(1, "At least one IPC section is required"),
+  description: z.string()
+    .min(50, "Description must be at least 50 characters")
+    .max(5000, "Description must be less than 5000 characters")
+    .transform(sanitizeString),
+  // Accused
+  accusedKnown: z.boolean().default(false),
+  accusedDetails: z.string().max(1000).optional().transform(v => v ? sanitizeString(v) : v),
+});
+
+type FIRFormData = z.input<typeof firFormSchema>;
 
 const offenceCategories = [
   { value: "", label: "Select Category" },
@@ -117,44 +173,51 @@ interface PropertyItem {
 export default function NewFIRPage() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { createFIR, isLoading } = useFIRStore();
+  const { createFIR } = useFIRStore();
 
   const [inputMode, setInputMode] = useState<"type" | "voice" | "scan" | "upload">("type");
-  const [formData, setFormData] = useState({
-    // Complainant
-    complainantName: "",
-    complainantFatherName: "",
-    complainantAddress: "",
-    complainantPhone: "",
-    complainantAltPhone: "",
-    complainantIdType: "",
-    complainantIdNumber: "",
-    complainantAge: "",
-    complainantGender: "",
-    // Incident
-    incidentDate: new Date().toISOString().split("T")[0],
-    incidentTime: "",
-    incidentTimeApprox: false,
-    incidentLocation: "",
-    incidentBeat: "",
-    // Offence
-    offenceCategory: "",
-    offenceType: "",
-    ipcSections: [] as string[],
-    description: "",
-    // Accused
-    accusedKnown: false,
-    accusedDetails: "",
-  });
-
   const [propertyItems, setPropertyItems] = useState<PropertyItem[]>([]);
   const [attachments, setAttachments] = useState<{ name: string; size: string; status: string }[]>([]);
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [verificationChecked, setVerificationChecked] = useState(false);
 
-  const handleInputChange = (field: string, value: string | boolean | string[]) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<FIRFormData>({
+    resolver: zodResolver(firFormSchema),
+    defaultValues: {
+      complainantName: "",
+      complainantFatherName: "",
+      complainantAddress: "",
+      complainantPhone: "",
+      complainantAltPhone: "",
+      complainantIdType: "",
+      complainantIdNumber: "",
+      complainantAge: "",
+      complainantGender: undefined,
+      incidentDate: new Date().toISOString().split("T")[0],
+      incidentTime: "",
+      incidentTimeApprox: false,
+      incidentLocation: "",
+      incidentBeat: "",
+      offenceCategory: "",
+      offenceType: "",
+      ipcSections: [],
+      description: "",
+      accusedKnown: false,
+      accusedDetails: "",
+    },
+  });
+
+  const offenceCategory = watch("offenceCategory");
+  const offenceType = watch("offenceType");
+  const description = watch("description") || "";
+  const ipcSections = watch("ipcSections") || [];
 
   const addPropertyItem = () => {
     setPropertyItems((prev) => [
@@ -174,34 +237,37 @@ export default function NewFIRPage() {
   };
 
   const toggleIPCSection = (section: string) => {
-    if (selectedSuggestions.includes(section)) {
+    const currentSections = ipcSections;
+    if (currentSections.includes(section)) {
       setSelectedSuggestions((prev) => prev.filter((s) => s !== section));
-      handleInputChange(
-        "ipcSections",
-        formData.ipcSections.filter((s) => s !== section)
-      );
+      setValue("ipcSections", currentSections.filter((s) => s !== section));
     } else {
       setSelectedSuggestions((prev) => [...prev, section]);
-      handleInputChange("ipcSections", [...formData.ipcSections, section]);
+      setValue("ipcSections", [...currentSections, section]);
     }
   };
 
-  const handleSubmit = async () => {
+  const onSubmit = async (data: FIRFormData) => {
+    if (!verificationChecked) {
+      alert("Please verify the information accuracy before submitting.");
+      return;
+    }
+
     setIsSaving(true);
     try {
       await createFIR({
         stationId: user?.stationId || "",
         stationName: user?.stationName || "",
-        complainantName: formData.complainantName,
-        complainantPhone: formData.complainantPhone,
-        complainantAddress: formData.complainantAddress,
-        incidentDate: formData.incidentDate,
-        incidentTime: formData.incidentTime,
-        incidentLocation: formData.incidentLocation,
-        offenceCategory: formData.offenceCategory,
-        offenceType: formData.offenceType,
-        ipcSections: formData.ipcSections,
-        description: formData.description,
+        complainantName: data.complainantName,
+        complainantPhone: data.complainantPhone,
+        complainantAddress: data.complainantAddress,
+        incidentDate: data.incidentDate,
+        incidentTime: data.incidentTime || "",
+        incidentLocation: data.incidentLocation,
+        offenceCategory: data.offenceCategory,
+        offenceType: data.offenceType,
+        ipcSections: data.ipcSections,
+        description: data.description,
         status: "REGISTERED",
         priority: "NORMAL",
         registeredBy: user?.id || "",
@@ -214,19 +280,26 @@ export default function NewFIRPage() {
     }
   };
 
-  const suggestions = formData.offenceType ? ipcSectionSuggestions[formData.offenceType] || [] : [];
+  const suggestions = offenceType ? ipcSectionSuggestions[offenceType] || [] : [];
   const totalPropertyValue = propertyItems.reduce(
     (sum, item) => sum + (parseFloat(item.estimatedValue) || 0),
     0
   );
 
+  // Helper to show field error
+  const FieldError = ({ name }: { name: keyof FIRFormData }) => {
+    const error = errors[name];
+    if (!error) return null;
+    return <p className="text-sm text-red-500 mt-1">{error.message}</p>;
+  };
+
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => router.back()}>
+            <Button type="button" variant="ghost" onClick={() => router.back()}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
@@ -249,6 +322,7 @@ export default function NewFIRPage() {
           <CardContent>
             <div className="flex gap-3">
               <Button
+                type="button"
                 variant={inputMode === "type" ? "default" : "secondary"}
                 onClick={() => setInputMode("type")}
               >
@@ -256,6 +330,7 @@ export default function NewFIRPage() {
                 Type
               </Button>
               <Button
+                type="button"
                 variant={inputMode === "voice" ? "default" : "secondary"}
                 onClick={() => setInputMode("voice")}
               >
@@ -263,6 +338,7 @@ export default function NewFIRPage() {
                 Voice
               </Button>
               <Button
+                type="button"
                 variant={inputMode === "scan" ? "default" : "secondary"}
                 onClick={() => setInputMode("scan")}
               >
@@ -270,6 +346,7 @@ export default function NewFIRPage() {
                 Scan Handwritten
               </Button>
               <Button
+                type="button"
                 variant={inputMode === "upload" ? "default" : "secondary"}
                 onClick={() => setInputMode("upload")}
               >
@@ -290,72 +367,89 @@ export default function NewFIRPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Name *"
-                    value={formData.complainantName}
-                    onChange={(e) => handleInputChange("complainantName", e.target.value)}
-                    placeholder="Full name of complainant"
-                    required
-                  />
-                  <Input
-                    label="Father's/Husband's Name"
-                    value={formData.complainantFatherName}
-                    onChange={(e) => handleInputChange("complainantFatherName", e.target.value)}
-                    placeholder="Father's or husband's name"
-                  />
+                  <div>
+                    <Input
+                      label="Name *"
+                      {...register("complainantName")}
+                      placeholder="Full name of complainant"
+                      error={!!errors.complainantName}
+                    />
+                    <FieldError name="complainantName" />
+                  </div>
+                  <div>
+                    <Input
+                      label="Father's/Husband's Name"
+                      {...register("complainantFatherName")}
+                      placeholder="Father's or husband's name"
+                    />
+                    <FieldError name="complainantFatherName" />
+                  </div>
                 </div>
-                <Textarea
-                  label="Address *"
-                  value={formData.complainantAddress}
-                  onChange={(e) => handleInputChange("complainantAddress", e.target.value)}
-                  placeholder="Complete residential address"
-                  rows={2}
-                  required
-                />
+                <div>
+                  <Textarea
+                    label="Address *"
+                    {...register("complainantAddress")}
+                    placeholder="Complete residential address"
+                    rows={2}
+                    error={!!errors.complainantAddress}
+                  />
+                  <FieldError name="complainantAddress" />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Phone *"
-                    type="tel"
-                    value={formData.complainantPhone}
-                    onChange={(e) => handleInputChange("complainantPhone", e.target.value)}
-                    placeholder="+91 9876543210"
-                    required
-                  />
-                  <Input
-                    label="Alternate Phone"
-                    type="tel"
-                    value={formData.complainantAltPhone}
-                    onChange={(e) => handleInputChange("complainantAltPhone", e.target.value)}
-                    placeholder="+91 9876543210"
-                  />
+                  <div>
+                    <Input
+                      label="Phone *"
+                      type="tel"
+                      {...register("complainantPhone")}
+                      placeholder="9876543210"
+                      error={!!errors.complainantPhone}
+                    />
+                    <FieldError name="complainantPhone" />
+                  </div>
+                  <div>
+                    <Input
+                      label="Alternate Phone"
+                      type="tel"
+                      {...register("complainantAltPhone")}
+                      placeholder="9876543210"
+                    />
+                    <FieldError name="complainantAltPhone" />
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <Select
                     label="ID Type"
                     options={idTypes}
-                    value={formData.complainantIdType}
-                    onChange={(v) => handleInputChange("complainantIdType", v)}
+                    value={watch("complainantIdType") || ""}
+                    onChange={(v: string) => setValue("complainantIdType", v)}
                   />
-                  <Input
-                    label="ID Number"
-                    value={formData.complainantIdNumber}
-                    onChange={(e) => handleInputChange("complainantIdNumber", e.target.value)}
-                    placeholder="ID number"
-                  />
-                  <Input
-                    label="Age *"
-                    type="number"
-                    value={formData.complainantAge}
-                    onChange={(e) => handleInputChange("complainantAge", e.target.value)}
-                    placeholder="Age"
-                    required
-                  />
-                  <Select
-                    label="Gender *"
-                    options={genderOptions}
-                    value={formData.complainantGender}
-                    onChange={(v) => handleInputChange("complainantGender", v)}
-                  />
+                  <div>
+                    <Input
+                      label="ID Number"
+                      {...register("complainantIdNumber")}
+                      placeholder="ID number"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      label="Age *"
+                      type="number"
+                      {...register("complainantAge")}
+                      placeholder="Age"
+                      error={!!errors.complainantAge}
+                    />
+                    <FieldError name="complainantAge" />
+                  </div>
+                  <div>
+                    <Select
+                      label="Gender *"
+                      options={genderOptions}
+                      value={watch("complainantGender") || ""}
+                      onChange={(v: string) => setValue("complainantGender", v as "Male" | "Female" | "Other")}
+                      error={!!errors.complainantGender}
+                    />
+                    <FieldError name="complainantGender" />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -367,25 +461,27 @@ export default function NewFIRPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Input
-                    label="Date of Incident *"
-                    type="date"
-                    value={formData.incidentDate}
-                    onChange={(e) => handleInputChange("incidentDate", e.target.value)}
-                    required
-                  />
-                  <Input
-                    label="Time of Incident"
-                    type="time"
-                    value={formData.incidentTime}
-                    onChange={(e) => handleInputChange("incidentTime", e.target.value)}
-                  />
+                  <div>
+                    <Input
+                      label="Date of Incident *"
+                      type="date"
+                      {...register("incidentDate")}
+                      error={!!errors.incidentDate}
+                    />
+                    <FieldError name="incidentDate" />
+                  </div>
+                  <div>
+                    <Input
+                      label="Time of Incident"
+                      type="time"
+                      {...register("incidentTime")}
+                    />
+                  </div>
                   <div className="flex items-end">
                     <label className="flex items-center gap-2 text-sm text-foreground-muted">
                       <input
                         type="checkbox"
-                        checked={formData.incidentTimeApprox}
-                        onChange={(e) => handleInputChange("incidentTimeApprox", e.target.checked)}
+                        {...register("incidentTimeApprox")}
                         className="rounded"
                       />
                       Approximate time
@@ -396,46 +492,56 @@ export default function NewFIRPage() {
                   <div className="relative">
                     <Input
                       label="Location *"
-                      value={formData.incidentLocation}
-                      onChange={(e) => handleInputChange("incidentLocation", e.target.value)}
+                      {...register("incidentLocation")}
                       placeholder="Address or landmark"
-                      required
+                      error={!!errors.incidentLocation}
                     />
                     <Button
+                      type="button"
                       variant="ghost"
                       size="sm"
                       className="absolute right-2 top-8"
                     >
                       <MapPin className="h-4 w-4" />
                     </Button>
+                    <FieldError name="incidentLocation" />
                   </div>
-                  <Input
-                    label="Beat/Area"
-                    value={formData.incidentBeat}
-                    onChange={(e) => handleInputChange("incidentBeat", e.target.value)}
-                    placeholder="Select or enter beat"
-                  />
+                  <div>
+                    <Input
+                      label="Beat/Area"
+                      {...register("incidentBeat")}
+                      placeholder="Select or enter beat"
+                    />
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Select
-                    label="Offence Category *"
-                    options={offenceCategories}
-                    value={formData.offenceCategory}
-                    onChange={(v) => {
-                      handleInputChange("offenceCategory", v);
-                      handleInputChange("offenceType", "");
-                    }}
-                  />
-                  <Select
-                    label="Offence Type *"
-                    options={[
-                      { value: "", label: "Select Type" },
-                      ...(offenceTypes[formData.offenceCategory] || []),
-                    ]}
-                    value={formData.offenceType}
-                    onChange={(v) => handleInputChange("offenceType", v)}
-                    disabled={!formData.offenceCategory}
-                  />
+                  <div>
+                    <Select
+                      label="Offence Category *"
+                      options={offenceCategories}
+                      value={offenceCategory || ""}
+                      onChange={(v: string) => {
+                        setValue("offenceCategory", v);
+                        setValue("offenceType", "");
+                      }}
+                      error={!!errors.offenceCategory}
+                    />
+                    <FieldError name="offenceCategory" />
+                  </div>
+                  <div>
+                    <Select
+                      label="Offence Type *"
+                      options={[
+                        { value: "", label: "Select Type" },
+                        ...(offenceTypes[offenceCategory] || []),
+                      ]}
+                      value={offenceType || ""}
+                      onChange={(v: string) => setValue("offenceType", v)}
+                      disabled={!offenceCategory}
+                      error={!!errors.offenceType}
+                    />
+                    <FieldError name="offenceType" />
+                  </div>
                 </div>
 
                 {/* AI IPC Suggestions */}
@@ -479,6 +585,9 @@ export default function NewFIRPage() {
                     </div>
                   </div>
                 )}
+                {errors.ipcSections && (
+                  <p className="text-sm text-red-500">{errors.ipcSections.message}</p>
+                )}
               </CardContent>
             </Card>
 
@@ -489,23 +598,23 @@ export default function NewFIRPage() {
               </CardHeader>
               <CardContent>
                 <Textarea
-                  value={formData.description}
-                  onChange={(e) => handleInputChange("description", e.target.value)}
+                  {...register("description")}
                   placeholder="Provide a detailed description of the incident as narrated by the complainant..."
                   rows={6}
-                  required
+                  error={!!errors.description}
                 />
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-xs text-foreground-muted">
-                    Characters: {formData.description.length}/500 minimum recommended
+                    Characters: {description.length}/50 minimum required
                   </span>
-                  {formData.description.length >= 500 && (
+                  {description.length >= 50 && (
                     <Badge variant="success" className="text-xs">
                       <CheckCircle className="h-3 w-3 mr-1" />
                       Minimum met
                     </Badge>
                   )}
                 </div>
+                <FieldError name="description" />
               </CardContent>
             </Card>
 
@@ -513,7 +622,7 @@ export default function NewFIRPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Property Involved</CardTitle>
-                <Button variant="secondary" size="sm" onClick={addPropertyItem}>
+                <Button type="button" variant="secondary" size="sm" onClick={addPropertyItem}>
                   <Plus className="h-4 w-4 mr-1" />
                   Add Item
                 </Button>
@@ -525,7 +634,7 @@ export default function NewFIRPage() {
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {propertyItems.map((item, index) => (
+                    {propertyItems.map((item) => (
                       <div
                         key={item.id}
                         className="grid grid-cols-12 gap-3 p-3 rounded-lg bg-background-tertiary"
@@ -534,30 +643,31 @@ export default function NewFIRPage() {
                           <Input
                             placeholder="Item name"
                             value={item.item}
-                            onChange={(e) => updatePropertyItem(item.id, "item", e.target.value)}
+                            onChange={(v: string) => updatePropertyItem(item.id, "item", v)}
                           />
                         </div>
                         <div className="col-span-5">
                           <Input
                             placeholder="Description"
                             value={item.description}
-                            onChange={(e) =>
-                              updatePropertyItem(item.id, "description", e.target.value)
+                            onChange={(v: string) =>
+                              updatePropertyItem(item.id, "description", v)
                             }
                           />
                         </div>
                         <div className="col-span-3">
                           <Input
                             type="number"
-                            placeholder="Est. Value (₹)"
+                            placeholder="Est. Value"
                             value={item.estimatedValue}
-                            onChange={(e) =>
-                              updatePropertyItem(item.id, "estimatedValue", e.target.value)
+                            onChange={(v: string) =>
+                              updatePropertyItem(item.id, "estimatedValue", v)
                             }
                           />
                         </div>
                         <div className="col-span-1 flex items-center justify-center">
                           <Button
+                            type="button"
                             variant="ghost"
                             size="sm"
                             onClick={() => removePropertyItem(item.id)}
@@ -570,7 +680,7 @@ export default function NewFIRPage() {
                     {propertyItems.length > 0 && (
                       <div className="flex justify-end pt-2 border-t border-border">
                         <span className="text-sm font-medium text-foreground">
-                          Total Estimated Value: ₹{totalPropertyValue.toLocaleString("en-IN")}
+                          Total Estimated Value: Rs.{totalPropertyValue.toLocaleString("en-IN")}
                         </span>
                       </div>
                     )}
@@ -616,19 +726,19 @@ export default function NewFIRPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button variant="secondary" size="sm" className="w-full">
+                  <Button type="button" variant="secondary" size="sm" className="w-full">
                     <Camera className="h-4 w-4 mr-1" />
                     Photo
                   </Button>
-                  <Button variant="secondary" size="sm" className="w-full">
+                  <Button type="button" variant="secondary" size="sm" className="w-full">
                     <Upload className="h-4 w-4 mr-1" />
                     Document
                   </Button>
-                  <Button variant="secondary" size="sm" className="w-full">
+                  <Button type="button" variant="secondary" size="sm" className="w-full">
                     <Mic className="h-4 w-4 mr-1" />
                     Audio
                   </Button>
-                  <Button variant="secondary" size="sm" className="w-full">
+                  <Button type="button" variant="secondary" size="sm" className="w-full">
                     <Upload className="h-4 w-4 mr-1" />
                     Video
                   </Button>
@@ -654,23 +764,33 @@ export default function NewFIRPage() {
               <CardContent className="p-4 space-y-3">
                 <div className="p-3 rounded-md bg-background-tertiary">
                   <label className="flex items-start gap-3 text-sm">
-                    <input type="checkbox" className="rounded mt-0.5" />
+                    <input
+                      type="checkbox"
+                      className="rounded mt-0.5"
+                      checked={verificationChecked}
+                      onChange={(e) => setVerificationChecked(e.target.checked)}
+                    />
                     <span className="text-foreground-muted">
                       I verify that the above information is recorded accurately as stated by the
                       complainant.
                     </span>
                   </label>
                 </div>
-                <Button className="w-full" onClick={handleSubmit} isLoading={isSaving}>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  isLoading={isSaving || isSubmitting}
+                  disabled={!verificationChecked}
+                >
                   <Send className="h-4 w-4 mr-2" />
                   Register FIR
                 </Button>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button variant="secondary" className="w-full">
+                  <Button type="button" variant="secondary" className="w-full">
                     <Save className="h-4 w-4 mr-2" />
                     Save Draft
                   </Button>
-                  <Button variant="ghost" className="w-full">
+                  <Button type="button" variant="ghost" className="w-full">
                     <Eye className="h-4 w-4 mr-2" />
                     Preview
                   </Button>
@@ -679,7 +799,7 @@ export default function NewFIRPage() {
             </Card>
           </div>
         </div>
-      </div>
+      </form>
     </DashboardLayout>
   );
 }

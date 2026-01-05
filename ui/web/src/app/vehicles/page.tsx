@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Car,
   Search,
@@ -358,7 +359,7 @@ export default function VehiclesPage() {
                     <Input
                       placeholder="Search by registration number or driver..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={setSearchQuery}
                       icon={<Search className="h-4 w-4" />}
                     />
                   </div>
@@ -429,9 +430,11 @@ export default function VehiclesPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                            <Link href={`/vehicles/${vehicle.id}`}>
+                              <Button variant="ghost" size="sm">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </Link>
                             {vehicle.gpsLocation && vehicle.gpsLocation !== "Station" && (
                               <Button variant="ghost" size="sm">
                                 <MapPin className="h-4 w-4" />

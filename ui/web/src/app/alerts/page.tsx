@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Bell,
   AlertTriangle,
@@ -360,7 +361,7 @@ export default function AlertsPage() {
                     <Input
                       placeholder="Search alerts..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={setSearchQuery}
                       icon={<Search className="h-4 w-4" />}
                     />
                   </div>
@@ -417,10 +418,12 @@ export default function AlertsPage() {
                           ) : (
                             <Button size="sm">Acknowledge</Button>
                           )}
-                          <Button variant="ghost" size="sm">
-                            <Eye className="h-4 w-4 mr-1" />
-                            Details
-                          </Button>
+                          <Link href={`/alerts/${alert.id}`}>
+                            <Button variant="ghost" size="sm">
+                              <Eye className="h-4 w-4 mr-1" />
+                              Details
+                            </Button>
+                          </Link>
                         </div>
                       </div>
                     </CardContent>

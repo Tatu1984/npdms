@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: npdms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: npdms
+      POSTGRES_PASSWORD: npdms_secret_2024
+      POSTGRES_DB: npdms
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./services/db/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U npdms -d npdms"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: npdms-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO for file storage (evidence photos, documents)
+  minio:
+    image: minio/minio:latest
+    container_name: npdms-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: npdms_admin
+      MINIO_ROOT_PASSWORD: npdms_minio_secret_2024
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # API Gateway (Go backend)
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    container_name: npdms-api
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgres://npdms:npdms_secret_2024@postgres:5432/npdms?sslmode=disable
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=npdms_admin
+      - MINIO_SECRET_KEY=npdms_minio_secret_2024
+      - JWT_SECRET=${JWT_SECRET:-npdms_jwt_secret_key_change_in_production}
+      - PORT=8080
+      - ENV=development
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./services/api:/app
+    profiles:
+      - full
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+networks:
+  default:
+    name: npdms-network

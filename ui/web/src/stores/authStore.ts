@@ -3,6 +3,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { User, Role, SyncState } from "@/types";
+import { authApi, apiClient } from "@/lib/api";
+
+const USE_REAL_API = process.env.NEXT_PUBLIC_USE_REAL_API === 'true';
 
 // Demo users for different roles - Complete hierarchy
 const DEMO_USERS: Record<string, User> = {
@@ -165,7 +168,7 @@ interface AuthState {
 
   // Actions
   login: (username: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   setUser: (user: User) => void;
   setSyncStatus: (status: SyncState["status"]) => void;
 }
@@ -182,9 +185,41 @@ export const useAuthStore = create<AuthState>()(
       },
 
       login: async (username: string, password: string) => {
-        // Simulate login - in real app, this would call the auth API
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (USE_REAL_API) {
+          try {
+            const response = await authApi.login(username, password);
+            const apiUser = response.user;
+            // Map API user to local User type
+            const user: User = {
+              id: apiUser.id,
+              name: apiUser.name,
+              badgeNumber: apiUser.badgeNumber,
+              role: apiUser.role as Role,
+              stationId: apiUser.stationId,
+              stationName: apiUser.stationName,
+              districtId: 'district-001', // TODO: Get from API
+              districtName: 'Bengaluru Urban',
+              stateId: 'state-001',
+              stateName: 'Karnataka',
+            };
+            set({
+              user,
+              isAuthenticated: true,
+              syncState: {
+                status: "ONLINE",
+                lastSyncTime: new Date().toISOString(),
+                pendingChanges: 0,
+              },
+            });
+            return true;
+          } catch (error) {
+            console.error('Login failed:', error);
+            return false;
+          }
+        }
 
+        // Demo mode fallback
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         const demoUser = DEMO_USERS[username.toLowerCase()];
         if (demoUser && password === "demo123") {
           set({
@@ -201,7 +236,15 @@ export const useAuthStore = create<AuthState>()(
         return false;
       },
 
-      logout: () => {
+      logout: async () => {
+        if (USE_REAL_API) {
+          try {
+            await authApi.logout();
+          } catch (error) {
+            console.error('Logout error:', error);
+          }
+        }
+        apiClient.clearTokens();
         set({
           user: null,
           isAuthenticated: false,

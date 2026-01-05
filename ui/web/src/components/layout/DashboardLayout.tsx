@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { Spinner } from "@/components/ui/Spinner";
+import { ToastContainer } from "@/components/ui/Toast";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -36,6 +37,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <main className="ml-64 pt-16">
         <div className="p-6">{children}</div>
       </main>
+      <ToastContainer />
     </div>
   );
 }

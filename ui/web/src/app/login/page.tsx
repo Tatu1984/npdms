@@ -73,7 +73,7 @@ export default function LoginPage() {
                 type="text"
                 placeholder="Enter username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={setUsername}
                 required
                 autoComplete="username"
               />
@@ -83,7 +83,7 @@ export default function LoginPage() {
                 type="password"
                 placeholder="Enter password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={setPassword}
                 required
                 autoComplete="current-password"
               />

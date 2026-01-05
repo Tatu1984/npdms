@@ -173,7 +173,7 @@ export default function GISPage() {
                     <Input
                       placeholder="Search location, address, or landmark..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={setSearchQuery}
                       icon={<Search className="h-4 w-4" />}
                     />
                   </div>

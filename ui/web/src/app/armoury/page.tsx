@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Shield,
   Search,
@@ -298,7 +299,7 @@ export default function ArmouryPage() {
                     <Input
                       placeholder="Search by weapon ID, serial number, or assigned officer..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={setSearchQuery}
                       icon={<Search className="h-4 w-4" />}
                     />
                   </div>
@@ -377,9 +378,11 @@ export default function ArmouryPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                            <Link href={`/armoury/${weapon.id}`}>
+                              <Button variant="ghost" size="sm">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </Link>
                             {canIssue && weapon.status === "ISSUED" && (
                               <Button variant="ghost" size="sm">
                                 <RefreshCw className="h-4 w-4" />

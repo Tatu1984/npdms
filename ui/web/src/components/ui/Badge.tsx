@@ -15,6 +15,11 @@ const badgeVariants = cva(
         error: "bg-error/20 text-red-400 border border-error/30",
         info: "bg-info/20 text-blue-400 border border-info/30",
         secondary: "bg-background-tertiary text-foreground-muted border border-border",
+        muted: "bg-gray-500/10 text-gray-400 border border-gray-500/20",
+        outline: "bg-transparent text-foreground border border-border",
+        accent: "bg-accent/20 text-accent border border-accent/30",
+        primary: "bg-blue-600/20 text-blue-400 border border-blue-600/30",
+        destructive: "bg-red-600/20 text-red-400 border border-red-600/30",
         // FIR Status badges
         registered: "bg-blue-500/20 text-blue-400 border border-blue-500/30",
         investigating: "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30",
