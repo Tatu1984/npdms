@@ -23,6 +23,8 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { useToastStore } from "@/stores/toastStore";
+import { usePersonnelStore } from "@/stores/personnelStore";
 
 const ranks = [
   { value: "CONSTABLE", label: "Constable" },
@@ -48,6 +50,8 @@ const bloodGroups = [
 export default function NewPersonnelPage() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const { addToast } = useToastStore();
+  const { createPersonnel } = usePersonnelStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoUploaded, setPhotoUploaded] = useState(false);
 
@@ -88,12 +92,39 @@ export default function NewPersonnelPage() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const badgeNumber = `KAR-${formData.rank.slice(0, 2)}-${String(Math.floor(Math.random() * 10000)).padStart(4, "0")}`;
 
-    const badgeNumber = `KAR-${formData.rank.slice(0, 2)}-${String(Math.floor(Math.random() * 10000)).padStart(4, "0")}`;
+      const newPerson = await createPersonnel({
+        name: `${formData.firstName} ${formData.lastName}`,
+        badgeNumber,
+        rank: formData.rank as "CONSTABLE" | "HEAD_CONSTABLE" | "ASI" | "SI" | "INSPECTOR" | "SHO" | "SP" | "DIG" | "IG",
+        status: "ON_DUTY",
+        phone: formData.phone,
+        email: formData.email,
+        stationId: user?.stationId || "station-001",
+        stationName: formData.postingStation,
+        joiningDate: formData.dateOfJoining,
+        assignedCases: 0,
+        currentDuty: null,
+        shift: null,
+      });
 
-    alert(`Officer registered successfully!\nBadge Number: ${badgeNumber}`);
-    router.push("/personnel");
+      addToast({
+        type: "success",
+        title: "Officer Registered",
+        message: `${newPerson.name} has been registered with badge ${newPerson.badgeNumber}`,
+      });
+      router.push("/personnel");
+    } catch (error) {
+      addToast({
+        type: "error",
+        title: "Error",
+        message: "Failed to register officer. Please try again.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!canCreate) {

@@ -27,71 +27,11 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
+import { useArmouryStore } from "@/stores/armouryStore";
+import { usePersonnelStore } from "@/stores/personnelStore";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 
-// Mock weapons data
-const mockWeapons = [
-  {
-    id: "wpn-001",
-    weaponId: "WPN-KOR-001",
-    type: "9mm Pistol",
-    make: "Glock 17",
-    serialNumber: "GLK-2019-78542",
-    status: "ISSUED",
-    assignedTo: "SI Suresh",
-    assignedBadge: "KAR-SI-1234",
-    issuedDate: "2024-01-15",
-    expectedReturn: "2024-01-15",
-    condition: "SERVICEABLE",
-  },
-  {
-    id: "wpn-002",
-    weaponId: "WPN-KOR-002",
-    type: "9mm Pistol",
-    make: "Glock 17",
-    serialNumber: "GLK-2019-78543",
-    status: "ISSUED",
-    assignedTo: "ASI Prakash",
-    assignedBadge: "KAR-ASI-2345",
-    issuedDate: "2024-01-16",
-    expectedReturn: "2024-01-16",
-    condition: "SERVICEABLE",
-  },
-  {
-    id: "wpn-003",
-    weaponId: "WPN-KOR-003",
-    type: "9mm Pistol",
-    make: "Glock 17",
-    serialNumber: "GLK-2019-78544",
-    status: "IN_ARMOURY",
-    assignedTo: null,
-    condition: "SERVICEABLE",
-  },
-  {
-    id: "wpn-004",
-    weaponId: "WPN-KOR-004",
-    type: ".303 Rifle",
-    make: "INSAS",
-    serialNumber: "INS-2015-45612",
-    status: "ISSUED",
-    assignedTo: "Const. Kumar",
-    assignedBadge: "KAR-C-4567",
-    issuedDate: "2024-01-18",
-    expectedReturn: "2024-01-18",
-    condition: "SERVICEABLE",
-  },
-  {
-    id: "wpn-005",
-    weaponId: "WPN-KOR-005",
-    type: "9mm Pistol",
-    make: "Glock 17",
-    serialNumber: "GLK-2019-78545",
-    status: "MAINTENANCE",
-    assignedTo: null,
-    condition: "UNDER_REPAIR",
-    maintenanceNote: "Trigger mechanism repair",
-  },
-];
+// Weapon data now comes from useArmouryStore
 
 // Mock ammunition data
 const mockAmmunition = [
@@ -150,15 +90,25 @@ function getStatusBadgeVariant(status: string) {
 export default function ArmouryPage() {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
+  const { weapons, issuanceRecords, issueWeapon, returnWeapon, getAvailableWeapons } = useArmouryStore();
+  const { personnel } = usePersonnelStore();
   const [activeTab, setActiveTab] = useState("weapons");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
+  // Issuance form state
+  const [issuanceForm, setIssuanceForm] = useState({
+    officerId: "",
+    weaponId: "",
+    ammunition: "",
+    purpose: "",
+  });
+
   const canIssue = user && hasMinimumRole(user.role, "SHO");
   const canAudit = user && hasMinimumRole(user.role, "SP");
 
-  const filteredWeapons = mockWeapons.filter((w) => {
+  const filteredWeapons = weapons.filter((w) => {
     if (typeFilter && w.type !== typeFilter) return false;
     if (statusFilter && w.status !== statusFilter) return false;
     if (searchQuery) {
@@ -173,11 +123,50 @@ export default function ArmouryPage() {
     return true;
   });
 
+  const availableWeapons = getAvailableWeapons();
+
   const stats = {
-    totalWeapons: mockWeapons.length,
-    issued: mockWeapons.filter((w) => w.status === "ISSUED").length,
-    available: mockWeapons.filter((w) => w.status === "IN_ARMOURY").length,
-    maintenance: mockWeapons.filter((w) => w.status === "MAINTENANCE").length,
+    totalWeapons: weapons.length,
+    issued: weapons.filter((w) => w.status === "ISSUED").length,
+    available: weapons.filter((w) => w.status === "IN_ARMOURY").length,
+    maintenance: weapons.filter((w) => w.status === "MAINTENANCE").length,
+  };
+
+  const handleReturnWeapon = async (weapon: typeof weapons[0]) => {
+    if (weapon.assignedTo && weapon.assignedBadge) {
+      await returnWeapon(weapon.id, weapon.assignedTo, weapon.assignedBadge);
+      addToast({
+        type: "success",
+        title: "Weapon Returned",
+        message: `${weapon.weaponId} has been returned to armoury`,
+      });
+    }
+  };
+
+  const handleIssueWeapon = async () => {
+    if (!issuanceForm.officerId || !issuanceForm.weaponId || !issuanceForm.purpose) {
+      addToast({ type: "error", title: "Validation Error", message: "Please fill in all required fields" });
+      return;
+    }
+
+    const selectedPerson = personnel.find(p => p.id === issuanceForm.officerId);
+    if (!selectedPerson) return;
+
+    await issueWeapon(
+      issuanceForm.weaponId,
+      selectedPerson.name,
+      selectedPerson.badgeNumber,
+      issuanceForm.purpose,
+      issuanceForm.ammunition || "15 rounds"
+    );
+
+    addToast({
+      type: "success",
+      title: "Weapon Issued",
+      message: `Weapon has been issued to ${selectedPerson.name} (biometric verified)`,
+    });
+
+    setIssuanceForm({ officerId: "", weaponId: "", ammunition: "", purpose: "" });
   };
 
   return (
@@ -402,13 +391,8 @@ export default function ArmouryPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => {
-                                  addToast({
-                                    type: "info",
-                                    title: "Return Weapon",
-                                    message: "Weapon return feature coming soon",
-                                  });
-                                }}
+                                onClick={() => handleReturnWeapon(weapon)}
+                                title="Return Weapon"
                               >
                                 <RefreshCw className="h-4 w-4" />
                               </Button>
@@ -534,7 +518,7 @@ export default function ArmouryPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Today&apos;s Issuance Log</h3>
               <Button variant="secondary" onClick={() => {
-                exportToCSV(mockWeapons.filter(w => w.status === "ISSUED"), "issuance-log", exportConfigs.armoury);
+                exportToCSV(weapons.filter(w => w.status === "ISSUED"), "issuance-log", exportConfigs.armoury);
                 addToast({ type: "success", title: "Export Complete", message: "Issuance log exported to CSV" });
               }}>
                 <Download className="h-4 w-4 mr-2" />
@@ -556,42 +540,34 @@ export default function ArmouryPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <TableRow>
-                      <TableCell>08:00</TableCell>
-                      <TableCell>
-                        <span className="font-mono text-accent">WPN-KOR-001</span>
-                      </TableCell>
-                      <TableCell>SI Suresh</TableCell>
-                      <TableCell>
-                        <Badge variant="info">ISSUED</Badge>
-                      </TableCell>
-                      <TableCell>Patrol Duty</TableCell>
-                      <TableCell>HC Mohan (Biometric)</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>08:15</TableCell>
-                      <TableCell>
-                        <span className="font-mono text-accent">WPN-KOR-002</span>
-                      </TableCell>
-                      <TableCell>ASI Prakash</TableCell>
-                      <TableCell>
-                        <Badge variant="info">ISSUED</Badge>
-                      </TableCell>
-                      <TableCell>Investigation</TableCell>
-                      <TableCell>HC Mohan (Biometric)</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>09:00</TableCell>
-                      <TableCell>
-                        <span className="font-mono text-accent">WPN-KOR-004</span>
-                      </TableCell>
-                      <TableCell>Const. Kumar</TableCell>
-                      <TableCell>
-                        <Badge variant="info">ISSUED</Badge>
-                      </TableCell>
-                      <TableCell>VIP Security</TableCell>
-                      <TableCell>HC Mohan (Biometric)</TableCell>
-                    </TableRow>
+                    {issuanceRecords.slice(0, 10).map((record) => (
+                      <TableRow key={record.id}>
+                        <TableCell>
+                          {new Date(record.timestamp).toLocaleTimeString("en-IN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-mono text-accent">{record.weaponId}</span>
+                        </TableCell>
+                        <TableCell>{record.officer}</TableCell>
+                        <TableCell>
+                          <Badge variant={record.action === "ISSUED" ? "info" : "success"}>
+                            {record.action}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{record.purpose}</TableCell>
+                        <TableCell>{record.verifiedBy}</TableCell>
+                      </TableRow>
+                    ))}
+                    {issuanceRecords.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-foreground-muted py-8">
+                          No issuance records found
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -609,34 +585,41 @@ export default function ArmouryPage() {
                       label="Officer"
                       options={[
                         { value: "", label: "Select Officer" },
-                        { value: "p-001", label: "Ramesh Kumar (KAR-C-4567)" },
-                        { value: "p-004", label: "Suresh Patil (KAR-SI-1234)" },
+                        ...personnel
+                          .filter(p => p.status === "ON_DUTY")
+                          .map(p => ({ value: p.id, label: `${p.name} (${p.badgeNumber})` }))
                       ]}
-                      value=""
-                      onChange={() => {}}
+                      value={issuanceForm.officerId}
+                      onChange={(value: string) => setIssuanceForm({ ...issuanceForm, officerId: value })}
                     />
                     <Select
                       label="Weapon"
                       options={[
                         { value: "", label: "Select Available Weapon" },
-                        { value: "wpn-003", label: "WPN-KOR-003 - 9mm Pistol" },
+                        ...availableWeapons.map(w => ({ value: w.id, label: `${w.weaponId} - ${w.type}` }))
                       ]}
-                      value=""
-                      onChange={() => {}}
+                      value={issuanceForm.weaponId}
+                      onChange={(value: string) => setIssuanceForm({ ...issuanceForm, weaponId: value })}
                     />
-                    <Input label="Ammunition (rounds)" type="number" placeholder="0" />
+                    <Input
+                      label="Ammunition (rounds)"
+                      type="number"
+                      placeholder="15"
+                      value={issuanceForm.ammunition}
+                      onChange={(value: string) => setIssuanceForm({ ...issuanceForm, ammunition: value })}
+                    />
                     <Select
                       label="Purpose"
                       options={[
                         { value: "", label: "Select Purpose" },
-                        { value: "DUTY", label: "Regular Duty" },
-                        { value: "PATROL", label: "Patrol" },
-                        { value: "INVESTIGATION", label: "Investigation" },
-                        { value: "VIP", label: "VIP Security" },
-                        { value: "BANDOBAST", label: "Bandobast" },
+                        { value: "Regular Duty", label: "Regular Duty" },
+                        { value: "Patrol", label: "Patrol" },
+                        { value: "Investigation", label: "Investigation" },
+                        { value: "VIP Security", label: "VIP Security" },
+                        { value: "Bandobast", label: "Bandobast" },
                       ]}
-                      value=""
-                      onChange={() => {}}
+                      value={issuanceForm.purpose}
+                      onChange={(value: string) => setIssuanceForm({ ...issuanceForm, purpose: value })}
                     />
                   </div>
                   <div className="flex items-center gap-2 p-3 rounded-md bg-background-tertiary">
@@ -645,7 +628,7 @@ export default function ArmouryPage() {
                       Biometric verification required for issuance
                     </span>
                   </div>
-                  <Button className="w-full" onClick={() => addToast({ type: "success", title: "Weapon Issued", message: "Weapon has been issued successfully (biometric verified)" })}>
+                  <Button className="w-full" onClick={handleIssueWeapon}>
                     Issue Weapon (Biometric Required)
                   </Button>
                 </CardContent>

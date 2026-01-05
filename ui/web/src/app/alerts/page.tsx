@@ -28,6 +28,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
+import { useAlertsStore, Alert } from "@/stores/alertsStore";
 
 const alertTypeOptions = [
   { value: "", label: "All Types" },
@@ -44,77 +45,7 @@ const scopeOptions = [
   { value: "NATIONAL", label: "National" },
 ];
 
-// Mock alerts data
-const mockAlerts = [
-  {
-    id: "alert-001",
-    type: "FLASH",
-    scope: "DISTRICT",
-    title: "Armed suspects spotted near MG Road",
-    description:
-      "Two armed suspects spotted near MG Road Metro Station. Wearing dark clothes, one has red motorcycle. Approach with caution.",
-    issuedAt: "2024-01-18T14:30:00Z",
-    expiresAt: "2024-01-18T20:30:00Z",
-    issuedBy: "Control Room",
-    acknowledged: false,
-    priority: 1,
-  },
-  {
-    id: "alert-002",
-    type: "URGENT",
-    scope: "STATION",
-    title: "VIP movement - Route diversion required",
-    description:
-      "Governor convoy movement expected on 80 Feet Road between 15:00-16:00 hours. Traffic diversion and security arrangements required.",
-    issuedAt: "2024-01-18T12:00:00Z",
-    expiresAt: "2024-01-18T16:00:00Z",
-    issuedBy: "SP Office",
-    acknowledged: true,
-    acknowledgedBy: "SHO Koramangala",
-    acknowledgedAt: "2024-01-18T12:15:00Z",
-    priority: 2,
-  },
-  {
-    id: "alert-003",
-    type: "BOLO",
-    scope: "STATE",
-    title: "BOLO: Wanted suspect in murder case",
-    description:
-      "Rajan Kumar alias Raju, 32M, wanted in connection with murder case CC/2024/0045. Height: 5'8\", Dark complexion, Scar on left cheek. Last seen in Jayanagar area.",
-    issuedAt: "2024-01-17T08:00:00Z",
-    expiresAt: "2024-01-24T23:59:59Z",
-    issuedBy: "State Crime Branch",
-    acknowledged: true,
-    image: true,
-    priority: 1,
-  },
-  {
-    id: "alert-004",
-    type: "NOTICE",
-    scope: "STATION",
-    title: "Weekly review meeting at 10:00 AM",
-    description:
-      "All officers to attend weekly review meeting at station conference room. Bring case update reports.",
-    issuedAt: "2024-01-18T08:00:00Z",
-    expiresAt: "2024-01-19T10:00:00Z",
-    issuedBy: "SHO Office",
-    acknowledged: true,
-    priority: 3,
-  },
-  {
-    id: "alert-005",
-    type: "FLASH",
-    scope: "NATIONAL",
-    title: "Terror threat advisory - High alert",
-    description:
-      "General high alert issued in view of Republic Day celebrations. Enhanced security measures to be implemented at all sensitive locations.",
-    issuedAt: "2024-01-16T00:00:00Z",
-    expiresAt: "2024-01-27T23:59:59Z",
-    issuedBy: "MHA - Intelligence Bureau",
-    acknowledged: true,
-    priority: 1,
-  },
-];
+// Alert data now comes from useAlertsStore
 
 function getAlertBadgeVariant(type: string) {
   const variants: Record<string, string> = {
@@ -153,19 +84,30 @@ function formatTimeAgo(dateString: string) {
 export default function AlertsPage() {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
+  const { alerts, createAlert, acknowledgeAlert, getActiveAlerts, getUnacknowledgedAlerts } = useAlertsStore();
   const [activeTab, setActiveTab] = useState("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [showIssueForm, setShowIssueForm] = useState(false);
 
+  // Form state for new alert
+  const [newAlert, setNewAlert] = useState({
+    type: "" as Alert["type"] | "",
+    scope: "STATION" as Alert["scope"],
+    title: "",
+    description: "",
+    expiresAt: "",
+    priority: 2,
+  });
+
   const canIssue = user && hasMinimumRole(user.role, "SHO");
   const canIssueDistrict = user && hasMinimumRole(user.role, "SP");
   const canIssueState = user && hasMinimumRole(user.role, "DIG");
 
-  const activeAlerts = mockAlerts.filter((a) => new Date(a.expiresAt) > new Date());
-  const unacknowledged = activeAlerts.filter((a) => !a.acknowledged);
+  const activeAlerts = getActiveAlerts();
+  const unacknowledged = getUnacknowledgedAlerts();
 
-  const filteredAlerts = mockAlerts.filter((a) => {
+  const filteredAlerts = alerts.filter((a) => {
     if (typeFilter && a.type !== typeFilter) return false;
     if (searchQuery) {
       const search = searchQuery.toLowerCase();
@@ -176,6 +118,38 @@ export default function AlertsPage() {
     }
     return true;
   });
+
+  const handleAcknowledge = async (alert: Alert) => {
+    if (user) {
+      await acknowledgeAlert(alert.id, user.name);
+      addToast({
+        type: "success",
+        title: "Alert Acknowledged",
+        message: `Acknowledged: ${alert.title}`,
+      });
+    }
+  };
+
+  const handleIssueAlert = async () => {
+    if (!newAlert.type || !newAlert.title || !newAlert.description || !newAlert.expiresAt) {
+      addToast({ type: "error", title: "Validation Error", message: "Please fill in all required fields" });
+      return;
+    }
+
+    await createAlert({
+      type: newAlert.type as Alert["type"],
+      scope: newAlert.scope,
+      title: newAlert.title,
+      description: newAlert.description,
+      expiresAt: new Date(newAlert.expiresAt).toISOString(),
+      issuedBy: user?.name || "Unknown",
+      priority: newAlert.priority,
+    });
+
+    addToast({ type: "success", title: "Alert Issued", message: "Your alert has been broadcast successfully" });
+    setShowIssueForm(false);
+    setNewAlert({ type: "", scope: "STATION", title: "", description: "", expiresAt: "", priority: 2 });
+  };
 
   return (
     <DashboardLayout>
@@ -267,13 +241,7 @@ export default function AlertsPage() {
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={() => {
-                    addToast({
-                      type: "success",
-                      title: "Alert Acknowledged",
-                      message: "Alert has been acknowledged",
-                    });
-                  }}
+                  onClick={() => handleAcknowledge(unacknowledged[0])}
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Acknowledge
@@ -302,8 +270,8 @@ export default function AlertsPage() {
                     { value: "BOLO", label: "BOLO - Be On Lookout" },
                     { value: "NOTICE", label: "Notice - Information" },
                   ]}
-                  value=""
-                  onChange={() => {}}
+                  value={newAlert.type}
+                  onChange={(value: string) => setNewAlert({ ...newAlert, type: value as Alert["type"] })}
                 />
                 <Select
                   label="Scope"
@@ -313,18 +281,30 @@ export default function AlertsPage() {
                     if (s.value === "DISTRICT" && !canIssueDistrict) return false;
                     return true;
                   })}
-                  value=""
-                  onChange={() => {}}
+                  value={newAlert.scope}
+                  onChange={(value: string) => setNewAlert({ ...newAlert, scope: value as Alert["scope"] })}
                 />
               </div>
-              <Input label="Title" placeholder="Brief, clear alert title" />
+              <Input
+                label="Title"
+                placeholder="Brief, clear alert title"
+                value={newAlert.title}
+                onChange={(value: string) => setNewAlert({ ...newAlert, title: value })}
+              />
               <Textarea
                 label="Description"
                 placeholder="Detailed description of the alert..."
                 rows={4}
+                value={newAlert.description}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNewAlert({ ...newAlert, description: e.target.value })}
               />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Expires At" type="datetime-local" />
+                <Input
+                  label="Expires At"
+                  type="datetime-local"
+                  value={newAlert.expiresAt}
+                  onChange={(value: string) => setNewAlert({ ...newAlert, expiresAt: value })}
+                />
                 <div className="flex items-end gap-2">
                   <Button
                     variant="secondary"
@@ -357,10 +337,7 @@ export default function AlertsPage() {
                 <Button variant="ghost" onClick={() => setShowIssueForm(false)}>
                   Cancel
                 </Button>
-                <Button onClick={() => {
-                  addToast({ type: "success", title: "Alert Issued", message: "Your alert has been broadcast successfully" });
-                  setShowIssueForm(false);
-                }}>
+                <Button onClick={handleIssueAlert}>
                   <Megaphone className="h-4 w-4 mr-2" />
                   Issue Alert
                 </Button>
@@ -453,13 +430,7 @@ export default function AlertsPage() {
                           ) : (
                             <Button
                               size="sm"
-                              onClick={() => {
-                                addToast({
-                                  type: "success",
-                                  title: "Alert Acknowledged",
-                                  message: `Acknowledged: ${alert.title}`,
-                                });
-                              }}
+                              onClick={() => handleAcknowledge(alert)}
                             >
                               Acknowledge
                             </Button>

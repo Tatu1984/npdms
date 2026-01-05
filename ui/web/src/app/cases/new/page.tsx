@@ -22,6 +22,8 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { useToastStore } from "@/stores/toastStore";
+import { useCasesStore } from "@/stores/casesStore";
 
 const caseCategories = [
   { value: "MURDER", label: "Murder" },
@@ -63,6 +65,8 @@ const commonIPCSections = [
 export default function NewCasePage() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const { addToast } = useToastStore();
+  const { createCase } = useCasesStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedSections, setSelectedSections] = useState<string[]>([]);
 
@@ -110,12 +114,39 @@ export default function NewCasePage() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const newCase = await createCase({
+        firId: formData.linkedFIR,
+        firNumber: formData.linkedFIR,
+        title: formData.title,
+        description: formData.synopsis,
+        status: "INVESTIGATION",
+        accused: accused.filter(a => a.name).map((a, index) => ({
+          id: `acc-${Date.now()}-${index}`,
+          name: a.name,
+          identificationMarks: a.description,
+          status: a.status as "WANTED" | "ARRESTED" | "ABSCONDING" | "BAILED" | "CONVICTED",
+        })),
+        witnesses: [],
+        investigatingOfficer: user?.id,
+        investigatingOfficerName: formData.assignedOfficer,
+      });
 
-    const caseNumber = `CASE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(5, "0")}`;
-
-    alert(`Case registered successfully!\nCase Number: ${caseNumber}`);
-    router.push("/cases");
+      addToast({
+        type: "success",
+        title: "Case Created",
+        message: `Case ${newCase.caseNumber} has been registered successfully`,
+      });
+      router.push("/cases");
+    } catch (error) {
+      addToast({
+        type: "error",
+        title: "Error",
+        message: "Failed to create case. Please try again.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!canCreate) {
@@ -352,8 +383,8 @@ export default function NewCasePage() {
                           options={[
                             { value: "ABSCONDING", label: "Absconding" },
                             { value: "ARRESTED", label: "Arrested" },
-                            { value: "ON_BAIL", label: "On Bail" },
-                            { value: "IN_CUSTODY", label: "In Custody" },
+                            { value: "BAILED", label: "On Bail" },
+                            { value: "WANTED", label: "Wanted" },
                           ]}
                         />
                       </div>

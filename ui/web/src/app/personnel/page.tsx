@@ -20,6 +20,7 @@ import {
   MapPin,
   Award,
   Download,
+  Trash2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -32,6 +33,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { Avatar } from "@/components/ui/Avatar";
 import { useAuthStore, hasMinimumRole, getRoleDisplayName } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
+import { usePersonnelStore } from "@/stores/personnelStore";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { DutyAssignmentDialog } from "@/components/ui/DutyAssignmentDialog";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 
 const rankOptions = [
@@ -53,100 +57,7 @@ const statusOptions = [
   { value: "SUSPENDED", label: "Suspended" },
 ];
 
-// Mock personnel data
-const mockPersonnel = [
-  {
-    id: "p-001",
-    name: "Ramesh Kumar",
-    badgeNumber: "KAR-C-4567",
-    rank: "CONSTABLE",
-    status: "ON_DUTY",
-    phone: "+91 9876543210",
-    email: "ramesh.kumar@karpolice.gov.in",
-    stationId: "station-001",
-    stationName: "Koramangala PS",
-    joiningDate: "2019-05-15",
-    assignedCases: 3,
-    currentDuty: "Patrol - Beat A",
-    shift: "Day (0600-1400)",
-  },
-  {
-    id: "p-002",
-    name: "Mohan Singh",
-    badgeNumber: "KAR-HC-3456",
-    rank: "HEAD_CONSTABLE",
-    status: "ON_DUTY",
-    phone: "+91 9876543211",
-    email: "mohan.singh@karpolice.gov.in",
-    stationId: "station-001",
-    stationName: "Koramangala PS",
-    joiningDate: "2015-08-20",
-    assignedCases: 5,
-    currentDuty: "Armoury In-Charge",
-    shift: "Day (0600-1400)",
-  },
-  {
-    id: "p-003",
-    name: "Prakash Rao",
-    badgeNumber: "KAR-ASI-2345",
-    rank: "ASI",
-    status: "ON_LEAVE",
-    phone: "+91 9876543212",
-    email: "prakash.rao@karpolice.gov.in",
-    stationId: "station-001",
-    stationName: "Koramangala PS",
-    joiningDate: "2012-03-10",
-    assignedCases: 4,
-    currentDuty: null,
-    leaveType: "Medical Leave",
-    leaveUntil: "2024-01-25",
-  },
-  {
-    id: "p-004",
-    name: "Suresh Patil",
-    badgeNumber: "KAR-SI-1234",
-    rank: "SI",
-    status: "ON_DUTY",
-    phone: "+91 9876543213",
-    email: "suresh.patil@karpolice.gov.in",
-    stationId: "station-001",
-    stationName: "Koramangala PS",
-    joiningDate: "2010-07-01",
-    assignedCases: 8,
-    currentDuty: "Investigation - FIR/2024/00123",
-    shift: "Day (0600-1400)",
-  },
-  {
-    id: "p-005",
-    name: "Anand Reddy",
-    badgeNumber: "KAR-INS-0987",
-    rank: "INSPECTOR",
-    status: "OFF_DUTY",
-    phone: "+91 9876543214",
-    email: "anand.reddy@karpolice.gov.in",
-    stationId: "station-001",
-    stationName: "Koramangala PS",
-    joiningDate: "2005-09-15",
-    assignedCases: 2,
-    currentDuty: null,
-    shift: "Night (2200-0600)",
-  },
-  {
-    id: "p-006",
-    name: "Insp. Sharma",
-    badgeNumber: "KAR-SHO-0876",
-    rank: "SHO",
-    status: "ON_DUTY",
-    phone: "+91 9876543215",
-    email: "sharma.sho@karpolice.gov.in",
-    stationId: "station-001",
-    stationName: "Koramangala PS",
-    joiningDate: "2000-01-10",
-    assignedCases: 0,
-    currentDuty: "Station Command",
-    shift: "Day (0800-1700)",
-  },
-];
+// Personnel data now comes from usePersonnelStore
 
 // Mock duty roster
 const mockDutyRoster = [
@@ -193,15 +104,20 @@ function getStatusIcon(status: string) {
 export default function PersonnelPage() {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
+  const { personnel, deletePersonnel, assignDuty, setFilters, getFilteredPersonnel } = usePersonnelStore();
   const [activeTab, setActiveTab] = useState("roster");
   const [searchQuery, setSearchQuery] = useState("");
   const [rankFilter, setRankFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [personnelToDelete, setPersonnelToDelete] = useState<string | null>(null);
+  const [dutyDialogOpen, setDutyDialogOpen] = useState(false);
+  const [selectedPersonnelForDuty, setSelectedPersonnelForDuty] = useState<string | null>(null);
 
   const canManage = user && hasMinimumRole(user.role, "SHO");
   const canEdit = user && hasMinimumRole(user.role, "SP");
 
-  const filteredPersonnel = mockPersonnel.filter((p) => {
+  const filteredPersonnel = personnel.filter((p) => {
     if (rankFilter && p.rank !== rankFilter) return false;
     if (statusFilter && p.status !== statusFilter) return false;
     if (searchQuery) {
@@ -216,10 +132,47 @@ export default function PersonnelPage() {
   });
 
   const stats = {
-    total: mockPersonnel.length,
-    onDuty: mockPersonnel.filter((p) => p.status === "ON_DUTY").length,
-    onLeave: mockPersonnel.filter((p) => p.status === "ON_LEAVE").length,
-    offDuty: mockPersonnel.filter((p) => p.status === "OFF_DUTY").length,
+    total: personnel.length,
+    onDuty: personnel.filter((p) => p.status === "ON_DUTY").length,
+    onLeave: personnel.filter((p) => p.status === "ON_LEAVE").length,
+    offDuty: personnel.filter((p) => p.status === "OFF_DUTY").length,
+  };
+
+  const handleDeleteClick = (id: string) => {
+    setPersonnelToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (personnelToDelete) {
+      await deletePersonnel(personnelToDelete);
+      addToast({
+        type: "success",
+        title: "Personnel Deleted",
+        message: "Personnel record has been removed",
+      });
+      setDeleteDialogOpen(false);
+      setPersonnelToDelete(null);
+    }
+  };
+
+  const handleAssignDuty = (id: string) => {
+    setSelectedPersonnelForDuty(id);
+    setDutyDialogOpen(true);
+  };
+
+  const handleDutyAssignment = async (duty: string, shift: string) => {
+    if (selectedPersonnelForDuty) {
+      await assignDuty(selectedPersonnelForDuty, duty, shift);
+      const person = personnel.find(p => p.id === selectedPersonnelForDuty);
+      addToast({
+        type: "success",
+        title: "Duty Assigned",
+        message: `${person?.name || "Officer"} assigned to ${duty} (${shift})`,
+      });
+      setDutyDialogOpen(false);
+      setSelectedPersonnelForDuty(null);
+    }
   };
 
   return (
@@ -414,7 +367,7 @@ export default function PersonnelPage() {
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             <Link href={`/personnel/${person.id}`}>
-                              <Button variant="ghost" size="sm">
+                              <Button variant="ghost" size="sm" title="View">
                                 <Eye className="h-4 w-4" />
                               </Button>
                             </Link>
@@ -422,23 +375,28 @@ export default function PersonnelPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => {
-                                  addToast({
-                                    type: "info",
-                                    title: "Assign Duty",
-                                    message: "Duty assignment feature coming soon",
-                                  });
-                                }}
+                                title="Assign Duty"
+                                onClick={() => handleAssignDuty(person.id)}
                               >
                                 <Briefcase className="h-4 w-4" />
                               </Button>
                             )}
                             {canEdit && (
                               <Link href={`/personnel/${person.id}?edit=true`}>
-                                <Button variant="ghost" size="sm">
+                                <Button variant="ghost" size="sm" title="Edit">
                                   <Edit className="h-4 w-4" />
                                 </Button>
                               </Link>
+                            )}
+                            {canEdit && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Delete"
+                                onClick={() => handleDeleteClick(person.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-error" />
+                              </Button>
                             )}
                           </div>
                         </TableCell>
@@ -600,6 +558,28 @@ export default function PersonnelPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          isOpen={deleteDialogOpen}
+          onClose={() => setDeleteDialogOpen(false)}
+          onConfirm={handleDeleteConfirm}
+          title="Delete Personnel"
+          message="Are you sure you want to delete this personnel record? This action cannot be undone."
+          confirmText="Delete"
+          type="danger"
+        />
+
+        {/* Duty Assignment Dialog */}
+        <DutyAssignmentDialog
+          isOpen={dutyDialogOpen}
+          onClose={() => {
+            setDutyDialogOpen(false);
+            setSelectedPersonnelForDuty(null);
+          }}
+          onAssign={handleDutyAssignment}
+          officerName={personnel.find(p => p.id === selectedPersonnelForDuty)?.name || "Officer"}
+        />
       </div>
     </DashboardLayout>
   );

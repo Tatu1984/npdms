@@ -29,6 +29,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
+import { useLookoutStore, Lookout, Sighting } from "@/stores/lookoutStore";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 
 const lookoutTypeOptions = [
@@ -47,122 +48,7 @@ const statusOptions = [
   { value: "CLOSED", label: "Closed" },
 ];
 
-// Mock lookout notices
-const mockLookouts = [
-  {
-    id: "lo-001",
-    lookoutId: "LO-2024-KOR-001",
-    type: "WANTED",
-    name: "Rajan Kumar @ Raju",
-    description: "Wanted in murder case CC/2024/0045",
-    details: {
-      age: "32",
-      gender: "Male",
-      height: "5'8\"",
-      complexion: "Dark",
-      identifyingMarks: "Scar on left cheek",
-      lastSeen: "Jayanagar, Bengaluru",
-      lastSeenDate: "2024-01-15",
-    },
-    priority: "HIGH",
-    status: "ACTIVE",
-    linkedFIR: "KOR/2024/00089",
-    issuedBy: "State Crime Branch",
-    issuedAt: "2024-01-17",
-    hasPhoto: true,
-  },
-  {
-    id: "lo-002",
-    lookoutId: "LO-2024-KOR-002",
-    type: "MISSING",
-    name: "Priya Sharma",
-    description: "Missing since 16 Jan 2024 from BTM Layout",
-    details: {
-      age: "24",
-      gender: "Female",
-      height: "5'4\"",
-      complexion: "Fair",
-      lastWornClothes: "Blue salwar, white dupatta",
-      lastSeen: "BTM Layout 2nd Stage",
-      lastSeenDate: "2024-01-16",
-      contactInfo: "+91 9876543210 (Father)",
-    },
-    priority: "CRITICAL",
-    status: "ACTIVE",
-    linkedFIR: "KOR/2024/00125",
-    issuedBy: "Koramangala PS",
-    issuedAt: "2024-01-17",
-    hasPhoto: true,
-  },
-  {
-    id: "lo-003",
-    lookoutId: "LO-2024-KOR-003",
-    type: "STOLEN_VEHICLE",
-    name: "KA-01-MH-5678",
-    description: "Honda City, White, Stolen from JP Nagar",
-    details: {
-      make: "Honda City",
-      model: "VX CVT",
-      year: "2022",
-      color: "White",
-      chassisNumber: "ME4WB2DE1M******",
-      engineNumber: "L15Z6-21*****",
-      stolenFrom: "JP Nagar 5th Phase",
-      stolenDate: "2024-01-14",
-    },
-    priority: "NORMAL",
-    status: "ACTIVE",
-    linkedFIR: "KOR/2024/00118",
-    issuedBy: "Koramangala PS",
-    issuedAt: "2024-01-15",
-    hasPhoto: false,
-  },
-  {
-    id: "lo-004",
-    lookoutId: "LO-2024-KOR-004",
-    type: "SUSPECT",
-    name: "Unknown Male",
-    description: "Suspect in chain snatching incidents",
-    details: {
-      age: "25-30",
-      gender: "Male",
-      height: "5'6\" approx",
-      complexion: "Wheatish",
-      identifyingMarks: "Wears gold chain",
-      vehicleDescription: "Red Pulsar, partial number MH-**-5*",
-      lastSeen: "Koramangala area",
-      lastSeenDate: "2024-01-18",
-    },
-    priority: "HIGH",
-    status: "ACTIVE",
-    linkedFIR: "KOR/2024/00120",
-    issuedBy: "Koramangala PS",
-    issuedAt: "2024-01-18",
-    hasPhoto: false,
-  },
-];
-
-// Mock sightings
-const mockSightings = [
-  {
-    id: "sight-001",
-    lookoutId: "LO-2024-KOR-001",
-    reportedBy: "Const. Vijay",
-    location: "Near Forum Mall",
-    time: "2024-01-18T10:30:00Z",
-    verified: false,
-    details: "Person matching description seen near mall entrance",
-  },
-  {
-    id: "sight-002",
-    lookoutId: "LO-2024-KOR-003",
-    reportedBy: "Public Tip",
-    location: "Hosur Road",
-    time: "2024-01-17T14:00:00Z",
-    verified: true,
-    details: "Vehicle spotted on Hosur Road heading towards Electronics City",
-  },
-];
+// Lookout and sighting data now comes from useLookoutStore
 
 function getTypeBadgeVariant(type: string) {
   const variants: Record<string, string> = {
@@ -188,6 +74,7 @@ function getPriorityBadgeVariant(priority: string) {
 export default function LookoutPage() {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
+  const { lookouts, sightings, verifySighting, reportSighting, getActiveLookouts } = useLookoutStore();
   const [activeTab, setActiveTab] = useState("notices");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -196,7 +83,7 @@ export default function LookoutPage() {
   const canCreate = user && hasMinimumRole(user.role, "SI");
   const canVerify = user && hasMinimumRole(user.role, "SHO");
 
-  const filteredLookouts = mockLookouts.filter((lo) => {
+  const filteredLookouts = lookouts.filter((lo) => {
     if (typeFilter && lo.type !== typeFilter) return false;
     if (statusFilter && lo.status !== statusFilter) return false;
     if (searchQuery) {
@@ -211,10 +98,39 @@ export default function LookoutPage() {
   });
 
   const stats = {
-    active: mockLookouts.filter((lo) => lo.status === "ACTIVE").length,
-    wanted: mockLookouts.filter((lo) => lo.type === "WANTED").length,
-    missing: mockLookouts.filter((lo) => lo.type === "MISSING").length,
-    vehicles: mockLookouts.filter((lo) => lo.type === "STOLEN_VEHICLE").length,
+    active: lookouts.filter((lo) => lo.status === "ACTIVE").length,
+    wanted: lookouts.filter((lo) => lo.type === "WANTED").length,
+    missing: lookouts.filter((lo) => lo.type === "MISSING").length,
+    vehicles: lookouts.filter((lo) => lo.type === "STOLEN_VEHICLE").length,
+  };
+
+  const handleVerifySighting = async (sighting: Sighting, verified: boolean) => {
+    if (user) {
+      await verifySighting(sighting.id, user.name, verified);
+      addToast({
+        type: verified ? "success" : "warning",
+        title: verified ? "Sighting Verified" : "Sighting Rejected",
+        message: verified
+          ? `Sighting at ${sighting.location} has been verified`
+          : "Sighting marked as false positive",
+      });
+    }
+  };
+
+  const handleReportSighting = async (lookout: Lookout) => {
+    if (user) {
+      await reportSighting({
+        lookoutId: lookout.lookoutId,
+        reportedBy: user.name,
+        location: "Reported Location",
+        details: "Sighting reported via quick action",
+      });
+      addToast({
+        type: "success",
+        title: "Sighting Reported",
+        message: `Sighting for ${lookout.name} has been reported`,
+      });
+    }
   };
 
   return (
@@ -389,13 +305,7 @@ export default function LookoutPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => {
-                              addToast({
-                                type: "info",
-                                title: "Report Sighting",
-                                message: "Sighting report feature coming soon",
-                              });
-                            }}
+                            onClick={() => handleReportSighting(lookout)}
                           >
                             <Flag className="h-4 w-4 mr-1" />
                             Report Sighting
@@ -434,7 +344,7 @@ export default function LookoutPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockSightings.map((sighting) => (
+                    {sightings.map((sighting) => (
                       <TableRow key={sighting.id}>
                         <TableCell>
                           <span className="font-mono text-accent">{sighting.lookoutId}</span>
@@ -477,10 +387,10 @@ export default function LookoutPage() {
                             </Button>
                             {canVerify && !sighting.verified && (
                               <>
-                                <Button variant="ghost" size="sm" onClick={() => addToast({ type: "success", title: "Sighting Verified", message: `Sighting at ${sighting.location} has been verified` })}>
+                                <Button variant="ghost" size="sm" onClick={() => handleVerifySighting(sighting, true)}>
                                   <CheckCircle className="h-4 w-4 text-success" />
                                 </Button>
-                                <Button variant="ghost" size="sm" onClick={() => addToast({ type: "warning", title: "Sighting Rejected", message: "Sighting marked as false positive" })}>
+                                <Button variant="ghost" size="sm" onClick={() => handleVerifySighting(sighting, false)}>
                                   <XCircle className="h-4 w-4 text-error" />
                                 </Button>
                               </>
@@ -489,6 +399,13 @@ export default function LookoutPage() {
                         </TableCell>
                       </TableRow>
                     ))}
+                    {sightings.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-foreground-muted py-8">
+                          No sightings reported yet
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
