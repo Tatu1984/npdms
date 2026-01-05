@@ -24,6 +24,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { Select } from "@/components/ui/Select";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
 import { PatrolMap } from "@/components/map";
@@ -128,6 +130,15 @@ export default function GISPage() {
   const [activeTab, setActiveTab] = useState("live");
   const [searchQuery, setSearchQuery] = useState("");
   const [layers, setLayers] = useState(mapLayers);
+  const [mapCenter, setMapCenter] = useState({ lat: 12.9352, lng: 77.6245 });
+  const [trackedPatrolId, setTrackedPatrolId] = useState<string | null>(null);
+  const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
+  const [dispatchForm, setDispatchForm] = useState({
+    unitId: "",
+    incidentId: "",
+    priority: "NORMAL",
+    instructions: "",
+  });
 
   const canDispatch = user && hasMinimumRole(user.role, "SHO");
 
@@ -137,6 +148,60 @@ export default function GISPage() {
         layer.id === layerId ? { ...layer, enabled: !layer.enabled } : layer
       )
     );
+  };
+
+  const handleTrackPatrol = (patrolId: string) => {
+    const patrol = mockPatrols.find((p) => p.id === patrolId);
+    if (patrol) {
+      setMapCenter(patrol.location);
+      setTrackedPatrolId(patrolId);
+      addToast({
+        type: "success",
+        title: "Tracking Vehicle",
+        message: `Now tracking ${patrol.vehicle} in real-time`,
+      });
+    }
+  };
+
+  const handleLocateIncident = (incidentId: string) => {
+    const incident = mockIncidents.find((i) => i.id === incidentId);
+    if (incident) {
+      setMapCenter(incident.coords);
+      addToast({
+        type: "success",
+        title: "Incident Located",
+        message: `Centered map on ${incident.location}`,
+      });
+    }
+  };
+
+  const handleDispatchSubmit = () => {
+    if (!dispatchForm.unitId || !dispatchForm.incidentId) {
+      addToast({
+        type: "error",
+        title: "Validation Error",
+        message: "Please select both a unit and an incident",
+      });
+      return;
+    }
+
+    const unit = mockPatrols.find((p) => p.id === dispatchForm.unitId);
+    const incident = mockIncidents.find((i) => i.id === dispatchForm.incidentId);
+
+    if (unit && incident) {
+      addToast({
+        type: "success",
+        title: "Unit Dispatched",
+        message: `${unit.vehicle} dispatched to ${incident.location}`,
+      });
+      setIsDispatchModalOpen(false);
+      setDispatchForm({
+        unitId: "",
+        incidentId: "",
+        priority: "NORMAL",
+        instructions: "",
+      });
+    }
   };
 
   return (
@@ -152,7 +217,7 @@ export default function GISPage() {
           </div>
           <div className="flex gap-2">
             {canDispatch && (
-              <Button onClick={() => addToast({ type: "info", title: "Dispatch Unit", message: "Unit dispatch interface coming soon" })}>
+              <Button onClick={() => setIsDispatchModalOpen(true)}>
                 <Radio className="h-4 w-4 mr-2" />
                 Dispatch Unit
               </Button>
@@ -208,7 +273,7 @@ export default function GISPage() {
                     patrols={mockPatrols}
                     incidents={mockIncidents}
                     beats={mockBeats}
-                    stationLocation={{ lat: 12.9352, lng: 77.6245 }}
+                    stationLocation={mapCenter}
                     stationName={user?.stationName || "Police Station"}
                     showPatrols={layers.find((l) => l.id === "patrols")?.enabled ?? true}
                     showIncidents={layers.find((l) => l.id === "incidents")?.enabled ?? true}
@@ -327,9 +392,14 @@ export default function GISPage() {
                           <Clock className="h-3 w-3 inline mr-1" />
                           {patrol.lastUpdate}
                         </span>
-                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => addToast({ type: "info", title: "Track Vehicle", message: `Tracking ${patrol.vehicle} in real-time` })}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => handleTrackPatrol(patrol.id)}
+                        >
                           <Navigation className="h-3 w-3 mr-1" />
-                          Track
+                          {trackedPatrolId === patrol.id ? "Tracking" : "Track"}
                         </Button>
                       </div>
                     </CardContent>
@@ -376,7 +446,12 @@ export default function GISPage() {
                           <Clock className="h-3 w-3 inline mr-1" />
                           {incident.time}
                         </span>
-                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => addToast({ type: "info", title: "Locate Incident", message: `Centering map on ${incident.location}` })}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => handleLocateIncident(incident.id)}
+                        >
                           <MapPin className="h-3 w-3 mr-1" />
                           Locate
                         </Button>
@@ -416,6 +491,116 @@ export default function GISPage() {
             </Tabs>
           </div>
         </div>
+
+        {/* Dispatch Modal */}
+        <Modal
+          isOpen={isDispatchModalOpen}
+          onClose={() => setIsDispatchModalOpen(false)}
+          title="Dispatch Unit"
+          description="Assign a patrol unit to respond to an incident"
+          size="lg"
+        >
+          <div className="space-y-4">
+            <Select
+              label="Select Patrol Unit"
+              placeholder="Choose a unit to dispatch"
+              options={mockPatrols.map((patrol) => ({
+                value: patrol.id,
+                label: `${patrol.vehicle} - ${patrol.officers.join(", ")} (${patrol.beat})`,
+              }))}
+              value={dispatchForm.unitId}
+              onChange={(value) =>
+                setDispatchForm({ ...dispatchForm, unitId: value })
+              }
+            />
+
+            <Select
+              label="Select Incident"
+              placeholder="Choose an incident"
+              options={mockIncidents
+                .filter((i) => i.status !== "RESOLVED")
+                .map((incident) => ({
+                  value: incident.id,
+                  label: `${incident.type} - ${incident.location} (${incident.priority} Priority)`,
+                }))}
+              value={dispatchForm.incidentId}
+              onChange={(value) =>
+                setDispatchForm({ ...dispatchForm, incidentId: value })
+              }
+            />
+
+            <Select
+              label="Priority Level"
+              options={[
+                { value: "LOW", label: "Low Priority" },
+                { value: "NORMAL", label: "Normal Priority" },
+                { value: "HIGH", label: "High Priority" },
+                { value: "EMERGENCY", label: "Emergency" },
+              ]}
+              value={dispatchForm.priority}
+              onChange={(value) =>
+                setDispatchForm({ ...dispatchForm, priority: value })
+              }
+            />
+
+            <div>
+              <label
+                htmlFor="instructions"
+                className="block text-sm font-medium text-foreground mb-1.5"
+              >
+                Dispatch Instructions
+              </label>
+              <textarea
+                id="instructions"
+                rows={3}
+                className="flex w-full rounded-md border border-border bg-background-secondary px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                placeholder="Enter any special instructions for the responding unit..."
+                value={dispatchForm.instructions}
+                onChange={(e) =>
+                  setDispatchForm({
+                    ...dispatchForm,
+                    instructions: e.target.value,
+                  })
+                }
+              />
+            </div>
+
+            {dispatchForm.unitId && dispatchForm.incidentId && (
+              <div className="p-3 bg-accent/10 rounded-lg border border-accent/20">
+                <p className="text-sm font-medium text-foreground mb-1">
+                  Dispatch Summary
+                </p>
+                <p className="text-xs text-foreground-muted">
+                  Unit:{" "}
+                  {mockPatrols.find((p) => p.id === dispatchForm.unitId)?.vehicle}
+                </p>
+                <p className="text-xs text-foreground-muted">
+                  Incident:{" "}
+                  {
+                    mockIncidents.find((i) => i.id === dispatchForm.incidentId)
+                      ?.location
+                  }
+                </p>
+                <p className="text-xs text-foreground-muted">
+                  Priority: {dispatchForm.priority}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <ModalFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setIsDispatchModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleDispatchSubmit}>
+              <Radio className="h-4 w-4 mr-2" />
+              Dispatch Unit
+            </Button>
+          </ModalFooter>
+        </Modal>
       </div>
     </DashboardLayout>
   );

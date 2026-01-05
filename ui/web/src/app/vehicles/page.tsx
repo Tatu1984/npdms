@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useVehiclesStore } from "@/stores/vehiclesStore";
 import { useToastStore } from "@/stores/toastStore";
@@ -128,7 +129,7 @@ function getFuelColor(level: number) {
 
 export default function VehiclesPage() {
   const { user } = useAuthStore();
-  const { vehicles, deleteVehicle, isLoading } = useVehiclesStore();
+  const { vehicles, deleteVehicle, updateVehicle, isLoading } = useVehiclesStore();
   const { addToast } = useToastStore();
   const [activeTab, setActiveTab] = useState("fleet");
   const [searchQuery, setSearchQuery] = useState("");
@@ -137,6 +138,28 @@ export default function VehiclesPage() {
   const [showFullMap, setShowFullMap] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [vehicleToDelete, setVehicleToDelete] = useState<string | null>(null);
+
+  // Maintenance Modal State
+  const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
+  const [maintenanceForm, setMaintenanceForm] = useState({
+    vehicleId: "",
+    serviceType: "",
+    scheduledDate: "",
+    vendor: "",
+    estimatedCost: "",
+    notes: "",
+  });
+
+  // Fuel Entry Modal State
+  const [fuelModalOpen, setFuelModalOpen] = useState(false);
+  const [fuelForm, setFuelForm] = useState({
+    vehicleId: "",
+    liters: "",
+    amount: "",
+    odometer: "",
+    filledBy: "",
+    date: new Date().toISOString().split('T')[0],
+  });
 
   const canAllocate = user && hasMinimumRole(user.role, "SHO");
   const canDelete = user && hasMinimumRole(user.role, "SP");
@@ -203,6 +226,110 @@ export default function VehiclesPage() {
 
   const handleVehicleClick = (vehicleId: string) => {
     window.location.href = `/vehicles/${vehicleId}`;
+  };
+
+  // Maintenance Modal Handlers
+  const handleOpenMaintenanceModal = () => {
+    setMaintenanceForm({
+      vehicleId: "",
+      serviceType: "",
+      scheduledDate: "",
+      vendor: "",
+      estimatedCost: "",
+      notes: "",
+    });
+    setMaintenanceModalOpen(true);
+  };
+
+  const handleMaintenanceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!maintenanceForm.vehicleId || !maintenanceForm.serviceType || !maintenanceForm.scheduledDate) {
+      addToast({
+        type: "error",
+        title: "Validation Error",
+        message: "Please fill in all required fields",
+      });
+      return;
+    }
+
+    try {
+      // Update vehicle status to maintenance
+      await updateVehicle(maintenanceForm.vehicleId, {
+        status: "MAINTENANCE",
+        maintenanceNote: `${maintenanceForm.serviceType} - Scheduled: ${maintenanceForm.scheduledDate}`,
+      });
+
+      addToast({
+        type: "success",
+        title: "Maintenance Scheduled",
+        message: `${maintenanceForm.serviceType} scheduled for ${maintenanceForm.scheduledDate}`,
+      });
+
+      setMaintenanceModalOpen(false);
+    } catch (error) {
+      addToast({
+        type: "error",
+        title: "Error",
+        message: "Failed to schedule maintenance",
+      });
+    }
+  };
+
+  // Fuel Entry Modal Handlers
+  const handleOpenFuelModal = () => {
+    setFuelForm({
+      vehicleId: "",
+      liters: "",
+      amount: "",
+      odometer: "",
+      filledBy: "",
+      date: new Date().toISOString().split('T')[0],
+    });
+    setFuelModalOpen(true);
+  };
+
+  const handleFuelSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!fuelForm.vehicleId || !fuelForm.liters || !fuelForm.amount || !fuelForm.odometer) {
+      addToast({
+        type: "error",
+        title: "Validation Error",
+        message: "Please fill in all required fields",
+      });
+      return;
+    }
+
+    try {
+      const vehicle = vehicles.find(v => v.id === fuelForm.vehicleId);
+      if (vehicle) {
+        // Calculate fuel level based on fuel capacity (assuming 50L tank)
+        const fuelCapacity = 50;
+        const currentFuelAmount = (vehicle.fuelLevel / 100) * fuelCapacity;
+        const newFuelAmount = Math.min(currentFuelAmount + parseFloat(fuelForm.liters), fuelCapacity);
+        const newFuelLevel = Math.round((newFuelAmount / fuelCapacity) * 100);
+
+        await updateVehicle(fuelForm.vehicleId, {
+          fuelLevel: newFuelLevel,
+          odometerReading: parseInt(fuelForm.odometer),
+        });
+
+        addToast({
+          type: "success",
+          title: "Fuel Entry Logged",
+          message: `Added ${fuelForm.liters}L to ${vehicle.registrationNumber}`,
+        });
+
+        setFuelModalOpen(false);
+      }
+    } catch (error) {
+      addToast({
+        type: "error",
+        title: "Error",
+        message: "Failed to log fuel entry",
+      });
+    }
   };
 
   return (
@@ -497,7 +624,7 @@ export default function VehiclesPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Fuel Consumption</h3>
               <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => addToast({ type: "info", title: "Log Fuel", message: "Fuel entry form coming soon" })}>
+                <Button variant="secondary" onClick={handleOpenFuelModal}>
                   <Plus className="h-4 w-4 mr-2" />
                   Log Fuel Entry
                 </Button>
@@ -572,7 +699,7 @@ export default function VehiclesPage() {
           <TabsContent value="maintenance" className="space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Maintenance Schedule</h3>
-              <Button variant="secondary" onClick={() => addToast({ type: "info", title: "Schedule Maintenance", message: "Maintenance scheduling form coming soon" })}>
+              <Button variant="secondary" onClick={handleOpenMaintenanceModal}>
                 <Plus className="h-4 w-4 mr-2" />
                 Schedule Maintenance
               </Button>
@@ -593,7 +720,7 @@ export default function VehiclesPage() {
                       <p className="font-medium text-foreground">KA-01-P-1237</p>
                       <p className="text-sm text-foreground-muted">Engine service overdue by 15 days</p>
                     </div>
-                    <Button variant="secondary" size="sm" onClick={() => addToast({ type: "info", title: "Schedule Service", message: "Service scheduling form coming soon" })}>
+                    <Button variant="secondary" size="sm" onClick={handleOpenMaintenanceModal}>
                       Schedule
                     </Button>
                   </div>
@@ -602,7 +729,7 @@ export default function VehiclesPage() {
                       <p className="font-medium text-foreground">KA-01-G-5678</p>
                       <p className="text-sm text-foreground-muted">Service due in 5 days</p>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => addToast({ type: "info", title: "Schedule Service", message: "Service scheduling form coming soon" })}>
+                    <Button variant="ghost" size="sm" onClick={handleOpenMaintenanceModal}>
                       Schedule
                     </Button>
                   </div>
@@ -666,6 +793,227 @@ export default function VehiclesPage() {
         confirmText="Delete"
         type="danger"
       />
+
+      {/* Schedule Maintenance Modal */}
+      <Modal
+        isOpen={maintenanceModalOpen}
+        onClose={() => setMaintenanceModalOpen(false)}
+        title="Schedule Maintenance"
+        description="Schedule maintenance service for a vehicle"
+        size="lg"
+      >
+        <form onSubmit={handleMaintenanceSubmit}>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">
+                Vehicle <span className="text-error">*</span>
+              </label>
+              <Select
+                options={[
+                  { value: "", label: "Select a vehicle" },
+                  ...vehicles.map(v => ({
+                    value: v.id,
+                    label: `${v.registrationNumber} - ${v.type}`
+                  }))
+                ]}
+                value={maintenanceForm.vehicleId}
+                onChange={(value) => setMaintenanceForm({ ...maintenanceForm, vehicleId: value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">
+                Service Type <span className="text-error">*</span>
+              </label>
+              <Select
+                options={[
+                  { value: "", label: "Select service type" },
+                  { value: "Regular Service", label: "Regular Service" },
+                  { value: "Oil Change", label: "Oil Change" },
+                  { value: "Tire Replacement", label: "Tire Replacement" },
+                  { value: "Brake Service", label: "Brake Service" },
+                  { value: "Engine Repair", label: "Engine Repair" },
+                  { value: "Body Work", label: "Body Work" },
+                  { value: "Other", label: "Other" },
+                ]}
+                value={maintenanceForm.serviceType}
+                onChange={(value) => setMaintenanceForm({ ...maintenanceForm, serviceType: value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">
+                Scheduled Date <span className="text-error">*</span>
+              </label>
+              <Input
+                type="date"
+                value={maintenanceForm.scheduledDate}
+                onChange={(value) => setMaintenanceForm({ ...maintenanceForm, scheduledDate: value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">
+                Vendor
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g., Govt. Workshop"
+                value={maintenanceForm.vendor}
+                onChange={(value) => setMaintenanceForm({ ...maintenanceForm, vendor: value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">
+                Estimated Cost (₹)
+              </label>
+              <Input
+                type="number"
+                placeholder="0"
+                value={maintenanceForm.estimatedCost}
+                onChange={(value) => setMaintenanceForm({ ...maintenanceForm, estimatedCost: value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">
+                Notes
+              </label>
+              <textarea
+                className="w-full px-3 py-2 bg-background-tertiary border border-border rounded-md text-foreground placeholder-foreground-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                rows={3}
+                placeholder="Additional notes..."
+                value={maintenanceForm.notes}
+                onChange={(e) => setMaintenanceForm({ ...maintenanceForm, notes: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <ModalFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setMaintenanceModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit">
+              <Wrench className="h-4 w-4 mr-2" />
+              Schedule Maintenance
+            </Button>
+          </ModalFooter>
+        </form>
+      </Modal>
+
+      {/* Log Fuel Entry Modal */}
+      <Modal
+        isOpen={fuelModalOpen}
+        onClose={() => setFuelModalOpen(false)}
+        title="Log Fuel Entry"
+        description="Record fuel refill for a vehicle"
+        size="lg"
+      >
+        <form onSubmit={handleFuelSubmit}>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">
+                Vehicle <span className="text-error">*</span>
+              </label>
+              <Select
+                options={[
+                  { value: "", label: "Select a vehicle" },
+                  ...vehicles.map(v => ({
+                    value: v.id,
+                    label: `${v.registrationNumber} - ${v.type} (${v.fuelLevel}% fuel)`
+                  }))
+                ]}
+                value={fuelForm.vehicleId}
+                onChange={(value) => setFuelForm({ ...fuelForm, vehicleId: value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Date <span className="text-error">*</span>
+                </label>
+                <Input
+                  type="date"
+                  value={fuelForm.date}
+                  onChange={(value) => setFuelForm({ ...fuelForm, date: value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Liters <span className="text-error">*</span>
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={fuelForm.liters}
+                  onChange={(value) => setFuelForm({ ...fuelForm, liters: value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Amount (₹) <span className="text-error">*</span>
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={fuelForm.amount}
+                  onChange={(value) => setFuelForm({ ...fuelForm, amount: value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Odometer Reading (km) <span className="text-error">*</span>
+                </label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={fuelForm.odometer}
+                  onChange={(value) => setFuelForm({ ...fuelForm, odometer: value })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">
+                Filled By
+              </label>
+              <Input
+                type="text"
+                placeholder="Officer name"
+                value={fuelForm.filledBy}
+                onChange={(value) => setFuelForm({ ...fuelForm, filledBy: value })}
+              />
+            </div>
+          </div>
+
+          <ModalFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setFuelModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit">
+              <Fuel className="h-4 w-4 mr-2" />
+              Log Fuel Entry
+            </Button>
+          </ModalFooter>
+        </form>
+      </Modal>
     </DashboardLayout>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Microscope,
   Search,
@@ -18,97 +18,16 @@ import {
   ArrowRight,
   Download,
   Eye,
+  X,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
-
-const mockForensicRequests = [
-  {
-    id: "FSL-2024-00234",
-    evidenceId: "EVD-2024-KOR-00156",
-    caseNumber: "CASE-2024-00156",
-    type: "FINGERPRINT",
-    status: "COMPLETED",
-    priority: "HIGH",
-    submittedDate: "2024-01-16",
-    completedDate: "2024-01-23",
-    lab: "FSL Bangalore",
-    analyst: "Dr. Priya Nair",
-    summary: "3 fingerprint matches found. Matched with accused Raju Kumar.",
-    findings: "Positive match with NAFIS database",
-  },
-  {
-    id: "FSL-2024-00233",
-    evidenceId: "EVD-2024-KOR-00157",
-    caseNumber: "CASE-2024-00156",
-    type: "DNA",
-    status: "IN_PROGRESS",
-    priority: "HIGH",
-    submittedDate: "2024-01-18",
-    expectedDate: "2024-02-01",
-    lab: "FSL Bangalore",
-    analyst: "Dr. Ramesh Kumar",
-    progress: 65,
-  },
-  {
-    id: "FSL-2024-00232",
-    evidenceId: "EVD-2024-KOR-00145",
-    caseNumber: "CASE-2024-00145",
-    type: "NARCOTICS",
-    status: "COMPLETED",
-    priority: "MEDIUM",
-    submittedDate: "2024-01-14",
-    completedDate: "2024-01-20",
-    lab: "FSL Bangalore",
-    analyst: "Dr. Suresh Menon",
-    summary: "Substance confirmed as Methamphetamine. Net weight: 245g",
-    findings: "NDPS Act applicable",
-  },
-  {
-    id: "FSL-2024-00231",
-    evidenceId: "EVD-2024-KOR-00148",
-    caseNumber: "CASE-2024-00148",
-    type: "DIGITAL",
-    status: "IN_PROGRESS",
-    priority: "MEDIUM",
-    submittedDate: "2024-01-15",
-    expectedDate: "2024-01-30",
-    lab: "Cyber Forensics Lab",
-    analyst: "Er. Vikram Singh",
-    progress: 40,
-    devices: ["1x Laptop", "2x Mobile Phones", "1x Hard Disk"],
-  },
-  {
-    id: "FSL-2024-00230",
-    evidenceId: "EVD-2024-KOR-00140",
-    caseNumber: "CASE-2024-00140",
-    type: "BALLISTICS",
-    status: "PENDING",
-    priority: "LOW",
-    submittedDate: "2024-01-22",
-    expectedDate: "2024-02-05",
-    lab: "FSL Bangalore",
-    items: ["2x Cartridge cases", "1x Bullet fragment"],
-  },
-  {
-    id: "FSL-2024-00229",
-    evidenceId: "EVD-2024-KOR-00135",
-    caseNumber: "CASE-2024-00135",
-    type: "DOCUMENT",
-    status: "COMPLETED",
-    priority: "MEDIUM",
-    submittedDate: "2024-01-10",
-    completedDate: "2024-01-17",
-    lab: "Document Examination Lab",
-    analyst: "Dr. Anjali Sharma",
-    summary: "Signature found to be forged. Document is not authentic.",
-    findings: "Forgery confirmed",
-  },
-];
+import { useForensicsStore, ForensicRequest } from "@/stores/forensicsStore";
 
 const forensicTypes = {
   FINGERPRINT: { label: "Fingerprint", icon: Fingerprint, color: "info" },
@@ -128,13 +47,31 @@ const statusConfig = {
 
 export default function ForensicsPage() {
   const { user } = useAuthStore();
+  const { requests, loadRequests, createRequest, setSelectedRequest, selectedRequest, getStats } = useForensicsStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("ALL");
   const [filterStatus, setFilterStatus] = useState("ALL");
+  const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Form state for new request
+  const [formData, setFormData] = useState({
+    evidenceId: "",
+    caseNumber: "",
+    type: "FINGERPRINT" as ForensicRequest["type"],
+    priority: "MEDIUM" as ForensicRequest["priority"],
+    lab: "",
+    expectedDate: "",
+  });
+
+  useEffect(() => {
+    loadRequests();
+  }, [loadRequests]);
 
   const canSubmit = user && hasMinimumRole(user.role, "SI");
 
-  const filteredRequests = mockForensicRequests.filter((req) => {
+  const filteredRequests = requests.filter((req) => {
     const matchesSearch =
       req.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       req.caseNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -144,11 +81,54 @@ export default function ForensicsPage() {
     return matchesSearch && matchesType && matchesStatus;
   });
 
-  const stats = {
-    total: mockForensicRequests.length,
-    pending: mockForensicRequests.filter((r) => r.status === "PENDING").length,
-    inProgress: mockForensicRequests.filter((r) => r.status === "IN_PROGRESS").length,
-    completed: mockForensicRequests.filter((r) => r.status === "COMPLETED").length,
+  const stats = getStats();
+
+  const handleCreateRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      await createRequest({
+        evidenceId: formData.evidenceId,
+        caseNumber: formData.caseNumber,
+        type: formData.type,
+        priority: formData.priority,
+        status: "PENDING",
+        submittedDate: new Date().toISOString().split("T")[0],
+        lab: formData.lab,
+        expectedDate: formData.expectedDate,
+      });
+
+      // Reset form
+      setFormData({
+        evidenceId: "",
+        caseNumber: "",
+        type: "FINGERPRINT",
+        priority: "MEDIUM",
+        lab: "",
+        expectedDate: "",
+      });
+      setIsNewRequestModalOpen(false);
+    } catch (error) {
+      console.error("Failed to create request:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleViewDetails = (request: ForensicRequest) => {
+    setSelectedRequest(request);
+    setIsDetailsModalOpen(true);
+  };
+
+  const handleDownloadReport = (request: ForensicRequest) => {
+    // Simulate report download
+    alert(`Downloading report for ${request.id}...`);
+    console.log("Downloading report for:", request);
+  };
+
+  const handleStatusFilter = (status: string) => {
+    setFilterStatus(status);
   };
 
   return (
@@ -163,7 +143,7 @@ export default function ForensicsPage() {
             </p>
           </div>
           {canSubmit && (
-            <Button>
+            <Button onClick={() => setIsNewRequestModalOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               New FSL Request
             </Button>
@@ -172,7 +152,10 @@ export default function ForensicsPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-4 gap-4">
-          <Card>
+          <Card
+            className="cursor-pointer hover:border-accent/50 transition-colors"
+            onClick={() => handleStatusFilter("ALL")}
+          >
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-accent/10">
@@ -185,7 +168,10 @@ export default function ForensicsPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card
+            className="cursor-pointer hover:border-accent/50 transition-colors"
+            onClick={() => handleStatusFilter("PENDING")}
+          >
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-muted/10">
@@ -198,7 +184,10 @@ export default function ForensicsPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card
+            className="cursor-pointer hover:border-accent/50 transition-colors"
+            onClick={() => handleStatusFilter("IN_PROGRESS")}
+          >
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-warning/10">
@@ -211,7 +200,10 @@ export default function ForensicsPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card
+            className="cursor-pointer hover:border-accent/50 transition-colors"
+            onClick={() => handleStatusFilter("COMPLETED")}
+          >
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-success/10">
@@ -388,12 +380,12 @@ export default function ForensicsPage() {
                         ) : null}
                       </div>
                       <div className="flex gap-2 justify-end">
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" onClick={() => handleViewDetails(request)}>
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
                         {request.status === "COMPLETED" && (
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => handleDownloadReport(request)}>
                             <Download className="h-4 w-4 mr-1" />
                             Report
                           </Button>
@@ -419,6 +411,277 @@ export default function ForensicsPage() {
           </Card>
         )}
       </div>
+
+      {/* New FSL Request Modal */}
+      <Modal
+        isOpen={isNewRequestModalOpen}
+        onClose={() => setIsNewRequestModalOpen(false)}
+        title="New FSL Request"
+        description="Submit evidence for forensic lab analysis"
+        size="lg"
+      >
+        <form onSubmit={handleCreateRequest}>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Evidence ID <span className="text-error">*</span>
+                </label>
+                <Input
+                  required
+                  value={formData.evidenceId}
+                  onChange={(value) => setFormData({ ...formData, evidenceId: value })}
+                  placeholder="EVD-2024-KOR-XXXXX"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Case Number <span className="text-error">*</span>
+                </label>
+                <Input
+                  required
+                  value={formData.caseNumber}
+                  onChange={(value) => setFormData({ ...formData, caseNumber: value })}
+                  placeholder="CASE-2024-XXXXX"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Analysis Type <span className="text-error">*</span>
+                </label>
+                <select
+                  required
+                  value={formData.type}
+                  onChange={(e) =>
+                    setFormData({ ...formData, type: e.target.value as ForensicRequest["type"] })
+                  }
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
+                >
+                  <option value="FINGERPRINT">Fingerprint Analysis</option>
+                  <option value="DNA">DNA Analysis</option>
+                  <option value="BALLISTICS">Ballistics</option>
+                  <option value="DIGITAL">Digital Forensics</option>
+                  <option value="NARCOTICS">Narcotics</option>
+                  <option value="DOCUMENT">Document Examination</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Priority <span className="text-error">*</span>
+                </label>
+                <select
+                  required
+                  value={formData.priority}
+                  onChange={(e) =>
+                    setFormData({ ...formData, priority: e.target.value as ForensicRequest["priority"] })
+                  }
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
+                >
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Laboratory <span className="text-error">*</span>
+                </label>
+                <select
+                  required
+                  value={formData.lab}
+                  onChange={(e) => setFormData({ ...formData, lab: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
+                >
+                  <option value="">Select Laboratory</option>
+                  <option value="FSL Bangalore">FSL Bangalore</option>
+                  <option value="FSL Delhi">FSL Delhi</option>
+                  <option value="FSL Mumbai">FSL Mumbai</option>
+                  <option value="Cyber Forensics Lab">Cyber Forensics Lab</option>
+                  <option value="Document Examination Lab">Document Examination Lab</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Expected Date
+                </label>
+                <Input
+                  type="date"
+                  value={formData.expectedDate}
+                  onChange={(value) => setFormData({ ...formData, expectedDate: value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          <ModalFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setIsNewRequestModalOpen(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Submitting..." : "Submit Request"}
+            </Button>
+          </ModalFooter>
+        </form>
+      </Modal>
+
+      {/* Details Modal */}
+      <Modal
+        isOpen={isDetailsModalOpen}
+        onClose={() => setIsDetailsModalOpen(false)}
+        title="Forensic Request Details"
+        size="lg"
+      >
+        {selectedRequest && (
+          <div className="space-y-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-foreground">{selectedRequest.id}</h3>
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge
+                    variant={
+                      forensicTypes[selectedRequest.type as keyof typeof forensicTypes].color as any
+                    }
+                  >
+                    {forensicTypes[selectedRequest.type as keyof typeof forensicTypes].label}
+                  </Badge>
+                  <Badge
+                    variant={
+                      statusConfig[selectedRequest.status as keyof typeof statusConfig].color as any
+                    }
+                  >
+                    {statusConfig[selectedRequest.status as keyof typeof statusConfig].label}
+                  </Badge>
+                  {selectedRequest.priority === "HIGH" && (
+                    <Badge variant="error">High Priority</Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-foreground-muted">Evidence ID</p>
+                <p className="text-foreground font-medium">{selectedRequest.evidenceId}</p>
+              </div>
+              <div>
+                <p className="text-sm text-foreground-muted">Case Number</p>
+                <p className="text-foreground font-medium">{selectedRequest.caseNumber}</p>
+              </div>
+              <div>
+                <p className="text-sm text-foreground-muted">Laboratory</p>
+                <p className="text-foreground font-medium">{selectedRequest.lab}</p>
+              </div>
+              {selectedRequest.analyst && (
+                <div>
+                  <p className="text-sm text-foreground-muted">Analyst</p>
+                  <p className="text-foreground font-medium">{selectedRequest.analyst}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-foreground-muted">Submitted Date</p>
+                <p className="text-foreground font-medium">{selectedRequest.submittedDate}</p>
+              </div>
+              {selectedRequest.completedDate ? (
+                <div>
+                  <p className="text-sm text-foreground-muted">Completed Date</p>
+                  <p className="text-success font-medium">{selectedRequest.completedDate}</p>
+                </div>
+              ) : selectedRequest.expectedDate ? (
+                <div>
+                  <p className="text-sm text-foreground-muted">Expected Date</p>
+                  <p className="text-foreground font-medium">{selectedRequest.expectedDate}</p>
+                </div>
+              ) : null}
+            </div>
+
+            {selectedRequest.progress !== undefined && (
+              <div>
+                <div className="flex items-center justify-between text-sm text-foreground-muted mb-2">
+                  <span>Analysis Progress</span>
+                  <span className="font-medium text-foreground">{selectedRequest.progress}%</span>
+                </div>
+                <div className="h-3 bg-background-tertiary rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-accent rounded-full transition-all"
+                    style={{ width: `${selectedRequest.progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {selectedRequest.devices && selectedRequest.devices.length > 0 && (
+              <div>
+                <p className="text-sm text-foreground-muted mb-2">Devices/Items</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedRequest.devices.map((device) => (
+                    <span
+                      key={device}
+                      className="px-3 py-1 text-sm rounded-lg bg-background-tertiary text-foreground"
+                    >
+                      {device}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedRequest.items && selectedRequest.items.length > 0 && (
+              <div>
+                <p className="text-sm text-foreground-muted mb-2">Items</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedRequest.items.map((item) => (
+                    <span
+                      key={item}
+                      className="px-3 py-1 text-sm rounded-lg bg-background-tertiary text-foreground"
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedRequest.summary && (
+              <div className="p-4 rounded-lg bg-success/10 border border-success/20">
+                <p className="text-sm font-medium text-success mb-1">Summary</p>
+                <p className="text-foreground">{selectedRequest.summary}</p>
+                {selectedRequest.findings && (
+                  <>
+                    <p className="text-sm font-medium text-success mt-3 mb-1">Findings</p>
+                    <p className="text-foreground">{selectedRequest.findings}</p>
+                  </>
+                )}
+              </div>
+            )}
+
+            <ModalFooter>
+              <Button variant="ghost" onClick={() => setIsDetailsModalOpen(false)}>
+                Close
+              </Button>
+              {selectedRequest.status === "COMPLETED" && (
+                <Button onClick={() => handleDownloadReport(selectedRequest)}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Report
+                </Button>
+              )}
+            </ModalFooter>
+          </div>
+        )}
+      </Modal>
     </DashboardLayout>
   );
 }

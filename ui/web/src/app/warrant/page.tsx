@@ -23,85 +23,12 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
-
-const mockWarrants = [
-  {
-    id: "war-001",
-    warrantNumber: "WAR-2024-00045",
-    type: "ARREST",
-    status: "ACTIVE",
-    issuedFor: "Rajesh Kumar Singh",
-    caseNumber: "CASE-2024-00156",
-    firNumber: "KOR/2024/00089",
-    issuedBy: "Sessions Court, Koramangala",
-    issuedDate: "2024-01-20",
-    validUntil: "2024-04-20",
-    charges: ["IPC 392", "IPC 397"],
-    lastKnownLocation: "Marathahalli, Bangalore",
-    priority: "HIGH",
-  },
-  {
-    id: "war-002",
-    warrantNumber: "WAR-2024-00044",
-    type: "SEARCH",
-    status: "EXECUTED",
-    issuedFor: "Premises at 45, MG Road",
-    caseNumber: "CASE-2024-00148",
-    firNumber: "KOR/2024/00075",
-    issuedBy: "Magistrate Court, Koramangala",
-    issuedDate: "2024-01-18",
-    validUntil: "2024-01-25",
-    executedDate: "2024-01-19",
-    charges: ["NDPS Act 20"],
-    priority: "MEDIUM",
-  },
-  {
-    id: "war-003",
-    warrantNumber: "WAR-2024-00043",
-    type: "ARREST",
-    status: "EXPIRED",
-    issuedFor: "Unknown Male (Alias: Chotu)",
-    caseNumber: "CASE-2024-00140",
-    firNumber: "KOR/2024/00068",
-    issuedBy: "Sessions Court, Koramangala",
-    issuedDate: "2024-01-10",
-    validUntil: "2024-01-17",
-    charges: ["IPC 379"],
-    lastKnownLocation: "Electronic City",
-    priority: "LOW",
-  },
-  {
-    id: "war-004",
-    warrantNumber: "WAR-2024-00042",
-    type: "SUMMONS",
-    status: "ACTIVE",
-    issuedFor: "Priya Sharma (Witness)",
-    caseNumber: "CASE-2024-00156",
-    firNumber: "KOR/2024/00089",
-    issuedBy: "Sessions Court, Koramangala",
-    issuedDate: "2024-01-22",
-    validUntil: "2024-02-15",
-    hearingDate: "2024-02-20",
-    priority: "MEDIUM",
-  },
-  {
-    id: "war-005",
-    warrantNumber: "WAR-2024-00041",
-    type: "NBW",
-    status: "ACTIVE",
-    issuedFor: "Mohammed Farooq",
-    caseNumber: "CASE-2024-00135",
-    firNumber: "KOR/2024/00060",
-    issuedBy: "Sessions Court, Koramangala",
-    issuedDate: "2024-01-15",
-    validUntil: "2024-07-15",
-    charges: ["IPC 420", "IPC 406"],
-    lastKnownLocation: "Unknown - Fled jurisdiction",
-    priority: "HIGH",
-  },
-];
+import { useWarrantStore, Warrant } from "@/stores/warrantStore";
 
 const warrantTypes = {
   ARREST: { label: "Arrest Warrant", color: "error" },
@@ -117,15 +44,44 @@ const statusConfig = {
   CANCELLED: { label: "Cancelled", color: "error", icon: XCircle },
 };
 
+const warrantTypeOptions = [
+  { value: "ARREST", label: "Arrest Warrant" },
+  { value: "SEARCH", label: "Search Warrant" },
+  { value: "SUMMONS", label: "Summons" },
+  { value: "NBW", label: "Non-Bailable Warrant" },
+];
+
+const priorityOptions = [
+  { value: "HIGH", label: "High" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "LOW", label: "Low" },
+];
+
 export default function WarrantPage() {
   const { user } = useAuthStore();
+  const { warrants, createWarrant, getStats } = useWarrantStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("ALL");
   const [filterStatus, setFilterStatus] = useState("ALL");
+  const [showNewWarrantModal, setShowNewWarrantModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newWarrant, setNewWarrant] = useState({
+    type: "ARREST" as Warrant["type"],
+    issuedFor: "",
+    caseNumber: "",
+    firNumber: "",
+    issuedBy: "",
+    issuedDate: new Date().toISOString().split("T")[0],
+    validUntil: "",
+    charges: "",
+    lastKnownLocation: "",
+    priority: "MEDIUM" as Warrant["priority"],
+    description: "",
+  });
 
   const canCreate = user && hasMinimumRole(user.role, "SI");
 
-  const filteredWarrants = mockWarrants.filter((warrant) => {
+  const filteredWarrants = warrants.filter((warrant) => {
     const matchesSearch =
       warrant.warrantNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       warrant.issuedFor.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -135,11 +91,59 @@ export default function WarrantPage() {
     return matchesSearch && matchesType && matchesStatus;
   });
 
-  const stats = {
-    total: mockWarrants.length,
-    active: mockWarrants.filter((w) => w.status === "ACTIVE").length,
-    executed: mockWarrants.filter((w) => w.status === "EXECUTED").length,
-    expired: mockWarrants.filter((w) => w.status === "EXPIRED").length,
+  const stats = getStats();
+
+  const handleCreateWarrant = async () => {
+    if (!newWarrant.issuedFor || !newWarrant.caseNumber || !newWarrant.firNumber || !newWarrant.issuedBy || !newWarrant.validUntil) {
+      toast.error("Validation Error", "Please fill in all required fields");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const warrant = await createWarrant({
+        type: newWarrant.type,
+        status: "ACTIVE",
+        issuedFor: newWarrant.issuedFor,
+        caseNumber: newWarrant.caseNumber,
+        firNumber: newWarrant.firNumber,
+        issuedBy: newWarrant.issuedBy,
+        issuedDate: newWarrant.issuedDate,
+        validUntil: newWarrant.validUntil,
+        charges: newWarrant.charges.split(",").map(c => c.trim()).filter(Boolean),
+        lastKnownLocation: newWarrant.lastKnownLocation || undefined,
+        priority: newWarrant.priority,
+        description: newWarrant.description || undefined,
+      });
+
+      toast.success("Warrant Created", `Warrant ${warrant.warrantNumber} has been created successfully`);
+      setShowNewWarrantModal(false);
+      setNewWarrant({
+        type: "ARREST",
+        issuedFor: "",
+        caseNumber: "",
+        firNumber: "",
+        issuedBy: "",
+        issuedDate: new Date().toISOString().split("T")[0],
+        validUntil: "",
+        charges: "",
+        lastKnownLocation: "",
+        priority: "MEDIUM",
+        description: "",
+      });
+    } catch (error) {
+      toast.error("Error", "Failed to create warrant");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCardClick = (status: string) => {
+    if (filterStatus === status) {
+      setFilterStatus("ALL");
+    } else {
+      setFilterStatus(status);
+    }
   };
 
   return (
@@ -154,16 +158,19 @@ export default function WarrantPage() {
             </p>
           </div>
           {canCreate && (
-            <Button onClick={() => toast.info("Warrant Request", "Opening warrant request form...")}>
+            <Button onClick={() => setShowNewWarrantModal(true)}>
               <Plus className="h-4 w-4 mr-2" />
               New Warrant Request
             </Button>
           )}
         </div>
 
-        {/* Stats */}
+        {/* Stats - Now Clickable */}
         <div className="grid grid-cols-4 gap-4">
-          <Card>
+          <Card
+            className={`cursor-pointer transition-all hover:border-accent/50 ${filterStatus === "ALL" ? "border-accent ring-1 ring-accent" : ""}`}
+            onClick={() => setFilterStatus("ALL")}
+          >
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-accent/10">
@@ -176,7 +183,10 @@ export default function WarrantPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card
+            className={`cursor-pointer transition-all hover:border-warning/50 ${filterStatus === "ACTIVE" ? "border-warning ring-1 ring-warning" : ""}`}
+            onClick={() => handleCardClick("ACTIVE")}
+          >
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-warning/10">
@@ -189,7 +199,10 @@ export default function WarrantPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card
+            className={`cursor-pointer transition-all hover:border-success/50 ${filterStatus === "EXECUTED" ? "border-success ring-1 ring-success" : ""}`}
+            onClick={() => handleCardClick("EXECUTED")}
+          >
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-success/10">
@@ -202,7 +215,10 @@ export default function WarrantPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card
+            className={`cursor-pointer transition-all hover:border-error/50 ${filterStatus === "EXPIRED" ? "border-error ring-1 ring-error" : ""}`}
+            onClick={() => handleCardClick("EXPIRED")}
+          >
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-error/10">
@@ -293,7 +309,7 @@ export default function WarrantPage() {
                           <Gavel className="h-4 w-4" />
                           <span>{warrant.issuedBy}</span>
                         </div>
-                        {warrant.charges && (
+                        {warrant.charges && warrant.charges.length > 0 && (
                           <div className="flex items-center gap-2">
                             {warrant.charges.map((charge) => (
                               <span
@@ -360,6 +376,108 @@ export default function WarrantPage() {
           </Card>
         )}
       </div>
+
+      {/* New Warrant Modal */}
+      <Modal
+        isOpen={showNewWarrantModal}
+        onClose={() => setShowNewWarrantModal(false)}
+        title="New Warrant Request"
+        description="Submit a request for a new warrant"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="Warrant Type *"
+              value={newWarrant.type}
+              onChange={(v) => setNewWarrant({ ...newWarrant, type: v as Warrant["type"] })}
+              options={warrantTypeOptions}
+            />
+            <Select
+              label="Priority *"
+              value={newWarrant.priority}
+              onChange={(v) => setNewWarrant({ ...newWarrant, priority: v as Warrant["priority"] })}
+              options={priorityOptions}
+            />
+          </div>
+
+          <Input
+            label="Issued For (Person/Premises) *"
+            placeholder="Name of accused or address of premises"
+            value={newWarrant.issuedFor}
+            onChange={(v) => setNewWarrant({ ...newWarrant, issuedFor: v })}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Case Number *"
+              placeholder="CASE-2024-XXXXX"
+              value={newWarrant.caseNumber}
+              onChange={(v) => setNewWarrant({ ...newWarrant, caseNumber: v })}
+            />
+            <Input
+              label="FIR Number *"
+              placeholder="KOR/2024/XXXXX"
+              value={newWarrant.firNumber}
+              onChange={(v) => setNewWarrant({ ...newWarrant, firNumber: v })}
+            />
+          </div>
+
+          <Input
+            label="Issuing Authority *"
+            placeholder="Sessions Court, Koramangala"
+            value={newWarrant.issuedBy}
+            onChange={(v) => setNewWarrant({ ...newWarrant, issuedBy: v })}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Issue Date *"
+              type="date"
+              value={newWarrant.issuedDate}
+              onChange={(v) => setNewWarrant({ ...newWarrant, issuedDate: v })}
+            />
+            <Input
+              label="Valid Until *"
+              type="date"
+              value={newWarrant.validUntil}
+              onChange={(v) => setNewWarrant({ ...newWarrant, validUntil: v })}
+            />
+          </div>
+
+          <Input
+            label="Charges (comma separated)"
+            placeholder="IPC 392, IPC 397"
+            value={newWarrant.charges}
+            onChange={(v) => setNewWarrant({ ...newWarrant, charges: v })}
+          />
+
+          <Input
+            label="Last Known Location"
+            placeholder="Address or area"
+            value={newWarrant.lastKnownLocation}
+            onChange={(v) => setNewWarrant({ ...newWarrant, lastKnownLocation: v })}
+            icon={<MapPin className="h-4 w-4" />}
+          />
+
+          <Textarea
+            label="Description / Notes"
+            placeholder="Additional details about the warrant..."
+            value={newWarrant.description}
+            onChange={(v) => setNewWarrant({ ...newWarrant, description: v })}
+            rows={3}
+          />
+        </div>
+
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setShowNewWarrantModal(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleCreateWarrant} disabled={isSubmitting}>
+            {isSubmitting ? "Creating..." : "Create Warrant Request"}
+          </Button>
+        </ModalFooter>
+      </Modal>
     </DashboardLayout>
   );
 }

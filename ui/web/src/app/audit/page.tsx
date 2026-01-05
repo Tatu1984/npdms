@@ -222,11 +222,11 @@ export default function AuditPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary">
+            <Button variant="secondary" onClick={() => alert("Exporting audit logs to CSV...")}>
               <Download className="h-4 w-4 mr-2" />
               Export Logs
             </Button>
-            <Button variant="secondary">
+            <Button variant="secondary" onClick={() => window.location.reload()}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>

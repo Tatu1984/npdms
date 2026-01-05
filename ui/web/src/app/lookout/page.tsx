@@ -27,6 +27,9 @@ import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { Textarea } from "@/components/ui/Textarea";
+import { InteractiveMap, MapMarker } from "@/components/ui/Map";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
 import { useLookoutStore, Lookout, Sighting } from "@/stores/lookoutStore";
@@ -74,11 +77,42 @@ function getPriorityBadgeVariant(priority: string) {
 export default function LookoutPage() {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
-  const { lookouts, sightings, verifySighting, reportSighting, getActiveLookouts } = useLookoutStore();
+  const { lookouts, sightings, verifySighting, reportSighting, createLookout, getActiveLookouts } = useLookoutStore();
   const [activeTab, setActiveTab] = useState("notices");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+
+  // Modal states
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showSightingModal, setShowSightingModal] = useState(false);
+  const [selectedLookoutForSighting, setSelectedLookoutForSighting] = useState<Lookout | null>(null);
+
+  // Create Lookout form state
+  const [createForm, setCreateForm] = useState({
+    type: "WANTED" as Lookout["type"],
+    name: "",
+    description: "",
+    priority: "NORMAL" as Lookout["priority"],
+    linkedFIR: "",
+    details: {
+      age: "",
+      gender: "",
+      height: "",
+      complexion: "",
+      identifyingMarks: "",
+      lastSeen: "",
+      lastSeenDate: "",
+    },
+  });
+
+  // Sighting form state
+  const [sightingForm, setSightingForm] = useState({
+    location: "",
+    details: "",
+    latitude: "",
+    longitude: "",
+  });
 
   const canCreate = user && hasMinimumRole(user.role, "SI");
   const canVerify = user && hasMinimumRole(user.role, "SHO");
@@ -117,18 +151,116 @@ export default function LookoutPage() {
     }
   };
 
-  const handleReportSighting = async (lookout: Lookout) => {
-    if (user) {
-      await reportSighting({
-        lookoutId: lookout.lookoutId,
-        reportedBy: user.name,
-        location: "Reported Location",
-        details: "Sighting reported via quick action",
+  const handleCreateLookout = async () => {
+    if (!user) return;
+
+    if (!createForm.name || !createForm.description) {
+      addToast({
+        type: "error",
+        title: "Validation Error",
+        message: "Please fill in all required fields",
       });
+      return;
+    }
+
+    try {
+      await createLookout({
+        type: createForm.type,
+        name: createForm.name,
+        description: createForm.description,
+        priority: createForm.priority,
+        status: "ACTIVE",
+        linkedFIR: createForm.linkedFIR || null,
+        issuedBy: user.name,
+        hasPhoto: false,
+        details: createForm.details,
+      });
+
+      addToast({
+        type: "success",
+        title: "Lookout Created",
+        message: `Lookout notice for ${createForm.name} has been created`,
+      });
+
+      setShowCreateModal(false);
+      setCreateForm({
+        type: "WANTED",
+        name: "",
+        description: "",
+        priority: "NORMAL",
+        linkedFIR: "",
+        details: {
+          age: "",
+          gender: "",
+          height: "",
+          complexion: "",
+          identifyingMarks: "",
+          lastSeen: "",
+          lastSeenDate: "",
+        },
+      });
+    } catch (error) {
+      addToast({
+        type: "error",
+        title: "Error",
+        message: "Failed to create lookout notice",
+      });
+    }
+  };
+
+  const handleOpenSightingModal = (lookout: Lookout) => {
+    setSelectedLookoutForSighting(lookout);
+    setShowSightingModal(true);
+  };
+
+  const handleReportSighting = async () => {
+    if (!user || !selectedLookoutForSighting) return;
+
+    if (!sightingForm.location || !sightingForm.details) {
+      addToast({
+        type: "error",
+        title: "Validation Error",
+        message: "Please fill in all required fields",
+      });
+      return;
+    }
+
+    try {
+      const coordinates =
+        sightingForm.latitude && sightingForm.longitude
+          ? {
+              lat: parseFloat(sightingForm.latitude),
+              lng: parseFloat(sightingForm.longitude),
+            }
+          : undefined;
+
+      await reportSighting({
+        lookoutId: selectedLookoutForSighting.lookoutId,
+        reportedBy: user.name,
+        location: sightingForm.location,
+        details: sightingForm.details,
+        coordinates,
+      });
+
       addToast({
         type: "success",
         title: "Sighting Reported",
-        message: `Sighting for ${lookout.name} has been reported`,
+        message: `Sighting for ${selectedLookoutForSighting.name} has been reported`,
+      });
+
+      setShowSightingModal(false);
+      setSelectedLookoutForSighting(null);
+      setSightingForm({
+        location: "",
+        details: "",
+        latitude: "",
+        longitude: "",
+      });
+    } catch (error) {
+      addToast({
+        type: "error",
+        title: "Error",
+        message: "Failed to report sighting",
       });
     }
   };
@@ -145,12 +277,10 @@ export default function LookoutPage() {
             </p>
           </div>
           {canCreate && (
-            <Link href="/lookout/new">
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Lookout
-              </Button>
-            </Link>
+            <Button onClick={() => setShowCreateModal(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Lookout
+            </Button>
           )}
         </div>
 
@@ -305,7 +435,7 @@ export default function LookoutPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleReportSighting(lookout)}
+                            onClick={() => handleOpenSightingModal(lookout)}
                           >
                             <Flag className="h-4 w-4 mr-1" />
                             Report Sighting
@@ -323,10 +453,15 @@ export default function LookoutPage() {
           <TabsContent value="sightings" className="space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Recent Sightings</h3>
-              <Button onClick={() => addToast({ type: "info", title: "Report Sighting", message: "Sighting report form coming soon" })}>
-                <Plus className="h-4 w-4 mr-2" />
-                Report Sighting
-              </Button>
+              {lookouts.length > 0 && (
+                <Button onClick={() => {
+                  setSelectedLookoutForSighting(lookouts[0]);
+                  setShowSightingModal(true);
+                }}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Report Sighting
+                </Button>
+              )}
             </div>
 
             <Card>
@@ -422,20 +557,280 @@ export default function LookoutPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-96 bg-background-tertiary rounded-lg flex items-center justify-center">
-                  <div className="text-center">
-                    <MapPin className="h-12 w-12 text-foreground-muted mx-auto mb-2" />
-                    <p className="text-foreground-muted">Interactive Map View</p>
-                    <p className="text-sm text-foreground-muted">
-                      Showing last known locations and sightings
-                    </p>
-                  </div>
-                </div>
+                <InteractiveMap
+                  markers={[
+                    // Markers from lookout last known locations
+                    ...lookouts
+                      .filter((lo) => lo.details.lastSeen)
+                      .map((lo, idx) => ({
+                        id: lo.id,
+                        lat: 12.934 + (idx * 0.02), // Mock coordinates based on index
+                        lng: 77.625 + (idx * 0.02),
+                        title: lo.name,
+                        description: `${lo.type.replace(/_/g, " ")} - Last seen: ${lo.details.lastSeen}`,
+                        type: "alert" as const,
+                        status: lo.priority,
+                      })),
+                    // Markers from sightings with coordinates
+                    ...sightings
+                      .filter((s) => s.coordinates)
+                      .map((s) => ({
+                        id: s.id,
+                        lat: s.coordinates!.lat,
+                        lng: s.coordinates!.lng,
+                        title: `Sighting: ${s.lookoutId}`,
+                        description: s.location,
+                        type: s.verified ? ("evidence" as const) : ("default" as const),
+                        status: s.verified ? "Verified" : "Pending",
+                      })),
+                  ]}
+                  center={[12.934, 77.625]}
+                  zoom={11}
+                  height="500px"
+                  onMarkerClick={(marker) => {
+                    const lookout = lookouts.find((lo) => lo.id === marker.id);
+                    const sighting = sightings.find((s) => s.id === marker.id);
+                    if (lookout) {
+                      addToast({
+                        type: "info",
+                        title: lookout.name,
+                        message: `${lookout.type.replace(/_/g, " ")} - ${lookout.description}`,
+                      });
+                    } else if (sighting) {
+                      addToast({
+                        type: "info",
+                        title: "Sighting Details",
+                        message: `${sighting.location} - ${sighting.details}`,
+                      });
+                    }
+                  }}
+                />
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Create Lookout Modal */}
+      <Modal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Create Lookout Notice"
+        description="Issue a new lookout notice for wanted persons, missing persons, or stolen vehicles"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="Type"
+              options={[
+                { value: "WANTED", label: "Wanted Criminal" },
+                { value: "MISSING", label: "Missing Person" },
+                { value: "STOLEN_VEHICLE", label: "Stolen Vehicle" },
+                { value: "SUSPECT", label: "Suspect" },
+                { value: "WITNESS", label: "Witness Required" },
+              ]}
+              value={createForm.type}
+              onChange={(value) => setCreateForm({ ...createForm, type: value as Lookout["type"] })}
+            />
+            <Select
+              label="Priority"
+              options={[
+                { value: "LOW", label: "Low" },
+                { value: "NORMAL", label: "Normal" },
+                { value: "HIGH", label: "High" },
+                { value: "CRITICAL", label: "Critical" },
+              ]}
+              value={createForm.priority}
+              onChange={(value) => setCreateForm({ ...createForm, priority: value as Lookout["priority"] })}
+            />
+          </div>
+
+          <Input
+            label="Name / Identification *"
+            placeholder="Enter person name or vehicle registration"
+            value={createForm.name}
+            onChange={(value) => setCreateForm({ ...createForm, name: value })}
+          />
+
+          <Textarea
+            label="Description *"
+            placeholder="Brief description of the lookout notice"
+            value={createForm.description}
+            onChange={(value) => setCreateForm({ ...createForm, description: value })}
+            rows={3}
+          />
+
+          <Input
+            label="Linked FIR"
+            placeholder="e.g., KOR/2024/00123"
+            value={createForm.linkedFIR}
+            onChange={(value) => setCreateForm({ ...createForm, linkedFIR: value })}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Age"
+              placeholder="Age or age range"
+              value={createForm.details.age}
+              onChange={(value) => setCreateForm({ ...createForm, details: { ...createForm.details, age: value } })}
+            />
+            <Input
+              label="Gender"
+              placeholder="Gender"
+              value={createForm.details.gender}
+              onChange={(value) => setCreateForm({ ...createForm, details: { ...createForm.details, gender: value } })}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Height"
+              placeholder="Height"
+              value={createForm.details.height}
+              onChange={(value) => setCreateForm({ ...createForm, details: { ...createForm.details, height: value } })}
+            />
+            <Input
+              label="Complexion"
+              placeholder="Complexion"
+              value={createForm.details.complexion}
+              onChange={(value) => setCreateForm({ ...createForm, details: { ...createForm.details, complexion: value } })}
+            />
+          </div>
+
+          <Input
+            label="Identifying Marks"
+            placeholder="Scars, tattoos, etc."
+            value={createForm.details.identifyingMarks}
+            onChange={(value) => setCreateForm({ ...createForm, details: { ...createForm.details, identifyingMarks: value } })}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Last Seen Location"
+              placeholder="Last known location"
+              value={createForm.details.lastSeen}
+              onChange={(value) => setCreateForm({ ...createForm, details: { ...createForm.details, lastSeen: value } })}
+            />
+            <Input
+              label="Last Seen Date"
+              type="date"
+              value={createForm.details.lastSeenDate}
+              onChange={(value) => setCreateForm({ ...createForm, details: { ...createForm.details, lastSeenDate: value } })}
+            />
+          </div>
+        </div>
+
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleCreateLookout}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Lookout
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Report Sighting Modal */}
+      <Modal
+        isOpen={showSightingModal}
+        onClose={() => {
+          setShowSightingModal(false);
+          setSelectedLookoutForSighting(null);
+          setSightingForm({
+            location: "",
+            details: "",
+            latitude: "",
+            longitude: "",
+          });
+        }}
+        title="Report Sighting"
+        description={
+          selectedLookoutForSighting
+            ? `Report a sighting for ${selectedLookoutForSighting.name} (${selectedLookoutForSighting.lookoutId})`
+            : "Report a sighting"
+        }
+        size="md"
+      >
+        <div className="space-y-4">
+          {selectedLookoutForSighting && (
+            <div className="p-3 bg-background-tertiary rounded-lg border border-border">
+              <div className="flex items-center gap-2 mb-1">
+                <Badge variant={getTypeBadgeVariant(selectedLookoutForSighting.type) as any}>
+                  {selectedLookoutForSighting.type.replace(/_/g, " ")}
+                </Badge>
+                <Badge variant={getPriorityBadgeVariant(selectedLookoutForSighting.priority) as any}>
+                  {selectedLookoutForSighting.priority}
+                </Badge>
+              </div>
+              <h4 className="font-medium text-foreground">{selectedLookoutForSighting.name}</h4>
+              <p className="text-sm text-foreground-muted">{selectedLookoutForSighting.description}</p>
+            </div>
+          )}
+
+          <Input
+            label="Location *"
+            placeholder="Where was the sighting?"
+            value={sightingForm.location}
+            onChange={(value) => setSightingForm({ ...sightingForm, location: value })}
+            icon={<MapPin className="h-4 w-4" />}
+          />
+
+          <Textarea
+            label="Details *"
+            placeholder="Provide details about the sighting..."
+            value={sightingForm.details}
+            onChange={(value) => setSightingForm({ ...sightingForm, details: value })}
+            rows={4}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Latitude (Optional)"
+              placeholder="e.g., 12.9716"
+              type="number"
+              step="any"
+              value={sightingForm.latitude}
+              onChange={(value) => setSightingForm({ ...sightingForm, latitude: value })}
+            />
+            <Input
+              label="Longitude (Optional)"
+              placeholder="e.g., 77.5946"
+              type="number"
+              step="any"
+              value={sightingForm.longitude}
+              onChange={(value) => setSightingForm({ ...sightingForm, longitude: value })}
+            />
+          </div>
+
+          <div className="text-xs text-foreground-muted">
+            <p>Tip: Include GPS coordinates if available for accurate mapping</p>
+          </div>
+        </div>
+
+        <ModalFooter>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowSightingModal(false);
+              setSelectedLookoutForSighting(null);
+              setSightingForm({
+                location: "",
+                details: "",
+                latitude: "",
+                longitude: "",
+              });
+            }}
+          >
+            Cancel
+          </Button>
+          <Button onClick={handleReportSighting}>
+            <Flag className="h-4 w-4 mr-2" />
+            Submit Sighting
+          </Button>
+        </ModalFooter>
+      </Modal>
     </DashboardLayout>
   );
 }

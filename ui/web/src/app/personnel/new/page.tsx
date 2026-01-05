@@ -54,6 +54,7 @@ export default function NewPersonnelPage() {
   const { createPersonnel } = usePersonnelStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoUploaded, setPhotoUploaded] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const canCreate = user && hasMinimumRole(user.role, "SHO");
 
@@ -87,6 +88,40 @@ export default function NewPersonnelPage() {
     aadharNumber: "",
     panNumber: "",
   });
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        addToast({
+          type: "error",
+          title: "Invalid File",
+          message: "Please upload an image file (JPG, PNG)",
+        });
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        addToast({
+          type: "error",
+          title: "File Too Large",
+          message: "Image size should be less than 5MB",
+        });
+        return;
+      }
+
+      // Convert to base64
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setPhotoPreview(base64String);
+        setPhotoUploaded(true);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -429,16 +464,28 @@ export default function NewPersonnelPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div
-                    onClick={() => setPhotoUploaded(true)}
-                    className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-accent transition-colors"
+                  <input
+                    type="file"
+                    id="photo-upload"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="photo-upload"
+                    className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-accent transition-colors block"
                   >
-                    {photoUploaded ? (
+                    {photoUploaded && photoPreview ? (
                       <div className="space-y-2">
-                        <div className="h-24 w-24 rounded-full bg-accent/10 mx-auto flex items-center justify-center">
-                          <User className="h-12 w-12 text-accent" />
+                        <div className="h-32 w-32 rounded-full mx-auto overflow-hidden border-2 border-accent">
+                          <img
+                            src={photoPreview}
+                            alt="Officer preview"
+                            className="h-full w-full object-cover"
+                          />
                         </div>
                         <p className="text-sm text-success">Photo uploaded</p>
+                        <p className="text-xs text-foreground-muted">Click to change</p>
                       </div>
                     ) : (
                       <>
@@ -447,11 +494,11 @@ export default function NewPersonnelPage() {
                           Click to upload photo
                         </p>
                         <p className="text-xs text-foreground-muted mt-1">
-                          Passport size, JPG/PNG
+                          Passport size, JPG/PNG (max 5MB)
                         </p>
                       </>
                     )}
-                  </div>
+                  </label>
                 </CardContent>
               </Card>
 

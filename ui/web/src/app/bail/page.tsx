@@ -25,99 +25,11 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { Select } from "@/components/ui/Select";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
-
-const mockBailApplications = [
-  {
-    id: "bail-001",
-    applicationNumber: "BAIL-2024-00089",
-    accused: "Raju Kumar",
-    caseNumber: "CASE-2024-00156",
-    firNumber: "KOR/2024/00089",
-    charges: ["IPC 392", "IPC 397"],
-    status: "APPROVED",
-    bailType: "REGULAR",
-    applicationDate: "2024-01-22",
-    hearingDate: "2024-01-25",
-    approvalDate: "2024-01-25",
-    court: "Sessions Court, Koramangala",
-    judge: "Hon. Justice A.K. Sharma",
-    bailAmount: 50000,
-    suretyAmount: 100000,
-    conditions: [
-      "Report to police station every Sunday",
-      "Do not leave jurisdiction without permission",
-      "Surrender passport",
-    ],
-    sureties: [
-      { name: "Suresh Kumar", relation: "Brother", verified: true },
-    ],
-  },
-  {
-    id: "bail-002",
-    applicationNumber: "BAIL-2024-00088",
-    accused: "Mohammed Farooq",
-    caseNumber: "CASE-2024-00135",
-    firNumber: "KOR/2024/00060",
-    charges: ["IPC 420", "IPC 406"],
-    status: "REJECTED",
-    bailType: "ANTICIPATORY",
-    applicationDate: "2024-01-20",
-    hearingDate: "2024-01-24",
-    rejectionDate: "2024-01-24",
-    rejectionReason: "Flight risk - accused has fled jurisdiction",
-    court: "Sessions Court, Koramangala",
-    judge: "Hon. Justice P.S. Reddy",
-  },
-  {
-    id: "bail-003",
-    applicationNumber: "BAIL-2024-00087",
-    accused: "Vijay Malhotra",
-    caseNumber: "CASE-2024-00150",
-    firNumber: "KOR/2024/00082",
-    charges: ["IPC 304A"],
-    status: "PENDING",
-    bailType: "REGULAR",
-    applicationDate: "2024-01-23",
-    hearingDate: "2024-01-28",
-    court: "Magistrate Court, Koramangala",
-    proposedBailAmount: 25000,
-    lawyer: "Adv. Ramesh Verma",
-  },
-  {
-    id: "bail-004",
-    applicationNumber: "BAIL-2024-00086",
-    accused: "Anand Sharma",
-    caseNumber: "CASE-2024-00145",
-    firNumber: "KOR/2024/00077",
-    charges: ["NDPS 20"],
-    status: "CANCELLED",
-    bailType: "REGULAR",
-    applicationDate: "2024-01-15",
-    approvalDate: "2024-01-18",
-    cancellationDate: "2024-01-22",
-    cancellationReason: "Violation of bail conditions - failed to report",
-    court: "Sessions Court, Koramangala",
-    bailAmount: 100000,
-  },
-  {
-    id: "bail-005",
-    applicationNumber: "BAIL-2024-00085",
-    accused: "Priya Gupta",
-    caseNumber: "CASE-2024-00142",
-    firNumber: "KOR/2024/00072",
-    charges: ["IPC 420"],
-    status: "RELEASED",
-    bailType: "INTERIM",
-    applicationDate: "2024-01-12",
-    approvalDate: "2024-01-12",
-    releaseDate: "2024-01-12",
-    court: "Magistrate Court, Koramangala",
-    bailAmount: 10000,
-    validUntil: "2024-02-12",
-  },
-];
+import { useBailStore, BailApplication } from "@/stores/bailStore";
 
 const statusConfig = {
   PENDING: { label: "Pending", color: "warning", icon: Clock },
@@ -133,15 +45,41 @@ const bailTypes = {
   INTERIM: { label: "Interim Bail", color: "accent" },
 };
 
+const bailTypeOptions = [
+  { value: "REGULAR", label: "Regular Bail" },
+  { value: "ANTICIPATORY", label: "Anticipatory Bail" },
+  { value: "INTERIM", label: "Interim Bail" },
+];
+
 export default function BailPage() {
   const { user } = useAuthStore();
+  const { applications, createApplication, addSurety, verifySurety, updateStatus, getStats } = useBailStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("ALL");
-  const [selectedBail, setSelectedBail] = useState<typeof mockBailApplications[0] | null>(null);
+  const [selectedBail, setSelectedBail] = useState<BailApplication | null>(null);
+  const [showNewBailModal, setShowNewBailModal] = useState(false);
+  const [showAddSuretyModal, setShowAddSuretyModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newBail, setNewBail] = useState({
+    accused: "",
+    caseNumber: "",
+    firNumber: "",
+    charges: "",
+    bailType: "REGULAR" as BailApplication["bailType"],
+    applicationDate: new Date().toISOString().split("T")[0],
+    hearingDate: "",
+    court: "",
+    proposedBailAmount: "",
+    lawyer: "",
+  });
+  const [newSurety, setNewSurety] = useState({
+    name: "",
+    relation: "",
+  });
 
   const canProcess = user && hasMinimumRole(user.role, "SI");
 
-  const filteredApplications = mockBailApplications.filter((bail) => {
+  const filteredApplications = applications.filter((bail) => {
     const matchesSearch =
       bail.applicationNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       bail.accused.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -150,11 +88,95 @@ export default function BailPage() {
     return matchesSearch && matchesStatus;
   });
 
-  const stats = {
-    total: mockBailApplications.length,
-    pending: mockBailApplications.filter((b) => b.status === "PENDING").length,
-    approved: mockBailApplications.filter((b) => b.status === "APPROVED" || b.status === "RELEASED").length,
-    rejected: mockBailApplications.filter((b) => b.status === "REJECTED" || b.status === "CANCELLED").length,
+  const stats = getStats();
+
+  const handleCreateBail = async () => {
+    if (!newBail.accused || !newBail.caseNumber || !newBail.firNumber || !newBail.court) {
+      toast.error("Validation Error", "Please fill in all required fields");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const bail = await createApplication({
+        accused: newBail.accused,
+        caseNumber: newBail.caseNumber,
+        firNumber: newBail.firNumber,
+        charges: newBail.charges.split(",").map(c => c.trim()).filter(Boolean),
+        status: "PENDING",
+        bailType: newBail.bailType,
+        applicationDate: newBail.applicationDate,
+        hearingDate: newBail.hearingDate || undefined,
+        court: newBail.court,
+        proposedBailAmount: newBail.proposedBailAmount ? parseInt(newBail.proposedBailAmount) : undefined,
+        lawyer: newBail.lawyer || undefined,
+      });
+
+      toast.success("Application Recorded", `Bail application ${bail.applicationNumber} has been recorded`);
+      setShowNewBailModal(false);
+      setNewBail({
+        accused: "",
+        caseNumber: "",
+        firNumber: "",
+        charges: "",
+        bailType: "REGULAR",
+        applicationDate: new Date().toISOString().split("T")[0],
+        hearingDate: "",
+        court: "",
+        proposedBailAmount: "",
+        lawyer: "",
+      });
+    } catch (error) {
+      toast.error("Error", "Failed to record bail application");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddSurety = async () => {
+    if (!selectedBail || !newSurety.name || !newSurety.relation) {
+      toast.error("Validation Error", "Please fill in surety details");
+      return;
+    }
+
+    await addSurety(selectedBail.id, { name: newSurety.name, relation: newSurety.relation, verified: false });
+    toast.success("Surety Added", `Surety ${newSurety.name} added successfully`);
+    setShowAddSuretyModal(false);
+    setNewSurety({ name: "", relation: "" });
+
+    // Refresh selected bail
+    const updated = applications.find(a => a.id === selectedBail.id);
+    if (updated) setSelectedBail(updated);
+  };
+
+  const handleVerifySurety = async (suretyIndex: number) => {
+    if (!selectedBail) return;
+
+    await verifySurety(selectedBail.id, suretyIndex);
+    toast.success("Surety Verified", "Surety has been verified successfully");
+
+    // Refresh selected bail
+    const updated = applications.find(a => a.id === selectedBail.id);
+    if (updated) setSelectedBail(updated);
+  };
+
+  const handleUpdateStatus = async (status: BailApplication["status"]) => {
+    if (!selectedBail) return;
+
+    await updateStatus(selectedBail.id, status);
+    toast.success("Status Updated", `Bail application status updated to ${status}`);
+
+    // Refresh selected bail
+    const updated = applications.find(a => a.id === selectedBail.id);
+    if (updated) setSelectedBail(updated);
+  };
+
+  const handleCardClick = (status: string) => {
+    if (filterStatus === status) {
+      setFilterStatus("ALL");
+    } else {
+      setFilterStatus(status);
+    }
   };
 
   return (
@@ -169,16 +191,19 @@ export default function BailPage() {
             </p>
           </div>
           {canProcess && (
-            <Button onClick={() => toast.info("New Application", "Opening bail application form...")}>
+            <Button onClick={() => setShowNewBailModal(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Record New Application
             </Button>
           )}
         </div>
 
-        {/* Stats */}
+        {/* Stats - Now Clickable */}
         <div className="grid grid-cols-4 gap-4">
-          <Card>
+          <Card
+            className={`cursor-pointer transition-all hover:border-accent/50 ${filterStatus === "ALL" ? "border-accent ring-1 ring-accent" : ""}`}
+            onClick={() => setFilterStatus("ALL")}
+          >
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-accent/10">
@@ -191,7 +216,10 @@ export default function BailPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card
+            className={`cursor-pointer transition-all hover:border-warning/50 ${filterStatus === "PENDING" ? "border-warning ring-1 ring-warning" : ""}`}
+            onClick={() => handleCardClick("PENDING")}
+          >
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-warning/10">
@@ -204,7 +232,10 @@ export default function BailPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card
+            className={`cursor-pointer transition-all hover:border-success/50 ${filterStatus === "APPROVED" ? "border-success ring-1 ring-success" : ""}`}
+            onClick={() => handleCardClick("APPROVED")}
+          >
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-success/10">
@@ -217,7 +248,10 @@ export default function BailPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card
+            className={`cursor-pointer transition-all hover:border-error/50 ${filterStatus === "REJECTED" ? "border-error ring-1 ring-error" : ""}`}
+            onClick={() => handleCardClick("REJECTED")}
+          >
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-error/10">
@@ -391,7 +425,7 @@ export default function BailPage() {
                     </div>
                   )}
 
-                  {selectedBail.conditions && (
+                  {selectedBail.conditions && selectedBail.conditions.length > 0 && (
                     <div>
                       <p className="text-sm text-foreground-muted mb-2">Bail Conditions</p>
                       <ul className="space-y-1">
@@ -408,21 +442,25 @@ export default function BailPage() {
                     </div>
                   )}
 
-                  {selectedBail.sureties && (
+                  {selectedBail.sureties && selectedBail.sureties.length > 0 && (
                     <div>
                       <p className="text-sm text-foreground-muted mb-2">Sureties</p>
                       {selectedBail.sureties.map((surety, i) => (
                         <div
                           key={i}
-                          className="p-3 rounded-lg bg-background-tertiary"
+                          className="p-3 rounded-lg bg-background-tertiary mb-2"
                         >
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium text-foreground">{surety.name}</p>
                               <p className="text-sm text-foreground-muted">{surety.relation}</p>
                             </div>
-                            {surety.verified && (
+                            {surety.verified ? (
                               <Badge variant="success">Verified</Badge>
+                            ) : canProcess && (
+                              <Button size="sm" variant="secondary" onClick={() => handleVerifySurety(i)}>
+                                Verify
+                              </Button>
                             )}
                           </div>
                         </div>
@@ -449,12 +487,29 @@ export default function BailPage() {
                   )}
 
                   {selectedBail.status === "PENDING" && canProcess && (
-                    <div className="flex gap-2 pt-4">
-                      <Button className="flex-1" variant="secondary" onClick={() => toast.info("Add Surety", "Opening surety verification form...")}>
+                    <div className="space-y-2 pt-4 border-t border-border">
+                      <Button className="w-full" variant="secondary" onClick={() => setShowAddSuretyModal(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
                         Add Surety
                       </Button>
-                      <Button className="flex-1" onClick={() => toast.success("Status Updated", `Bail ${selectedBail.applicationNumber} status updated`)}>
-                        Update Status
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button variant="secondary" onClick={() => handleUpdateStatus("APPROVED")}>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Approve
+                        </Button>
+                        <Button variant="secondary" onClick={() => handleUpdateStatus("REJECTED")}>
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedBail.status === "APPROVED" && canProcess && (
+                    <div className="pt-4 border-t border-border">
+                      <Button className="w-full" onClick={() => handleUpdateStatus("RELEASED")}>
+                        <UserCheck className="h-4 w-4 mr-2" />
+                        Mark as Released
                       </Button>
                     </div>
                   )}
@@ -473,6 +528,134 @@ export default function BailPage() {
           </div>
         </div>
       </div>
+
+      {/* New Bail Application Modal */}
+      <Modal
+        isOpen={showNewBailModal}
+        onClose={() => setShowNewBailModal(false)}
+        title="Record New Bail Application"
+        description="Record a bail application submitted to court"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Accused Name *"
+              placeholder="Enter accused name"
+              value={newBail.accused}
+              onChange={(v) => setNewBail({ ...newBail, accused: v })}
+            />
+            <Select
+              label="Bail Type *"
+              value={newBail.bailType}
+              onChange={(v) => setNewBail({ ...newBail, bailType: v as BailApplication["bailType"] })}
+              options={bailTypeOptions}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Case Number *"
+              placeholder="CASE-2024-XXXXX"
+              value={newBail.caseNumber}
+              onChange={(v) => setNewBail({ ...newBail, caseNumber: v })}
+            />
+            <Input
+              label="FIR Number *"
+              placeholder="KOR/2024/XXXXX"
+              value={newBail.firNumber}
+              onChange={(v) => setNewBail({ ...newBail, firNumber: v })}
+            />
+          </div>
+
+          <Input
+            label="Charges (comma separated) *"
+            placeholder="IPC 420, IPC 406"
+            value={newBail.charges}
+            onChange={(v) => setNewBail({ ...newBail, charges: v })}
+          />
+
+          <Input
+            label="Court *"
+            placeholder="Sessions Court, Koramangala"
+            value={newBail.court}
+            onChange={(v) => setNewBail({ ...newBail, court: v })}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Application Date *"
+              type="date"
+              value={newBail.applicationDate}
+              onChange={(v) => setNewBail({ ...newBail, applicationDate: v })}
+            />
+            <Input
+              label="Hearing Date"
+              type="date"
+              value={newBail.hearingDate}
+              onChange={(v) => setNewBail({ ...newBail, hearingDate: v })}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Proposed Bail Amount"
+              type="number"
+              placeholder="50000"
+              value={newBail.proposedBailAmount}
+              onChange={(v) => setNewBail({ ...newBail, proposedBailAmount: v })}
+            />
+            <Input
+              label="Lawyer"
+              placeholder="Adv. Name"
+              value={newBail.lawyer}
+              onChange={(v) => setNewBail({ ...newBail, lawyer: v })}
+            />
+          </div>
+        </div>
+
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setShowNewBailModal(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleCreateBail} disabled={isSubmitting}>
+            {isSubmitting ? "Recording..." : "Record Application"}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Add Surety Modal */}
+      <Modal
+        isOpen={showAddSuretyModal}
+        onClose={() => setShowAddSuretyModal(false)}
+        title="Add Surety"
+        description="Add a surety for the bail application"
+        size="md"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Surety Name *"
+            placeholder="Enter surety name"
+            value={newSurety.name}
+            onChange={(v) => setNewSurety({ ...newSurety, name: v })}
+          />
+          <Input
+            label="Relation with Accused *"
+            placeholder="Brother, Father, Friend, etc."
+            value={newSurety.relation}
+            onChange={(v) => setNewSurety({ ...newSurety, relation: v })}
+          />
+        </div>
+
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setShowAddSuretyModal(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleAddSurety}>
+            Add Surety
+          </Button>
+        </ModalFooter>
+      </Modal>
     </DashboardLayout>
   );
 }

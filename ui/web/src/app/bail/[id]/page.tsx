@@ -28,8 +28,9 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
+import { useBailStore } from "@/stores/bailStore";
 
-// Mock bail application data
+// Mock bail application data - fallback for IDs not in store
 const mockBailApplications = [
   {
     id: "bail-001",
@@ -144,10 +145,54 @@ export default function BailDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuthStore();
+  const { applications: storeApplications, updateStatus, verifySurety } = useBailStore();
 
-  const application = mockBailApplications.find((b) => b.id === params.id);
+  // First check store, then fallback to mock data
+  const storeApp = storeApplications.find((b) => b.id === params.id);
+  const mockApp = mockBailApplications.find((b) => b.id === params.id);
+
+  // Convert store format to detail page format if found in store
+  const application = storeApp ? {
+    id: storeApp.id,
+    applicationNumber: storeApp.applicationNumber,
+    type: storeApp.bailType,
+    status: storeApp.status === "APPROVED" ? "GRANTED" : storeApp.status,
+    applicantName: storeApp.accused,
+    applicantAge: 35,
+    applicantAddress: "Address on file",
+    caseNumber: storeApp.caseNumber,
+    firNumber: storeApp.firNumber,
+    charges: storeApp.charges,
+    court: storeApp.court,
+    judgeName: storeApp.judge || "Hon. Judge",
+    applicationDate: storeApp.applicationDate,
+    hearingDate: storeApp.hearingDate,
+    orderDate: storeApp.approvalDate || storeApp.rejectionDate,
+    lawyerName: storeApp.lawyer || "Not specified",
+    lawyerContact: "+91 98450 00000",
+    sureties: storeApp.sureties?.map(s => ({ ...s, address: "Address on file", phone: "+91 00000 00000" })) || [],
+    proposedBailAmount: storeApp.proposedBailAmount || storeApp.bailAmount || 50000,
+    grantedBailAmount: storeApp.bailAmount,
+    conditions: storeApp.conditions || [],
+    rejectionReason: storeApp.rejectionReason,
+    timeline: [
+      { date: storeApp.applicationDate, event: "Application filed", details: `${storeApp.bailType} bail application submitted` },
+    ],
+  } : mockApp;
 
   const canEdit = user && hasMinimumRole(user.role, "SI");
+
+  const handleUpdateStatus = async (newStatus: string) => {
+    if (!storeApp) return;
+    await updateStatus(storeApp.id, newStatus as any);
+    toast.success("Status Updated", `Bail application status updated`);
+  };
+
+  const handleVerifySurety = async (index: number) => {
+    if (!storeApp) return;
+    await verifySurety(storeApp.id, index);
+    toast.success("Surety Verified", "Surety has been verified");
+  };
 
   if (!application) {
     return (
@@ -492,19 +537,41 @@ export default function BailDetailPage() {
             </Card>
 
             {/* Quick Actions */}
-            {application.status === "PENDING" && (
+            {application.status === "PENDING" && canEdit && (
               <Card className="border-warning/30 bg-warning/5">
                 <CardHeader>
                   <CardTitle className="text-warning">Actions</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <Button className="w-full" onClick={() => toast.info("Schedule Hearing", "Hearing scheduler opening...")}>
-                    <Calendar className="h-4 w-4 mr-2" />
-                    Schedule Hearing
+                  <Button className="w-full" onClick={() => handleUpdateStatus("APPROVED")}>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Approve Bail
                   </Button>
-                  <Button variant="secondary" className="w-full" onClick={() => toast.info("Add Comment", "Comment form opening...")}>
+                  <Button variant="secondary" className="w-full text-error" onClick={() => handleUpdateStatus("REJECTED")}>
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Reject Bail
+                  </Button>
+                  <Button variant="ghost" className="w-full" onClick={() => toast.success("Comment Added", "IO comment has been added")}>
                     <FileText className="h-4 w-4 mr-2" />
                     Add IO Comment
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {application.status === "GRANTED" && canEdit && (
+              <Card className="border-success/30 bg-success/5">
+                <CardHeader>
+                  <CardTitle className="text-success">Actions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Button className="w-full" onClick={() => handleUpdateStatus("RELEASED")}>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Mark as Released
+                  </Button>
+                  <Button variant="secondary" className="w-full text-error" onClick={() => handleUpdateStatus("CANCELLED")}>
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancel Bail
                   </Button>
                 </CardContent>
               </Card>

@@ -17,6 +17,23 @@ import {
   PieChart,
   Activity,
 } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Area,
+  AreaChart,
+} from "recharts";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -25,6 +42,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { InteractiveMap, MapMarker } from "@/components/ui/Map";
 
 const timeRanges = [
   { value: "today", label: "Today" },
@@ -114,6 +132,110 @@ const mockPredictions = [
   },
 ];
 
+// Mock chart data for FIR trend (last 30 days)
+const mockFirTrendData = [
+  { date: "Day 1", firs: 6, resolved: 4 },
+  { date: "Day 3", firs: 8, resolved: 5 },
+  { date: "Day 5", firs: 9, resolved: 6 },
+  { date: "Day 7", firs: 7, resolved: 5 },
+  { date: "Day 9", firs: 10, resolved: 7 },
+  { date: "Day 11", firs: 12, resolved: 8 },
+  { date: "Day 13", firs: 8, resolved: 6 },
+  { date: "Day 15", firs: 11, resolved: 9 },
+  { date: "Day 17", firs: 9, resolved: 7 },
+  { date: "Day 19", firs: 13, resolved: 10 },
+  { date: "Day 21", firs: 10, resolved: 8 },
+  { date: "Day 23", firs: 8, resolved: 6 },
+  { date: "Day 25", firs: 14, resolved: 11 },
+  { date: "Day 27", firs: 11, resolved: 9 },
+  { date: "Day 30", firs: 9, resolved: 7 },
+];
+
+// Mock resolution rate data (last 6 months)
+const mockResolutionData = [
+  { month: "Jul", rate: 62 },
+  { month: "Aug", rate: 65 },
+  { month: "Sep", rate: 63 },
+  { month: "Oct", rate: 67 },
+  { month: "Nov", rate: 66 },
+  { month: "Dec", rate: 68 },
+];
+
+// Mock crime distribution data for pie chart
+const mockCrimeDistribution = [
+  { name: "Property Crimes", value: 98, color: "#3b82f6" },
+  { name: "Crimes Against Person", value: 45, color: "#ef4444" },
+  { name: "Economic Offences", value: 38, color: "#f59e0b" },
+  { name: "Cyber Crimes", value: 32, color: "#8b5cf6" },
+  { name: "Traffic Offences", value: 20, color: "#22c55e" },
+  { name: "Others", value: 12, color: "#6b7280" },
+];
+
+// Mock hourly crime distribution data
+const mockHourlyData = [
+  { hour: "12 AM", incidents: 8 },
+  { hour: "2 AM", incidents: 12 },
+  { hour: "4 AM", incidents: 5 },
+  { hour: "6 AM", incidents: 4 },
+  { hour: "8 AM", incidents: 7 },
+  { hour: "10 AM", incidents: 9 },
+  { hour: "12 PM", incidents: 11 },
+  { hour: "2 PM", incidents: 10 },
+  { hour: "4 PM", incidents: 13 },
+  { hour: "6 PM", incidents: 18 },
+  { hour: "8 PM", incidents: 22 },
+  { hour: "10 PM", incidents: 15 },
+];
+
+// Mock hotspot map markers (Bangalore coordinates)
+const mockHotspotMarkers: MapMarker[] = [
+  {
+    id: "hotspot-1",
+    lat: 12.9352,
+    lng: 77.6245,
+    title: "Koramangala 4th Block",
+    description: "23 incidents - Theft",
+    type: "alert",
+    status: "HIGH RISK",
+  },
+  {
+    id: "hotspot-2",
+    lat: 12.9116,
+    lng: 77.6473,
+    title: "HSR Layout",
+    description: "18 incidents - Chain Snatching",
+    type: "alert",
+    status: "HIGH RISK",
+  },
+  {
+    id: "hotspot-3",
+    lat: 12.9166,
+    lng: 77.6101,
+    title: "BTM Layout",
+    description: "15 incidents - Vehicle Theft",
+    type: "incident",
+    status: "MEDIUM RISK",
+  },
+  {
+    id: "hotspot-4",
+    lat: 12.9716,
+    lng: 77.6412,
+    title: "Indiranagar",
+    description: "12 incidents - Fraud",
+    type: "incident",
+    status: "MEDIUM RISK",
+  },
+  {
+    id: "hotspot-5",
+    lat: 12.9082,
+    lng: 77.5833,
+    title: "JP Nagar",
+    description: "8 incidents - Burglary",
+    type: "default",
+    status: "LOW RISK",
+  },
+];
+
 export default function AnalyticsPage() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState("overview");
@@ -140,7 +262,7 @@ export default function AnalyticsPage() {
               onChange={setTimeRange}
               className="w-40"
             />
-            <Button variant="secondary">
+            <Button variant="secondary" onClick={() => alert("Exporting analytics report...")}>
               <Download className="h-4 w-4 mr-2" />
               Export Report
             </Button>
@@ -241,34 +363,92 @@ export default function AnalyticsPage() {
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* FIR Trend Chart Placeholder */}
+              {/* FIR Trend Chart */}
               <Card>
                 <CardHeader>
                   <CardTitle>FIR Registration Trend</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64 bg-background-tertiary rounded-lg flex items-center justify-center">
-                    <div className="text-center">
-                      <BarChart3 className="h-12 w-12 text-foreground-muted mx-auto mb-2" />
-                      <p className="text-foreground-muted">FIR Trend Chart</p>
-                      <p className="text-sm text-foreground-muted">Last 30 days</p>
-                    </div>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={mockFirTrendData}>
+                        <defs>
+                          <linearGradient id="colorFirs" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="colorResolved" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8} />
+                            <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                        <XAxis dataKey="date" style={{ fontSize: "12px" }} />
+                        <YAxis style={{ fontSize: "12px" }} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "rgba(0, 0, 0, 0.8)",
+                            border: "none",
+                            borderRadius: "8px",
+                            color: "#fff",
+                          }}
+                        />
+                        <Legend />
+                        <Area
+                          type="monotone"
+                          dataKey="firs"
+                          stroke="#3b82f6"
+                          fillOpacity={1}
+                          fill="url(#colorFirs)"
+                          name="FIRs Registered"
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="resolved"
+                          stroke="#22c55e"
+                          fillOpacity={1}
+                          fill="url(#colorResolved)"
+                          name="Cases Resolved"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Resolution Rate Chart Placeholder */}
+              {/* Resolution Rate Chart */}
               <Card>
                 <CardHeader>
                   <CardTitle>Case Resolution Rate</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64 bg-background-tertiary rounded-lg flex items-center justify-center">
-                    <div className="text-center">
-                      <Activity className="h-12 w-12 text-foreground-muted mx-auto mb-2" />
-                      <p className="text-foreground-muted">Resolution Rate Chart</p>
-                      <p className="text-sm text-foreground-muted">Monthly comparison</p>
-                    </div>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={mockResolutionData}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                        <XAxis dataKey="month" style={{ fontSize: "12px" }} />
+                        <YAxis domain={[0, 100]} style={{ fontSize: "12px" }} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "rgba(0, 0, 0, 0.8)",
+                            border: "none",
+                            borderRadius: "8px",
+                            color: "#fff",
+                          }}
+                          formatter={(value) => `${value}%`}
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="rate"
+                          stroke="#22c55e"
+                          strokeWidth={3}
+                          dot={{ fill: "#22c55e", r: 5 }}
+                          activeDot={{ r: 7 }}
+                          name="Resolution Rate (%)"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
                   </div>
                 </CardContent>
               </Card>
@@ -342,18 +522,39 @@ export default function AnalyticsPage() {
                 </CardContent>
               </Card>
 
-              {/* Crime Distribution Pie Chart Placeholder */}
+              {/* Crime Distribution Pie Chart */}
               <Card>
                 <CardHeader>
                   <CardTitle>Crime Distribution</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64 bg-background-tertiary rounded-lg flex items-center justify-center">
-                    <div className="text-center">
-                      <PieChart className="h-12 w-12 text-foreground-muted mx-auto mb-2" />
-                      <p className="text-foreground-muted">Crime Distribution Chart</p>
-                      <p className="text-sm text-foreground-muted">By category</p>
-                    </div>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsPieChart>
+                        <Pie
+                          data={mockCrimeDistribution}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {mockCrimeDistribution.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "rgba(0, 0, 0, 0.8)",
+                            border: "none",
+                            borderRadius: "8px",
+                            color: "#fff",
+                          }}
+                        />
+                      </RechartsPieChart>
+                    </ResponsiveContainer>
                   </div>
                 </CardContent>
               </Card>
@@ -365,12 +566,24 @@ export default function AnalyticsPage() {
                 <CardTitle>Crime by Time of Day</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-48 bg-background-tertiary rounded-lg flex items-center justify-center">
-                  <div className="text-center">
-                    <Clock className="h-12 w-12 text-foreground-muted mx-auto mb-2" />
-                    <p className="text-foreground-muted">Hourly Crime Distribution</p>
-                    <p className="text-sm text-foreground-muted">Peak hours: 6-9 PM, 12-2 AM</p>
-                  </div>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={mockHourlyData}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                      <XAxis dataKey="hour" style={{ fontSize: "12px" }} />
+                      <YAxis style={{ fontSize: "12px" }} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "rgba(0, 0, 0, 0.8)",
+                          border: "none",
+                          borderRadius: "8px",
+                          color: "#fff",
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="incidents" fill="#f59e0b" name="Incidents" radius={[8, 8, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </CardContent>
             </Card>
@@ -379,7 +592,7 @@ export default function AnalyticsPage() {
           {/* Hotspots Tab */}
           <TabsContent value="hotspots" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Map Placeholder */}
+              {/* Interactive Hotspot Map */}
               <Card className="lg:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -388,15 +601,15 @@ export default function AnalyticsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-80 bg-background-tertiary rounded-lg flex items-center justify-center">
-                    <div className="text-center">
-                      <MapPin className="h-12 w-12 text-foreground-muted mx-auto mb-2" />
-                      <p className="text-foreground-muted">Interactive Hotspot Map</p>
-                      <p className="text-sm text-foreground-muted">
-                        Showing {mockHotspots.length} identified hotspots
-                      </p>
-                    </div>
-                  </div>
+                  <InteractiveMap
+                    markers={mockHotspotMarkers}
+                    center={[12.9352, 77.6245]}
+                    zoom={12}
+                    height="400px"
+                    onMarkerClick={(marker) => {
+                      alert(`Viewing details for ${marker.title}\n${marker.description}`);
+                    }}
+                  />
                 </CardContent>
               </Card>
             </div>
@@ -439,7 +652,7 @@ export default function AnalyticsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => alert(`Viewing hotspot details for ${hotspot.area}`)}>
                             <MapPin className="h-4 w-4 mr-1" />
                             View
                           </Button>
@@ -524,13 +737,13 @@ export default function AnalyticsPage() {
                       </div>
                     </div>
                     <div className="flex gap-2 mt-4">
-                      <Button variant="secondary" size="sm">
+                      <Button variant="secondary" size="sm" onClick={() => alert(`Deploying patrol to ${prediction.area}`)}>
                         Deploy Patrol
                       </Button>
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" onClick={() => alert(`Viewing detailed analysis for ${prediction.id}`)}>
                         View Analysis
                       </Button>
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" onClick={() => alert(`Dismissed prediction ${prediction.id}`)}>
                         Dismiss
                       </Button>
                     </div>

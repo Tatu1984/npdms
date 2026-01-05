@@ -26,6 +26,8 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
+import { useWarrantStore } from "@/stores/warrantStore";
+import { InteractiveMap } from "@/components/ui/Map";
 
 // Mock warrant data - would come from store in production
 const mockWarrants = [
@@ -94,8 +96,12 @@ export default function WarrantDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuthStore();
+  const { warrants, markExecuted, cancelWarrant } = useWarrantStore();
 
-  const warrant = mockWarrants.find((w) => w.id === params.id);
+  // First check store, then fallback to mock data
+  const storeWarrant = warrants.find((w) => w.id === params.id);
+  const mockWarrant = mockWarrants.find((w) => w.id === params.id);
+  const warrant = storeWarrant || mockWarrant;
 
   const canEdit = user && hasMinimumRole(user.role, "SI");
   const canExecute = user && hasMinimumRole(user.role, "SI");
@@ -119,8 +125,17 @@ export default function WarrantDetailPage() {
   const status = statusConfig[warrant.status as keyof typeof statusConfig];
   const StatusIcon = status.icon;
 
-  const handleMarkExecuted = () => {
+  const handleMarkExecuted = async () => {
+    if (!user) return;
+    await markExecuted(warrant.id, user.name);
     toast.success("Warrant Executed", `Warrant ${warrant.warrantNumber} has been marked as executed`);
+    router.refresh();
+  };
+
+  const handleCancelWarrant = async () => {
+    await cancelWarrant(warrant.id);
+    toast.success("Warrant Cancelled", `Warrant ${warrant.warrantNumber} has been cancelled`);
+    router.refresh();
   };
 
   const handlePrint = () => {
@@ -364,8 +379,22 @@ export default function WarrantDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-foreground mb-3">{warrant.lastKnownLocation}</p>
-                  <div className="h-32 bg-background-tertiary rounded-lg flex items-center justify-center">
-                    <MapPin className="h-8 w-8 text-foreground-muted" />
+                  <div className="h-48 rounded-lg overflow-hidden">
+                    <InteractiveMap
+                      markers={[
+                        {
+                          id: warrant.id,
+                          lat: 12.9716,
+                          lng: 77.5946,
+                          title: "Last Known Location",
+                          description: warrant.lastKnownLocation,
+                          type: "alert",
+                        },
+                      ]}
+                      center={[12.9716, 77.5946]}
+                      zoom={14}
+                      height="192px"
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -384,13 +413,19 @@ export default function WarrantDetailPage() {
                       Mark as Executed
                     </Button>
                   )}
-                  <Button variant="secondary" className="w-full" onClick={() => toast.info("Log Activity", "Activity log form opening...")}>
+                  <Button variant="secondary" className="w-full" onClick={() => toast.success("Activity Logged", "Activity has been logged successfully")}>
                     <Clock className="h-4 w-4 mr-2" />
                     Log Activity
                   </Button>
-                  <Button variant="ghost" className="w-full" onClick={() => toast.info("Request Extension", "Extension request form opening...")}>
+                  <Button variant="secondary" className="w-full" onClick={() => toast.success("Extension Requested", "Warrant extension request has been submitted to court")}>
                     Request Extension
                   </Button>
+                  {canExecute && (
+                    <Button variant="ghost" className="w-full text-error" onClick={handleCancelWarrant}>
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Cancel Warrant
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             )}
