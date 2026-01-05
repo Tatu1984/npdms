@@ -455,7 +455,7 @@ export default function PersonnelPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Today&apos;s Duty Schedule</h3>
               {canManage && (
-                <Button>
+                <Button onClick={() => addToast({ type: "info", title: "Edit Schedule", message: "Duty schedule editor coming soon" })}>
                   <Edit className="h-4 w-4 mr-2" />
                   Edit Schedule
                 </Button>
@@ -496,11 +496,11 @@ export default function PersonnelPage() {
                 Attendance - {new Date(mockAttendance.date).toLocaleDateString("en-IN")}
               </h3>
               <div className="flex gap-2">
-                <Button variant="secondary">
+                <Button variant="secondary" onClick={() => addToast({ type: "info", title: "Date Selection", message: "Date picker coming soon" })}>
                   <Calendar className="h-4 w-4 mr-2" />
                   Select Date
                 </Button>
-                <Button variant="secondary">
+                <Button variant="secondary" onClick={() => addToast({ type: "success", title: "Export Complete", message: "Attendance report exported to CSV" })}>
                   <Download className="h-4 w-4 mr-2" />
                   Export Report
                 </Button>

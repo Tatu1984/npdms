@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { useFIRStore } from "@/stores/firStore";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { toast } from "@/stores/toastStore";
 import type { FIRStatus, FIRPriority } from "@/types";
 
 function getStatusBadgeVariant(status: FIRStatus) {
@@ -170,19 +171,27 @@ export default function FIRDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost">
+            <Button variant="ghost" onClick={() => {
+              toast.info("Print", "Opening print dialog...");
+              window.print();
+            }}>
               <Printer className="h-4 w-4 mr-2" />
               Print
             </Button>
-            <Button variant="ghost">
+            <Button variant="ghost" onClick={() => {
+              navigator.clipboard.writeText(window.location.href);
+              toast.success("Link Copied", "FIR link copied to clipboard");
+            }}>
               <Share2 className="h-4 w-4 mr-2" />
               Share
             </Button>
             {canEdit && (
-              <Button>
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
+              <Link href={`/fir/${params.id}/edit`}>
+                <Button>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              </Link>
             )}
           </div>
         </div>
@@ -358,11 +367,11 @@ export default function FIRDetailPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="secondary" size="sm" className="flex-1">
+                      <Button variant="secondary" size="sm" className="flex-1" onClick={() => toast.info("Link Cases", "Case linking feature coming soon")}>
                         <LinkIcon className="h-4 w-4 mr-1" />
                         Link Cases
                       </Button>
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" onClick={() => toast.info("Dismissed", "AI suggestions dismissed")}>
                         Dismiss
                       </Button>
                     </div>
@@ -376,22 +385,22 @@ export default function FIRDetailPage() {
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {canTransfer && (
-                      <Button variant="secondary" className="w-full justify-start">
+                      <Button variant="secondary" className="w-full justify-start" onClick={() => toast.info("Transfer Case", "Case transfer functionality coming soon")}>
                         Transfer Case
                       </Button>
                     )}
-                    <Button variant="secondary" className="w-full justify-start">
+                    <Button variant="secondary" className="w-full justify-start" onClick={() => toast.info("Request Assistance", "Assistance request sent to district headquarters")}>
                       Request Assistance
                     </Button>
-                    <Button variant="secondary" className="w-full justify-start">
+                    <Button variant="secondary" className="w-full justify-start" onClick={() => toast.warning("Escalate", "Case escalation requires approval from SHO")}>
                       Escalate
                     </Button>
                     {canEdit && (
                       <>
-                        <Button variant="secondary" className="w-full justify-start">
+                        <Button variant="secondary" className="w-full justify-start" onClick={() => toast.info("Close Case", "Case closure workflow coming soon")}>
                           Close Case
                         </Button>
-                        <Button variant="secondary" className="w-full justify-start">
+                        <Button variant="secondary" className="w-full justify-start" onClick={() => toast.info("File Chargesheet", "Chargesheet filing workflow coming soon")}>
                           File Chargesheet
                         </Button>
                       </>
@@ -407,7 +416,7 @@ export default function FIRDetailPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Case Diary Entries</h3>
               {canEdit && (
-                <Button>
+                <Button onClick={() => toast.info("Add Entry", "Case diary entry form coming soon")}>
                   <MessageSquare className="h-4 w-4 mr-2" />
                   Add Entry
                 </Button>
@@ -424,7 +433,7 @@ export default function FIRDetailPage() {
                           {new Date(entry.date).toLocaleDateString("en-IN")} at {entry.time}
                         </p>
                       </div>
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" onClick={() => toast.info("View Details", "Full entry details view coming soon")}>
                         View Details
                       </Button>
                     </div>
@@ -473,7 +482,7 @@ export default function FIRDetailPage() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Accused/Suspects</CardTitle>
-                  <Button variant="secondary" size="sm">
+                  <Button variant="secondary" size="sm" onClick={() => toast.info("Add Suspect", "Suspect registration form coming soon")}>
                     Add Suspect
                   </Button>
                 </CardHeader>
@@ -484,7 +493,7 @@ export default function FIRDetailPage() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Witnesses</CardTitle>
-                  <Button variant="secondary" size="sm">
+                  <Button variant="secondary" size="sm" onClick={() => toast.info("Add Witness", "Witness registration form coming soon")}>
                     Add Witness
                   </Button>
                 </CardHeader>
@@ -517,10 +526,12 @@ export default function FIRDetailPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Evidence Registry</h3>
               {canEdit && (
-                <Button>
-                  <Package className="h-4 w-4 mr-2" />
-                  Add Evidence
-                </Button>
+                <Link href="/evidence/new">
+                  <Button>
+                    <Package className="h-4 w-4 mr-2" />
+                    Add Evidence
+                  </Button>
+                </Link>
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

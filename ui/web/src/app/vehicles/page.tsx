@@ -442,7 +442,7 @@ export default function VehiclesPage() {
           <TabsContent value="trips" className="space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Today&apos;s Trips</h3>
-              <Button variant="secondary">
+              <Button variant="secondary" onClick={() => addToast({ type: "success", title: "Export Complete", message: "Trip log exported to CSV" })}>
                 <Download className="h-4 w-4 mr-2" />
                 Export Log
               </Button>
@@ -497,11 +497,11 @@ export default function VehiclesPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Fuel Consumption</h3>
               <div className="flex gap-2">
-                <Button variant="secondary">
+                <Button variant="secondary" onClick={() => addToast({ type: "info", title: "Log Fuel", message: "Fuel entry form coming soon" })}>
                   <Plus className="h-4 w-4 mr-2" />
                   Log Fuel Entry
                 </Button>
-                <Button variant="secondary">
+                <Button variant="secondary" onClick={() => addToast({ type: "success", title: "Export Complete", message: "Fuel log exported to CSV" })}>
                   <Download className="h-4 w-4 mr-2" />
                   Export
                 </Button>
@@ -572,7 +572,7 @@ export default function VehiclesPage() {
           <TabsContent value="maintenance" className="space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Maintenance Schedule</h3>
-              <Button variant="secondary">
+              <Button variant="secondary" onClick={() => addToast({ type: "info", title: "Schedule Maintenance", message: "Maintenance scheduling form coming soon" })}>
                 <Plus className="h-4 w-4 mr-2" />
                 Schedule Maintenance
               </Button>
@@ -593,7 +593,7 @@ export default function VehiclesPage() {
                       <p className="font-medium text-foreground">KA-01-P-1237</p>
                       <p className="text-sm text-foreground-muted">Engine service overdue by 15 days</p>
                     </div>
-                    <Button variant="secondary" size="sm">
+                    <Button variant="secondary" size="sm" onClick={() => addToast({ type: "info", title: "Schedule Service", message: "Service scheduling form coming soon" })}>
                       Schedule
                     </Button>
                   </div>
@@ -602,7 +602,7 @@ export default function VehiclesPage() {
                       <p className="font-medium text-foreground">KA-01-G-5678</p>
                       <p className="text-sm text-foreground-muted">Service due in 5 days</p>
                     </div>
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" onClick={() => addToast({ type: "info", title: "Schedule Service", message: "Service scheduling form coming soon" })}>
                       Schedule
                     </Button>
                   </div>

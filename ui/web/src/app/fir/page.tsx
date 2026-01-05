@@ -250,7 +250,7 @@ export default function FIRListPage() {
                 onChange={handlePriorityFilter}
                 className="w-full md:w-40"
               />
-              <Button variant="secondary">
+              <Button variant="secondary" onClick={() => toast.info("Advanced Filters", "Advanced filtering options coming soon")}>
                 <Filter className="h-4 w-4 mr-2" />
                 More Filters
               </Button>

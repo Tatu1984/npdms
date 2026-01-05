@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { useToastStore } from "@/stores/toastStore";
 import { PatrolMap } from "@/components/map";
 
 // Mock patrol data
@@ -123,6 +124,7 @@ function getStatusColor(status: string) {
 
 export default function GISPage() {
   const { user } = useAuthStore();
+  const { addToast } = useToastStore();
   const [activeTab, setActiveTab] = useState("live");
   const [searchQuery, setSearchQuery] = useState("");
   const [layers, setLayers] = useState(mapLayers);
@@ -150,12 +152,18 @@ export default function GISPage() {
           </div>
           <div className="flex gap-2">
             {canDispatch && (
-              <Button>
+              <Button onClick={() => addToast({ type: "info", title: "Dispatch Unit", message: "Unit dispatch interface coming soon" })}>
                 <Radio className="h-4 w-4 mr-2" />
                 Dispatch Unit
               </Button>
             )}
-            <Button variant="secondary">
+            <Button variant="secondary" onClick={() => {
+              const mapElement = document.querySelector(".leaflet-container");
+              if (mapElement) {
+                mapElement.requestFullscreen?.();
+              }
+              addToast({ type: "info", title: "Full Screen", message: "Click ESC to exit full screen" });
+            }}>
               <Maximize2 className="h-4 w-4 mr-2" />
               Full Screen
             </Button>
@@ -178,13 +186,13 @@ export default function GISPage() {
                     />
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" onClick={() => addToast({ type: "info", title: "Zoom", message: "Use map controls to zoom in" })}>
                       <ZoomIn className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" onClick={() => addToast({ type: "info", title: "Zoom", message: "Use map controls to zoom out" })}>
                       <ZoomOut className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" onClick={() => addToast({ type: "info", title: "Navigation", message: "GPS navigation mode coming soon" })}>
                       <Navigation className="h-4 w-4" />
                     </Button>
                   </div>
@@ -319,7 +327,7 @@ export default function GISPage() {
                           <Clock className="h-3 w-3 inline mr-1" />
                           {patrol.lastUpdate}
                         </span>
-                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => addToast({ type: "info", title: "Track Vehicle", message: `Tracking ${patrol.vehicle} in real-time` })}>
                           <Navigation className="h-3 w-3 mr-1" />
                           Track
                         </Button>
@@ -368,7 +376,7 @@ export default function GISPage() {
                           <Clock className="h-3 w-3 inline mr-1" />
                           {incident.time}
                         </span>
-                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => addToast({ type: "info", title: "Locate Incident", message: `Centering map on ${incident.location}` })}>
                           <MapPin className="h-3 w-3 mr-1" />
                           Locate
                         </Button>
@@ -396,7 +404,7 @@ export default function GISPage() {
                         </Badge>
                       </div>
                       <div className="flex justify-end mt-2">
-                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => addToast({ type: "info", title: "Show Beat Area", message: `Highlighting ${beat.name} on map` })}>
                           <Target className="h-3 w-3 mr-1" />
                           Show Area
                         </Button>

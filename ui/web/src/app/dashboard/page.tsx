@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   FileText,
   Briefcase,
@@ -16,6 +18,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { useToastStore } from "@/stores/toastStore";
 
 // Mock data for demonstration
 const stats = {
@@ -175,9 +178,23 @@ function getAlertStyle(type: string) {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { user } = useAuthStore();
+  const { addToast } = useToastStore();
   const isSHOOrAbove = user && hasMinimumRole(user.role, "SHO");
   const isSPOrAbove = user && hasMinimumRole(user.role, "SP");
+
+  const handleGenerateReport = () => {
+    addToast({
+      type: "info",
+      title: "Report Generation",
+      message: "Report generation feature coming soon",
+    });
+  };
+
+  const handleAssignOfficers = () => {
+    router.push("/personnel");
+  };
 
   return (
     <DashboardLayout>
@@ -232,38 +249,41 @@ export default function DashboardPage() {
                 <FileText className="h-5 w-5" />
                 Recent FIRs
               </CardTitle>
-              <Button variant="ghost" size="sm">
-                View All <ArrowRight className="h-4 w-4 ml-1" />
-              </Button>
+              <Link href="/fir">
+                <Button variant="ghost" size="sm">
+                  View All <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              </Link>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {recentFIRs.map((fir) => (
-                  <div
-                    key={fir.id}
-                    className="flex items-center justify-between p-4 rounded-lg bg-background-tertiary hover:bg-background-tertiary/80 transition-colors cursor-pointer"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-sm text-accent">
-                          {fir.firNumber}
-                        </span>
-                        <Badge variant={getPriorityBadgeVariant(fir.priority) as any}>
-                          {fir.priority}
-                        </Badge>
+                  <Link href={`/fir/${fir.id}`} key={fir.id}>
+                    <div
+                      className="flex items-center justify-between p-4 rounded-lg bg-background-tertiary hover:bg-background-tertiary/80 transition-colors cursor-pointer"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-sm text-accent">
+                            {fir.firNumber}
+                          </span>
+                          <Badge variant={getPriorityBadgeVariant(fir.priority) as any}>
+                            {fir.priority}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-foreground mt-1">
+                          {fir.complainant} - {fir.offence}
+                        </p>
+                        <p className="text-xs text-foreground-muted mt-1 flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {fir.time}
+                        </p>
                       </div>
-                      <p className="text-sm text-foreground mt-1">
-                        {fir.complainant} - {fir.offence}
-                      </p>
-                      <p className="text-xs text-foreground-muted mt-1 flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {fir.time}
-                      </p>
+                      <Badge variant={getStatusBadgeVariant(fir.status) as any}>
+                        {fir.status.replace(/_/g, " ")}
+                      </Badge>
                     </div>
-                    <Badge variant={getStatusBadgeVariant(fir.status) as any}>
-                      {fir.status.replace(/_/g, " ")}
-                    </Badge>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </CardContent>
@@ -276,34 +296,37 @@ export default function DashboardPage() {
                 <AlertTriangle className="h-5 w-5" />
                 Active Alerts
               </CardTitle>
-              <Badge variant="error">{alerts.length}</Badge>
+              <Link href="/alerts">
+                <Badge variant="error" className="cursor-pointer">{alerts.length}</Badge>
+              </Link>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {alerts.map((alert) => (
-                  <div
-                    key={alert.id}
-                    className={`p-3 rounded-lg ${getAlertStyle(alert.type)} cursor-pointer hover:opacity-80 transition-opacity`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <Badge
-                        variant={
-                          alert.type === "FLASH"
-                            ? "error"
-                            : alert.type === "URGENT"
-                            ? "warning"
-                            : "info"
-                        }
-                        className="text-[10px]"
-                      >
-                        {alert.type}
-                      </Badge>
-                      <span className="text-xs text-foreground-muted">
-                        {alert.time}
-                      </span>
+                  <Link href="/alerts" key={alert.id}>
+                    <div
+                      className={`p-3 rounded-lg ${getAlertStyle(alert.type)} cursor-pointer hover:opacity-80 transition-opacity`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <Badge
+                          variant={
+                            alert.type === "FLASH"
+                              ? "error"
+                              : alert.type === "URGENT"
+                              ? "warning"
+                              : "info"
+                          }
+                          className="text-[10px]"
+                        >
+                          {alert.type}
+                        </Badge>
+                        <span className="text-xs text-foreground-muted">
+                          {alert.time}
+                        </span>
+                      </div>
+                      <p className="text-sm text-foreground mt-2">{alert.title}</p>
                     </div>
-                    <p className="text-sm text-foreground mt-2">{alert.title}</p>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </CardContent>
@@ -318,20 +341,24 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-3">
-                <Button>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Register New FIR
-                </Button>
-                <Button variant="secondary">
+                <Link href="/fir/new">
+                  <Button>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Register New FIR
+                  </Button>
+                </Link>
+                <Button variant="secondary" onClick={handleAssignOfficers}>
                   <Users className="h-4 w-4 mr-2" />
                   Assign Officers
                 </Button>
-                <Button variant="secondary">
-                  <AlertTriangle className="h-4 w-4 mr-2" />
-                  Issue Alert
-                </Button>
-                {isSPOrAbove && (
+                <Link href="/alerts">
                   <Button variant="secondary">
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                    Issue Alert
+                  </Button>
+                </Link>
+                {isSPOrAbove && (
+                  <Button variant="secondary" onClick={handleGenerateReport}>
                     <Briefcase className="h-4 w-4 mr-2" />
                     Generate Report
                   </Button>

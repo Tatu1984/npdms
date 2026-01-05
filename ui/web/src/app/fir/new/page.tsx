@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/Badge";
 import { useFIRStore } from "@/stores/firStore";
 import { useAuthStore } from "@/stores/authStore";
 import { sanitizeString } from "@/lib/validations";
+import { toast } from "@/stores/toastStore";
 
 // Validation Schema
 const firFormSchema = z.object({
@@ -332,7 +333,10 @@ export default function NewFIRPage() {
               <Button
                 type="button"
                 variant={inputMode === "voice" ? "default" : "secondary"}
-                onClick={() => setInputMode("voice")}
+                onClick={() => {
+                  setInputMode("voice");
+                  toast.info("Voice Input", "Voice recognition feature coming soon");
+                }}
               >
                 <Mic className="h-4 w-4 mr-2" />
                 Voice
@@ -340,7 +344,10 @@ export default function NewFIRPage() {
               <Button
                 type="button"
                 variant={inputMode === "scan" ? "default" : "secondary"}
-                onClick={() => setInputMode("scan")}
+                onClick={() => {
+                  setInputMode("scan");
+                  toast.info("Document Scanning", "Handwritten document scanning coming soon");
+                }}
               >
                 <Camera className="h-4 w-4 mr-2" />
                 Scan Handwritten
@@ -348,7 +355,10 @@ export default function NewFIRPage() {
               <Button
                 type="button"
                 variant={inputMode === "upload" ? "default" : "secondary"}
-                onClick={() => setInputMode("upload")}
+                onClick={() => {
+                  setInputMode("upload");
+                  toast.info("Document Upload", "Document upload and parsing coming soon");
+                }}
               >
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Document
@@ -726,19 +736,19 @@ export default function NewFIRPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button type="button" variant="secondary" size="sm" className="w-full">
+                  <Button type="button" variant="secondary" size="sm" className="w-full" onClick={() => toast.info("Photo Upload", "Photo evidence upload coming soon")}>
                     <Camera className="h-4 w-4 mr-1" />
                     Photo
                   </Button>
-                  <Button type="button" variant="secondary" size="sm" className="w-full">
+                  <Button type="button" variant="secondary" size="sm" className="w-full" onClick={() => toast.info("Document Upload", "Document upload coming soon")}>
                     <Upload className="h-4 w-4 mr-1" />
                     Document
                   </Button>
-                  <Button type="button" variant="secondary" size="sm" className="w-full">
+                  <Button type="button" variant="secondary" size="sm" className="w-full" onClick={() => toast.info("Audio Recording", "Audio recording coming soon")}>
                     <Mic className="h-4 w-4 mr-1" />
                     Audio
                   </Button>
-                  <Button type="button" variant="secondary" size="sm" className="w-full">
+                  <Button type="button" variant="secondary" size="sm" className="w-full" onClick={() => toast.info("Video Upload", "Video upload coming soon")}>
                     <Upload className="h-4 w-4 mr-1" />
                     Video
                   </Button>
@@ -786,11 +796,11 @@ export default function NewFIRPage() {
                   Register FIR
                 </Button>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button type="button" variant="secondary" className="w-full">
+                  <Button type="button" variant="secondary" className="w-full" onClick={() => toast.success("Draft Saved", "Your FIR draft has been saved locally")}>
                     <Save className="h-4 w-4 mr-2" />
                     Save Draft
                   </Button>
-                  <Button type="button" variant="ghost" className="w-full">
+                  <Button type="button" variant="ghost" className="w-full" onClick={() => toast.info("Preview", "FIR preview feature coming soon")}>
                     <Eye className="h-4 w-4 mr-2" />
                     Preview
                   </Button>

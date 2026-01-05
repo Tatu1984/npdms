@@ -413,7 +413,7 @@ export default function LookoutPage() {
           <TabsContent value="sightings" className="space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Recent Sightings</h3>
-              <Button>
+              <Button onClick={() => addToast({ type: "info", title: "Report Sighting", message: "Sighting report form coming soon" })}>
                 <Plus className="h-4 w-4 mr-2" />
                 Report Sighting
               </Button>
@@ -472,15 +472,15 @@ export default function LookoutPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm" onClick={() => addToast({ type: "info", title: "View Sighting", message: `Sighting details for ${sighting.lookoutId}` })}>
                               <Eye className="h-4 w-4" />
                             </Button>
                             {canVerify && !sighting.verified && (
                               <>
-                                <Button variant="ghost" size="sm">
+                                <Button variant="ghost" size="sm" onClick={() => addToast({ type: "success", title: "Sighting Verified", message: `Sighting at ${sighting.location} has been verified` })}>
                                   <CheckCircle className="h-4 w-4 text-success" />
                                 </Button>
-                                <Button variant="ghost" size="sm">
+                                <Button variant="ghost" size="sm" onClick={() => addToast({ type: "warning", title: "Sighting Rejected", message: "Sighting marked as false positive" })}>
                                   <XCircle className="h-4 w-4 text-error" />
                                 </Button>
                               </>

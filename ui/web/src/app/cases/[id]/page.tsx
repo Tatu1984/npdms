@@ -24,6 +24,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { toast } from "@/stores/toastStore";
 
 // Mock case data
 const mockCase = {
@@ -134,7 +135,7 @@ export default function CaseDetailPage() {
             </div>
           </div>
           {canEdit && (
-            <Button>
+            <Button onClick={() => toast.info("Edit Case", "Case editing form coming soon")}>
               <Edit className="h-4 w-4 mr-2" />
               Edit Case
             </Button>
@@ -309,7 +310,7 @@ export default function CaseDetailPage() {
                   <div className="flex items-center justify-between">
                     <CardTitle>Accused Persons</CardTitle>
                     {canEdit && (
-                      <Button size="sm">
+                      <Button size="sm" onClick={() => toast.info("Add Accused", "Accused registration form coming soon")}>
                         <Plus className="h-4 w-4 mr-2" />
                         Add Accused
                       </Button>
@@ -344,7 +345,7 @@ export default function CaseDetailPage() {
                   <div className="flex items-center justify-between">
                     <CardTitle>Witnesses</CardTitle>
                     {canEdit && (
-                      <Button size="sm">
+                      <Button size="sm" onClick={() => toast.info("Add Witness", "Witness registration form coming soon")}>
                         <Plus className="h-4 w-4 mr-2" />
                         Add Witness
                       </Button>

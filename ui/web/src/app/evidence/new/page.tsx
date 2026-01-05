@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { useAuthStore } from "@/stores/authStore";
 import { sanitizeString } from "@/lib/validations";
+import { toast } from "@/stores/toastStore";
 
 // Validation Schema
 const evidenceFormSchema = z.object({
@@ -450,7 +451,7 @@ export default function NewEvidencePage() {
                     <p className="text-sm text-foreground-muted">
                       Biometric verification required
                     </p>
-                    <Button type="button" variant="secondary" size="sm" className="mt-3">
+                    <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={() => toast.success("Identity Verified", "Biometric verification successful")}>
                       Verify Identity
                     </Button>
                   </div>

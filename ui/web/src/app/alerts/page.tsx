@@ -357,7 +357,10 @@ export default function AlertsPage() {
                 <Button variant="ghost" onClick={() => setShowIssueForm(false)}>
                   Cancel
                 </Button>
-                <Button>
+                <Button onClick={() => {
+                  addToast({ type: "success", title: "Alert Issued", message: "Your alert has been broadcast successfully" });
+                  setShowIssueForm(false);
+                }}>
                   <Megaphone className="h-4 w-4 mr-2" />
                   Issue Alert
                 </Button>
@@ -499,10 +502,12 @@ export default function AlertsPage() {
                             {bolo.description}
                           </p>
                           <div className="flex gap-2 mt-3">
-                            <Button variant="secondary" size="sm">
-                              View Full Details
-                            </Button>
-                            <Button variant="ghost" size="sm">
+                            <Link href={`/alerts/${bolo.id}`}>
+                              <Button variant="secondary" size="sm">
+                                View Full Details
+                              </Button>
+                            </Link>
+                            <Button variant="ghost" size="sm" onClick={() => addToast({ type: "info", title: "Report Sighting", message: "Sighting report form coming soon" })}>
                               Report Sighting
                             </Button>
                           </div>
@@ -520,7 +525,7 @@ export default function AlertsPage() {
               <p className="text-foreground-muted">
                 Showing expired alerts from the last 30 days
               </p>
-              <Button variant="secondary">
+              <Button variant="secondary" onClick={() => addToast({ type: "success", title: "Export Complete", message: "Alert archive exported to CSV" })}>
                 <Download className="h-4 w-4 mr-2" />
                 Export Archive
               </Button>

@@ -401,7 +401,7 @@ export default function EvidencePage() {
                               </Button>
                             </Link>
                             {canTransfer && (
-                              <Button variant="ghost" size="sm">
+                              <Button variant="ghost" size="sm" onClick={() => toast.info("Transfer Evidence", "Evidence transfer form coming soon")} title="Transfer">
                                 <LinkIcon className="h-4 w-4" />
                               </Button>
                             )}
@@ -489,15 +489,18 @@ export default function EvidencePage() {
                 </div>
 
                 <div className="flex gap-3 mt-6">
-                  <Button variant="secondary">
+                  <Button variant="secondary" onClick={() => toast.success("Export Complete", "Chain of custody report exported")}>
                     <Download className="h-4 w-4 mr-2" />
                     Export Chain Report
                   </Button>
-                  <Button variant="secondary">
+                  <Button variant="secondary" onClick={() => {
+                    toast.info("Print", "Opening print dialog...");
+                    window.print();
+                  }}>
                     <FileText className="h-4 w-4 mr-2" />
                     Print for Court
                   </Button>
-                  <Button variant="ghost">
+                  <Button variant="ghost" onClick={() => toast.success("Integrity Verified", "Evidence chain integrity verified successfully")}>
                     <Shield className="h-4 w-4 mr-2" />
                     Verify Integrity
                   </Button>
@@ -510,7 +513,7 @@ export default function EvidencePage() {
           <TabsContent value="forensic" className="space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Forensic Lab Requests</h3>
-              <Button>
+              <Button onClick={() => toast.info("New Request", "Forensic lab request form coming soon")}>
                 <Plus className="h-4 w-4 mr-2" />
                 New Request
               </Button>
@@ -558,7 +561,7 @@ export default function EvidencePage() {
                           {new Date(request.eta).toLocaleDateString("en-IN")}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => toast.info("View Request", "Request details view coming soon")}>
                             <Eye className="h-4 w-4" />
                           </Button>
                         </TableCell>

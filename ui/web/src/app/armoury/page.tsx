@@ -193,7 +193,10 @@ export default function ArmouryPage() {
           </div>
           <div className="flex gap-2">
             {canIssue && (
-              <Button>
+              <Button onClick={() => {
+                setActiveTab("issuance");
+                addToast({ type: "info", title: "Issue Weapon", message: "Fill the issuance form below" });
+              }}>
                 <Plus className="h-4 w-4 mr-2" />
                 Issue Weapon
               </Button>
@@ -276,7 +279,7 @@ export default function ArmouryPage() {
                     {mockOverdue.length} weapons are overdue for return
                   </p>
                 </div>
-                <Button variant="secondary" size="sm">
+                <Button variant="secondary" size="sm" onClick={() => addToast({ type: "warning", title: "Overdue Returns", message: `${mockOverdue.length} weapons are overdue: ${mockOverdue.map(o => o.weaponId).join(", ")}` })}>
                   View Details
                 </Button>
               </div>
@@ -486,7 +489,7 @@ export default function ArmouryPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           {canIssue && (
-                            <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm" onClick={() => addToast({ type: "info", title: "Issue Ammunition", message: `Ammunition issuance form for ${ammo.type} coming soon` })}>
                               Issue
                             </Button>
                           )}
@@ -530,7 +533,10 @@ export default function ArmouryPage() {
           <TabsContent value="issuance" className="space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Today&apos;s Issuance Log</h3>
-              <Button variant="secondary">
+              <Button variant="secondary" onClick={() => {
+                exportToCSV(mockWeapons.filter(w => w.status === "ISSUED"), "issuance-log", exportConfigs.armoury);
+                addToast({ type: "success", title: "Export Complete", message: "Issuance log exported to CSV" });
+              }}>
                 <Download className="h-4 w-4 mr-2" />
                 Export Log
               </Button>
@@ -639,7 +645,7 @@ export default function ArmouryPage() {
                       Biometric verification required for issuance
                     </span>
                   </div>
-                  <Button className="w-full">
+                  <Button className="w-full" onClick={() => addToast({ type: "success", title: "Weapon Issued", message: "Weapon has been issued successfully (biometric verified)" })}>
                     Issue Weapon (Biometric Required)
                   </Button>
                 </CardContent>
