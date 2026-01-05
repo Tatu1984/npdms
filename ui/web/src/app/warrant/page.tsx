@@ -390,13 +390,13 @@ export default function WarrantPage() {
             <Select
               label="Warrant Type *"
               value={newWarrant.type}
-              onChange={(v) => setNewWarrant({ ...newWarrant, type: v as Warrant["type"] })}
+              onChange={(v: string) => setNewWarrant({ ...newWarrant, type: v as Warrant["type"] })}
               options={warrantTypeOptions}
             />
             <Select
               label="Priority *"
               value={newWarrant.priority}
-              onChange={(v) => setNewWarrant({ ...newWarrant, priority: v as Warrant["priority"] })}
+              onChange={(v: string) => setNewWarrant({ ...newWarrant, priority: v as Warrant["priority"] })}
               options={priorityOptions}
             />
           </div>
@@ -405,7 +405,7 @@ export default function WarrantPage() {
             label="Issued For (Person/Premises) *"
             placeholder="Name of accused or address of premises"
             value={newWarrant.issuedFor}
-            onChange={(v) => setNewWarrant({ ...newWarrant, issuedFor: v })}
+            onChange={(v: string) => setNewWarrant({ ...newWarrant, issuedFor: v })}
           />
 
           <div className="grid grid-cols-2 gap-4">
@@ -413,13 +413,13 @@ export default function WarrantPage() {
               label="Case Number *"
               placeholder="CASE-2024-XXXXX"
               value={newWarrant.caseNumber}
-              onChange={(v) => setNewWarrant({ ...newWarrant, caseNumber: v })}
+              onChange={(v: string) => setNewWarrant({ ...newWarrant, caseNumber: v })}
             />
             <Input
               label="FIR Number *"
               placeholder="KOR/2024/XXXXX"
               value={newWarrant.firNumber}
-              onChange={(v) => setNewWarrant({ ...newWarrant, firNumber: v })}
+              onChange={(v: string) => setNewWarrant({ ...newWarrant, firNumber: v })}
             />
           </div>
 
@@ -427,7 +427,7 @@ export default function WarrantPage() {
             label="Issuing Authority *"
             placeholder="Sessions Court, Koramangala"
             value={newWarrant.issuedBy}
-            onChange={(v) => setNewWarrant({ ...newWarrant, issuedBy: v })}
+            onChange={(v: string) => setNewWarrant({ ...newWarrant, issuedBy: v })}
           />
 
           <div className="grid grid-cols-2 gap-4">
@@ -435,13 +435,13 @@ export default function WarrantPage() {
               label="Issue Date *"
               type="date"
               value={newWarrant.issuedDate}
-              onChange={(v) => setNewWarrant({ ...newWarrant, issuedDate: v })}
+              onChange={(v: string) => setNewWarrant({ ...newWarrant, issuedDate: v })}
             />
             <Input
               label="Valid Until *"
               type="date"
               value={newWarrant.validUntil}
-              onChange={(v) => setNewWarrant({ ...newWarrant, validUntil: v })}
+              onChange={(v: string) => setNewWarrant({ ...newWarrant, validUntil: v })}
             />
           </div>
 
@@ -449,14 +449,14 @@ export default function WarrantPage() {
             label="Charges (comma separated)"
             placeholder="IPC 392, IPC 397"
             value={newWarrant.charges}
-            onChange={(v) => setNewWarrant({ ...newWarrant, charges: v })}
+            onChange={(v: string) => setNewWarrant({ ...newWarrant, charges: v })}
           />
 
           <Input
             label="Last Known Location"
             placeholder="Address or area"
             value={newWarrant.lastKnownLocation}
-            onChange={(v) => setNewWarrant({ ...newWarrant, lastKnownLocation: v })}
+            onChange={(v: string) => setNewWarrant({ ...newWarrant, lastKnownLocation: v })}
             icon={<MapPin className="h-4 w-4" />}
           />
 
@@ -464,7 +464,7 @@ export default function WarrantPage() {
             label="Description / Notes"
             placeholder="Additional details about the warrant..."
             value={newWarrant.description}
-            onChange={(v) => setNewWarrant({ ...newWarrant, description: v })}
+            onChange={(v: string) => setNewWarrant({ ...newWarrant, description: v })}
             rows={3}
           />
         </div>

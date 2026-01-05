@@ -739,7 +739,7 @@ export default function OfficerDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {mockOfficer.activeCases.map((caseItem, index) => (
+                  {mockOfficer.activeCases.map((caseItem: { firNumber: string; type: string; status: string }, index: number) => (
                     <div
                       key={index}
                       className="flex items-center justify-between p-4 rounded-lg bg-background-tertiary hover:bg-background-secondary cursor-pointer"
@@ -766,7 +766,7 @@ export default function OfficerDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {mockOfficer.postingHistory.map((posting, index) => (
+                    {mockOfficer.postingHistory.map((posting: { station: string; from: string; to: string; role: string }, index: number) => (
                       <div key={index} className="relative pl-6 pb-4 border-l-2 border-border last:pb-0">
                         <div className="absolute -left-1.5 top-1 h-3 w-3 rounded-full bg-accent" />
                         <p className="font-medium text-foreground">{posting.station}</p>
@@ -785,7 +785,7 @@ export default function OfficerDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {mockOfficer.trainings.map((training, index) => (
+                    {mockOfficer.trainings.map((training: { name: string; year: string; status: string }, index: number) => (
                       <div
                         key={index}
                         className="flex items-center justify-between p-3 rounded-lg bg-background-tertiary"
@@ -813,7 +813,7 @@ export default function OfficerDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {mockOfficer.awards.map((award, index) => (
+                    {mockOfficer.awards.map((award: { title: string; year: string; from: string }, index: number) => (
                       <div
                         key={index}
                         className="p-4 rounded-lg bg-warning/5 border border-warning/20"

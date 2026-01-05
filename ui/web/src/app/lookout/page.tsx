@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   AlertTriangle,
   Search,
@@ -29,7 +30,20 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
-import { InteractiveMap, MapMarker } from "@/components/ui/Map";
+import type { MapMarker } from "@/components/ui/Map";
+
+// Dynamic import for map to avoid SSR issues
+const InteractiveMap = dynamic(
+  () => import("@/components/ui/Map").then((mod) => mod.InteractiveMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 bg-background-tertiary rounded-lg flex items-center justify-center">
+        <div className="text-foreground-muted">Loading map...</div>
+      </div>
+    )
+  }
+);
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
 import { useLookoutStore, Lookout, Sighting } from "@/stores/lookoutStore";
@@ -631,7 +645,7 @@ export default function LookoutPage() {
                 { value: "WITNESS", label: "Witness Required" },
               ]}
               value={createForm.type}
-              onChange={(value) => setCreateForm({ ...createForm, type: value as Lookout["type"] })}
+              onChange={(value: string) => setCreateForm({ ...createForm, type: value as Lookout["type"] })}
             />
             <Select
               label="Priority"
@@ -642,7 +656,7 @@ export default function LookoutPage() {
                 { value: "CRITICAL", label: "Critical" },
               ]}
               value={createForm.priority}
-              onChange={(value) => setCreateForm({ ...createForm, priority: value as Lookout["priority"] })}
+              onChange={(value: string) => setCreateForm({ ...createForm, priority: value as Lookout["priority"] })}
             />
           </div>
 
@@ -650,14 +664,14 @@ export default function LookoutPage() {
             label="Name / Identification *"
             placeholder="Enter person name or vehicle registration"
             value={createForm.name}
-            onChange={(value) => setCreateForm({ ...createForm, name: value })}
+            onChange={(value: string) => setCreateForm({ ...createForm, name: value })}
           />
 
           <Textarea
             label="Description *"
             placeholder="Brief description of the lookout notice"
             value={createForm.description}
-            onChange={(value) => setCreateForm({ ...createForm, description: value })}
+            onChange={(value: string) => setCreateForm({ ...createForm, description: value })}
             rows={3}
           />
 
@@ -665,7 +679,7 @@ export default function LookoutPage() {
             label="Linked FIR"
             placeholder="e.g., KOR/2024/00123"
             value={createForm.linkedFIR}
-            onChange={(value) => setCreateForm({ ...createForm, linkedFIR: value })}
+            onChange={(value: string) => setCreateForm({ ...createForm, linkedFIR: value })}
           />
 
           <div className="grid grid-cols-2 gap-4">
@@ -673,13 +687,13 @@ export default function LookoutPage() {
               label="Age"
               placeholder="Age or age range"
               value={createForm.details.age}
-              onChange={(value) => setCreateForm({ ...createForm, details: { ...createForm.details, age: value } })}
+              onChange={(value: string) => setCreateForm({ ...createForm, details: { ...createForm.details, age: value } })}
             />
             <Input
               label="Gender"
               placeholder="Gender"
               value={createForm.details.gender}
-              onChange={(value) => setCreateForm({ ...createForm, details: { ...createForm.details, gender: value } })}
+              onChange={(value: string) => setCreateForm({ ...createForm, details: { ...createForm.details, gender: value } })}
             />
           </div>
 
@@ -688,13 +702,13 @@ export default function LookoutPage() {
               label="Height"
               placeholder="Height"
               value={createForm.details.height}
-              onChange={(value) => setCreateForm({ ...createForm, details: { ...createForm.details, height: value } })}
+              onChange={(value: string) => setCreateForm({ ...createForm, details: { ...createForm.details, height: value } })}
             />
             <Input
               label="Complexion"
               placeholder="Complexion"
               value={createForm.details.complexion}
-              onChange={(value) => setCreateForm({ ...createForm, details: { ...createForm.details, complexion: value } })}
+              onChange={(value: string) => setCreateForm({ ...createForm, details: { ...createForm.details, complexion: value } })}
             />
           </div>
 
@@ -702,7 +716,7 @@ export default function LookoutPage() {
             label="Identifying Marks"
             placeholder="Scars, tattoos, etc."
             value={createForm.details.identifyingMarks}
-            onChange={(value) => setCreateForm({ ...createForm, details: { ...createForm.details, identifyingMarks: value } })}
+            onChange={(value: string) => setCreateForm({ ...createForm, details: { ...createForm.details, identifyingMarks: value } })}
           />
 
           <div className="grid grid-cols-2 gap-4">
@@ -710,13 +724,13 @@ export default function LookoutPage() {
               label="Last Seen Location"
               placeholder="Last known location"
               value={createForm.details.lastSeen}
-              onChange={(value) => setCreateForm({ ...createForm, details: { ...createForm.details, lastSeen: value } })}
+              onChange={(value: string) => setCreateForm({ ...createForm, details: { ...createForm.details, lastSeen: value } })}
             />
             <Input
               label="Last Seen Date"
               type="date"
               value={createForm.details.lastSeenDate}
-              onChange={(value) => setCreateForm({ ...createForm, details: { ...createForm.details, lastSeenDate: value } })}
+              onChange={(value: string) => setCreateForm({ ...createForm, details: { ...createForm.details, lastSeenDate: value } })}
             />
           </div>
         </div>
@@ -773,7 +787,7 @@ export default function LookoutPage() {
             label="Location *"
             placeholder="Where was the sighting?"
             value={sightingForm.location}
-            onChange={(value) => setSightingForm({ ...sightingForm, location: value })}
+            onChange={(value: string) => setSightingForm({ ...sightingForm, location: value })}
             icon={<MapPin className="h-4 w-4" />}
           />
 
@@ -781,7 +795,7 @@ export default function LookoutPage() {
             label="Details *"
             placeholder="Provide details about the sighting..."
             value={sightingForm.details}
-            onChange={(value) => setSightingForm({ ...sightingForm, details: value })}
+            onChange={(value: string) => setSightingForm({ ...sightingForm, details: value })}
             rows={4}
           />
 
@@ -792,7 +806,7 @@ export default function LookoutPage() {
               type="number"
               step="any"
               value={sightingForm.latitude}
-              onChange={(value) => setSightingForm({ ...sightingForm, latitude: value })}
+              onChange={(value: string) => setSightingForm({ ...sightingForm, latitude: value })}
             />
             <Input
               label="Longitude (Optional)"
@@ -800,7 +814,7 @@ export default function LookoutPage() {
               type="number"
               step="any"
               value={sightingForm.longitude}
-              onChange={(value) => setSightingForm({ ...sightingForm, longitude: value })}
+              onChange={(value: string) => setSightingForm({ ...sightingForm, longitude: value })}
             />
           </div>
 

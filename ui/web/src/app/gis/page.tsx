@@ -509,7 +509,7 @@ export default function GISPage() {
                 label: `${patrol.vehicle} - ${patrol.officers.join(", ")} (${patrol.beat})`,
               }))}
               value={dispatchForm.unitId}
-              onChange={(value) =>
+              onChange={(value: string) =>
                 setDispatchForm({ ...dispatchForm, unitId: value })
               }
             />
@@ -524,7 +524,7 @@ export default function GISPage() {
                   label: `${incident.type} - ${incident.location} (${incident.priority} Priority)`,
                 }))}
               value={dispatchForm.incidentId}
-              onChange={(value) =>
+              onChange={(value: string) =>
                 setDispatchForm({ ...dispatchForm, incidentId: value })
               }
             />
@@ -538,7 +538,7 @@ export default function GISPage() {
                 { value: "EMERGENCY", label: "Emergency" },
               ]}
               value={dispatchForm.priority}
-              onChange={(value) =>
+              onChange={(value: string) =>
                 setDispatchForm({ ...dispatchForm, priority: value })
               }
             />

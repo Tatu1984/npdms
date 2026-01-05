@@ -175,6 +175,8 @@ export default function BailDetailPage() {
     grantedBailAmount: storeApp.bailAmount,
     conditions: storeApp.conditions || [],
     rejectionReason: storeApp.rejectionReason,
+    orderSummary: storeApp.orderSummary,
+    prosecutionComments: undefined as string | undefined,
     timeline: [
       { date: storeApp.applicationDate, event: "Application filed", details: `${storeApp.bailType} bail application submitted` },
     ],

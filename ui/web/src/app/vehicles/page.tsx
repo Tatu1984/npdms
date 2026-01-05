@@ -817,7 +817,7 @@ export default function VehiclesPage() {
                   }))
                 ]}
                 value={maintenanceForm.vehicleId}
-                onChange={(value) => setMaintenanceForm({ ...maintenanceForm, vehicleId: value })}
+                onChange={(value: string) => setMaintenanceForm({ ...maintenanceForm, vehicleId: value })}
               />
             </div>
 
@@ -837,7 +837,7 @@ export default function VehiclesPage() {
                   { value: "Other", label: "Other" },
                 ]}
                 value={maintenanceForm.serviceType}
-                onChange={(value) => setMaintenanceForm({ ...maintenanceForm, serviceType: value })}
+                onChange={(value: string) => setMaintenanceForm({ ...maintenanceForm, serviceType: value })}
               />
             </div>
 
@@ -848,7 +848,7 @@ export default function VehiclesPage() {
               <Input
                 type="date"
                 value={maintenanceForm.scheduledDate}
-                onChange={(value) => setMaintenanceForm({ ...maintenanceForm, scheduledDate: value })}
+                onChange={(value: string) => setMaintenanceForm({ ...maintenanceForm, scheduledDate: value })}
               />
             </div>
 
@@ -860,7 +860,7 @@ export default function VehiclesPage() {
                 type="text"
                 placeholder="e.g., Govt. Workshop"
                 value={maintenanceForm.vendor}
-                onChange={(value) => setMaintenanceForm({ ...maintenanceForm, vendor: value })}
+                onChange={(value: string) => setMaintenanceForm({ ...maintenanceForm, vendor: value })}
               />
             </div>
 
@@ -872,7 +872,7 @@ export default function VehiclesPage() {
                 type="number"
                 placeholder="0"
                 value={maintenanceForm.estimatedCost}
-                onChange={(value) => setMaintenanceForm({ ...maintenanceForm, estimatedCost: value })}
+                onChange={(value: string) => setMaintenanceForm({ ...maintenanceForm, estimatedCost: value })}
               />
             </div>
 
@@ -929,7 +929,7 @@ export default function VehiclesPage() {
                   }))
                 ]}
                 value={fuelForm.vehicleId}
-                onChange={(value) => setFuelForm({ ...fuelForm, vehicleId: value })}
+                onChange={(value: string) => setFuelForm({ ...fuelForm, vehicleId: value })}
               />
             </div>
 
@@ -941,7 +941,7 @@ export default function VehiclesPage() {
                 <Input
                   type="date"
                   value={fuelForm.date}
-                  onChange={(value) => setFuelForm({ ...fuelForm, date: value })}
+                  onChange={(value: string) => setFuelForm({ ...fuelForm, date: value })}
                 />
               </div>
 
@@ -954,7 +954,7 @@ export default function VehiclesPage() {
                   step="0.01"
                   placeholder="0.00"
                   value={fuelForm.liters}
-                  onChange={(value) => setFuelForm({ ...fuelForm, liters: value })}
+                  onChange={(value: string) => setFuelForm({ ...fuelForm, liters: value })}
                 />
               </div>
             </div>
@@ -969,7 +969,7 @@ export default function VehiclesPage() {
                   step="0.01"
                   placeholder="0.00"
                   value={fuelForm.amount}
-                  onChange={(value) => setFuelForm({ ...fuelForm, amount: value })}
+                  onChange={(value: string) => setFuelForm({ ...fuelForm, amount: value })}
                 />
               </div>
 
@@ -981,7 +981,7 @@ export default function VehiclesPage() {
                   type="number"
                   placeholder="0"
                   value={fuelForm.odometer}
-                  onChange={(value) => setFuelForm({ ...fuelForm, odometer: value })}
+                  onChange={(value: string) => setFuelForm({ ...fuelForm, odometer: value })}
                 />
               </div>
             </div>
@@ -994,7 +994,7 @@ export default function VehiclesPage() {
                 type="text"
                 placeholder="Officer name"
                 value={fuelForm.filledBy}
-                onChange={(value) => setFuelForm({ ...fuelForm, filledBy: value })}
+                onChange={(value: string) => setFuelForm({ ...fuelForm, filledBy: value })}
               />
             </div>
           </div>

@@ -543,12 +543,12 @@ export default function BailPage() {
               label="Accused Name *"
               placeholder="Enter accused name"
               value={newBail.accused}
-              onChange={(v) => setNewBail({ ...newBail, accused: v })}
+              onChange={(v: string) => setNewBail({ ...newBail, accused: v })}
             />
             <Select
               label="Bail Type *"
               value={newBail.bailType}
-              onChange={(v) => setNewBail({ ...newBail, bailType: v as BailApplication["bailType"] })}
+              onChange={(v: string) => setNewBail({ ...newBail, bailType: v as BailApplication["bailType"] })}
               options={bailTypeOptions}
             />
           </div>
@@ -558,13 +558,13 @@ export default function BailPage() {
               label="Case Number *"
               placeholder="CASE-2024-XXXXX"
               value={newBail.caseNumber}
-              onChange={(v) => setNewBail({ ...newBail, caseNumber: v })}
+              onChange={(v: string) => setNewBail({ ...newBail, caseNumber: v })}
             />
             <Input
               label="FIR Number *"
               placeholder="KOR/2024/XXXXX"
               value={newBail.firNumber}
-              onChange={(v) => setNewBail({ ...newBail, firNumber: v })}
+              onChange={(v: string) => setNewBail({ ...newBail, firNumber: v })}
             />
           </div>
 
@@ -572,14 +572,14 @@ export default function BailPage() {
             label="Charges (comma separated) *"
             placeholder="IPC 420, IPC 406"
             value={newBail.charges}
-            onChange={(v) => setNewBail({ ...newBail, charges: v })}
+            onChange={(v: string) => setNewBail({ ...newBail, charges: v })}
           />
 
           <Input
             label="Court *"
             placeholder="Sessions Court, Koramangala"
             value={newBail.court}
-            onChange={(v) => setNewBail({ ...newBail, court: v })}
+            onChange={(v: string) => setNewBail({ ...newBail, court: v })}
           />
 
           <div className="grid grid-cols-2 gap-4">
@@ -587,13 +587,13 @@ export default function BailPage() {
               label="Application Date *"
               type="date"
               value={newBail.applicationDate}
-              onChange={(v) => setNewBail({ ...newBail, applicationDate: v })}
+              onChange={(v: string) => setNewBail({ ...newBail, applicationDate: v })}
             />
             <Input
               label="Hearing Date"
               type="date"
               value={newBail.hearingDate}
-              onChange={(v) => setNewBail({ ...newBail, hearingDate: v })}
+              onChange={(v: string) => setNewBail({ ...newBail, hearingDate: v })}
             />
           </div>
 
@@ -603,13 +603,13 @@ export default function BailPage() {
               type="number"
               placeholder="50000"
               value={newBail.proposedBailAmount}
-              onChange={(v) => setNewBail({ ...newBail, proposedBailAmount: v })}
+              onChange={(v: string) => setNewBail({ ...newBail, proposedBailAmount: v })}
             />
             <Input
               label="Lawyer"
               placeholder="Adv. Name"
               value={newBail.lawyer}
-              onChange={(v) => setNewBail({ ...newBail, lawyer: v })}
+              onChange={(v: string) => setNewBail({ ...newBail, lawyer: v })}
             />
           </div>
         </div>
@@ -637,13 +637,13 @@ export default function BailPage() {
             label="Surety Name *"
             placeholder="Enter surety name"
             value={newSurety.name}
-            onChange={(v) => setNewSurety({ ...newSurety, name: v })}
+            onChange={(v: string) => setNewSurety({ ...newSurety, name: v })}
           />
           <Input
             label="Relation with Accused *"
             placeholder="Brother, Father, Friend, etc."
             value={newSurety.relation}
-            onChange={(v) => setNewSurety({ ...newSurety, relation: v })}
+            onChange={(v: string) => setNewSurety({ ...newSurety, relation: v })}
           />
         </div>
 

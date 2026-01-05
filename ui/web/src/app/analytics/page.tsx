@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import {
   BarChart3,
   TrendingUp,
@@ -42,7 +43,20 @@ import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
-import { InteractiveMap, MapMarker } from "@/components/ui/Map";
+import type { MapMarker } from "@/components/ui/Map";
+
+// Dynamic import for map to avoid SSR issues
+const InteractiveMap = dynamic(
+  () => import("@/components/ui/Map").then((mod) => mod.InteractiveMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 bg-background-tertiary rounded-lg flex items-center justify-center">
+        <div className="text-foreground-muted">Loading map...</div>
+      </div>
+    )
+  }
+);
 
 const timeRanges = [
   { value: "today", label: "Today" },

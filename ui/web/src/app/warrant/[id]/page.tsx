@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   ArrowLeft,
   FileWarning,
@@ -27,7 +28,18 @@ import { Badge } from "@/components/ui/Badge";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
 import { useWarrantStore } from "@/stores/warrantStore";
-import { InteractiveMap } from "@/components/ui/Map";
+// Dynamic import for map to avoid SSR issues
+const InteractiveMap = dynamic(
+  () => import("@/components/ui/Map").then((mod) => mod.InteractiveMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-32 bg-background-tertiary rounded-lg flex items-center justify-center">
+        <div className="text-foreground-muted">Loading map...</div>
+      </div>
+    )
+  }
+);
 
 // Mock warrant data - would come from store in production
 const mockWarrants = [

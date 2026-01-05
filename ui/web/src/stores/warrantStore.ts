@@ -20,6 +20,22 @@ export interface Warrant {
   executedDate?: string;
   executedBy?: string;
   description?: string;
+  age?: number;
+  gender?: string;
+  address?: string;
+  identifyingMarks?: string;
+  searchPremises?: string;
+  itemsToSearch?: string[];
+  witnessRequired?: boolean;
+  courtDate?: string;
+  itemsSeized?: string[];
+  searchScope?: string;
+  summonsPurpose?: string;
+  hearingDate?: string;
+  latitude?: number;
+  longitude?: number;
+  executionHistory?: Array<{ date: string; action: string; officer: string; result: string }>;
+  judgeName?: string;
 }
 
 const MOCK_WARRANTS: Warrant[] = [
@@ -79,6 +95,7 @@ const MOCK_WARRANTS: Warrant[] = [
     issuedBy: "Sessions Court, Koramangala",
     issuedDate: "2024-01-22",
     validUntil: "2024-02-15",
+    charges: [],
     priority: "MEDIUM",
   },
   {

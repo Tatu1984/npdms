@@ -227,7 +227,7 @@ export default function ForensicsPage() {
             <div className="grid grid-cols-6 gap-4">
               {Object.entries(forensicTypes).map(([key, config]) => {
                 const Icon = config.icon;
-                const count = mockForensicRequests.filter((r) => r.type === key).length;
+                const count = requests.filter((r) => r.type === key).length;
                 return (
                   <div
                     key={key}
@@ -430,7 +430,7 @@ export default function ForensicsPage() {
                 <Input
                   required
                   value={formData.evidenceId}
-                  onChange={(value) => setFormData({ ...formData, evidenceId: value })}
+                  onChange={(value: string) => setFormData({ ...formData, evidenceId: value })}
                   placeholder="EVD-2024-KOR-XXXXX"
                 />
               </div>
@@ -441,7 +441,7 @@ export default function ForensicsPage() {
                 <Input
                   required
                   value={formData.caseNumber}
-                  onChange={(value) => setFormData({ ...formData, caseNumber: value })}
+                  onChange={(value: string) => setFormData({ ...formData, caseNumber: value })}
                   placeholder="CASE-2024-XXXXX"
                 />
               </div>
@@ -513,7 +513,7 @@ export default function ForensicsPage() {
                 <Input
                   type="date"
                   value={formData.expectedDate}
-                  onChange={(value) => setFormData({ ...formData, expectedDate: value })}
+                  onChange={(value: string) => setFormData({ ...formData, expectedDate: value })}
                 />
               </div>
             </div>

@@ -29,6 +29,7 @@ export interface BailApplication {
   cancellationReason?: string;
   lawyer?: string;
   validUntil?: string;
+  orderSummary?: string;
 }
 
 const MOCK_BAIL_APPLICATIONS: BailApplication[] = [
