@@ -35,6 +35,9 @@ const patrolIcon = createIcon("#22c55e"); // green
 const respondingIcon = createIcon("#eab308"); // yellow
 const incidentIcon = createIcon("#ef4444"); // red
 const stationIcon = createIcon("#3b82f6"); // blue
+const hotspotIcon = createIcon("#f97316"); // orange
+const cctvIcon = createIcon("#8b5cf6"); // purple
+const checkpointIcon = createIcon("#06b6d4"); // cyan
 
 interface Patrol {
   id: string;
@@ -65,17 +68,53 @@ interface Beat {
   bounds?: [number, number][];
 }
 
+interface Hotspot {
+  id: string;
+  name: string;
+  type: string;
+  crimeCount: number;
+  severity: "LOW" | "MEDIUM" | "HIGH";
+  coords: { lat: number; lng: number };
+  radius: number;
+}
+
+interface CCTV {
+  id: string;
+  name: string;
+  location: string;
+  status: "ACTIVE" | "INACTIVE" | "MAINTENANCE";
+  coords: { lat: number; lng: number };
+}
+
+interface Checkpoint {
+  id: string;
+  name: string;
+  type: string;
+  status: "ACTIVE" | "INACTIVE";
+  officers: number;
+  coords: { lat: number; lng: number };
+}
+
 interface PatrolMapProps {
   patrols: Patrol[];
   incidents: Incident[];
   beats: Beat[];
+  hotspots?: Hotspot[];
+  cctvCameras?: CCTV[];
+  checkpoints?: Checkpoint[];
   stationLocation: { lat: number; lng: number };
   stationName: string;
   showPatrols: boolean;
   showIncidents: boolean;
   showBeats: boolean;
+  showHotspots?: boolean;
+  showCCTV?: boolean;
+  showCheckpoints?: boolean;
   onPatrolClick?: (patrol: Patrol) => void;
   onIncidentClick?: (incident: Incident) => void;
+  onHotspotClick?: (hotspot: Hotspot) => void;
+  onCCTVClick?: (cctv: CCTV) => void;
+  onCheckpointClick?: (checkpoint: Checkpoint) => void;
 }
 
 // Component to handle map center updates
@@ -91,13 +130,22 @@ export function PatrolMap({
   patrols,
   incidents,
   beats,
+  hotspots = [],
+  cctvCameras = [],
+  checkpoints = [],
   stationLocation,
   stationName,
   showPatrols,
   showIncidents,
   showBeats,
+  showHotspots = false,
+  showCCTV = false,
+  showCheckpoints = false,
   onPatrolClick,
   onIncidentClick,
+  onHotspotClick,
+  onCCTVClick,
+  onCheckpointClick,
 }: PatrolMapProps) {
   const [isMounted, setIsMounted] = useState(false);
   const center: [number, number] = [stationLocation.lat, stationLocation.lng];
@@ -287,6 +335,130 @@ export function PatrolMap({
               }}
             />
           ))}
+
+      {/* Hotspot markers and heat zones */}
+      {showHotspots &&
+        hotspots.map((hotspot) => (
+          <Marker
+            key={hotspot.id}
+            position={[hotspot.coords.lat, hotspot.coords.lng]}
+            icon={hotspotIcon}
+            eventHandlers={{
+              click: () => onHotspotClick?.(hotspot),
+            }}
+          >
+            <Popup>
+              <div className="text-sm min-w-[150px]">
+                <p className="font-bold text-orange-600">{hotspot.name}</p>
+                <p className="text-gray-600">{hotspot.type}</p>
+                <p className="text-xs text-gray-500">
+                  {hotspot.crimeCount} incidents reported
+                </p>
+                <p
+                  className={`text-xs mt-1 font-medium ${
+                    hotspot.severity === "HIGH"
+                      ? "text-red-600"
+                      : hotspot.severity === "MEDIUM"
+                      ? "text-orange-600"
+                      : "text-yellow-600"
+                  }`}
+                >
+                  Severity: {hotspot.severity}
+                </p>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+      {/* Hotspot heat zones */}
+      {showHotspots &&
+        hotspots.map((hotspot) => (
+          <Circle
+            key={`hotspot-circle-${hotspot.id}`}
+            center={[hotspot.coords.lat, hotspot.coords.lng]}
+            radius={hotspot.radius}
+            pathOptions={{
+              color:
+                hotspot.severity === "HIGH"
+                  ? "#ef4444"
+                  : hotspot.severity === "MEDIUM"
+                  ? "#f97316"
+                  : "#eab308",
+              fillColor:
+                hotspot.severity === "HIGH"
+                  ? "#ef4444"
+                  : hotspot.severity === "MEDIUM"
+                  ? "#f97316"
+                  : "#eab308",
+              fillOpacity: 0.2,
+              weight: 2,
+              dashArray: "5, 5",
+            }}
+          />
+        ))}
+
+      {/* CCTV Camera markers */}
+      {showCCTV &&
+        cctvCameras.map((cctv) => (
+          <Marker
+            key={cctv.id}
+            position={[cctv.coords.lat, cctv.coords.lng]}
+            icon={cctvIcon}
+            eventHandlers={{
+              click: () => onCCTVClick?.(cctv),
+            }}
+          >
+            <Popup>
+              <div className="text-sm min-w-[150px]">
+                <p className="font-bold text-purple-600">{cctv.name}</p>
+                <p className="text-gray-600">{cctv.location}</p>
+                <p
+                  className={`text-xs mt-1 font-medium ${
+                    cctv.status === "ACTIVE"
+                      ? "text-green-600"
+                      : cctv.status === "MAINTENANCE"
+                      ? "text-yellow-600"
+                      : "text-red-600"
+                  }`}
+                >
+                  Status: {cctv.status}
+                </p>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+      {/* Checkpoint markers */}
+      {showCheckpoints &&
+        checkpoints.map((checkpoint) => (
+          <Marker
+            key={checkpoint.id}
+            position={[checkpoint.coords.lat, checkpoint.coords.lng]}
+            icon={checkpointIcon}
+            eventHandlers={{
+              click: () => onCheckpointClick?.(checkpoint),
+            }}
+          >
+            <Popup>
+              <div className="text-sm min-w-[150px]">
+                <p className="font-bold text-cyan-600">{checkpoint.name}</p>
+                <p className="text-gray-600">{checkpoint.type}</p>
+                <p className="text-xs text-gray-500">
+                  {checkpoint.officers} officers deployed
+                </p>
+                <p
+                  className={`text-xs mt-1 font-medium ${
+                    checkpoint.status === "ACTIVE"
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }`}
+                >
+                  Status: {checkpoint.status}
+                </p>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
     </MapContainer>
   );
 }

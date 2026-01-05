@@ -101,6 +101,128 @@ const mockIncidents = [
   },
 ];
 
+// Mock hotspots
+const mockHotspots = [
+  {
+    id: "hotspot-001",
+    name: "Koramangala Market Area",
+    type: "Theft & Robbery",
+    crimeCount: 24,
+    severity: "HIGH" as const,
+    coords: { lat: 12.9355, lng: 77.6225 },
+    radius: 400,
+  },
+  {
+    id: "hotspot-002",
+    name: "BTM 2nd Stage Junction",
+    type: "Traffic Violations",
+    crimeCount: 18,
+    severity: "MEDIUM" as const,
+    coords: { lat: 12.9165, lng: 77.6102 },
+    radius: 300,
+  },
+  {
+    id: "hotspot-003",
+    name: "HSR Layout Sector 3",
+    type: "Chain Snatching",
+    crimeCount: 12,
+    severity: "MEDIUM" as const,
+    coords: { lat: 12.9120, lng: 77.6380 },
+    radius: 350,
+  },
+  {
+    id: "hotspot-004",
+    name: "Agara Lake Road",
+    type: "Eve Teasing",
+    crimeCount: 8,
+    severity: "LOW" as const,
+    coords: { lat: 12.9280, lng: 77.6320 },
+    radius: 250,
+  },
+];
+
+// Mock CCTV cameras
+const mockCCTV = [
+  {
+    id: "cctv-001",
+    name: "CAM-KOR-001",
+    location: "Forum Mall Entrance",
+    status: "ACTIVE" as const,
+    coords: { lat: 12.9345, lng: 77.6252 },
+  },
+  {
+    id: "cctv-002",
+    name: "CAM-KOR-002",
+    location: "Koramangala Signal Junction",
+    status: "ACTIVE" as const,
+    coords: { lat: 12.9365, lng: 77.6195 },
+  },
+  {
+    id: "cctv-003",
+    name: "CAM-KOR-003",
+    location: "Sony World Signal",
+    status: "MAINTENANCE" as const,
+    coords: { lat: 12.9395, lng: 77.6228 },
+  },
+  {
+    id: "cctv-004",
+    name: "CAM-BTM-001",
+    location: "BTM Bus Stand",
+    status: "ACTIVE" as const,
+    coords: { lat: 12.9175, lng: 77.6110 },
+  },
+  {
+    id: "cctv-005",
+    name: "CAM-HSR-001",
+    location: "HSR BDA Complex",
+    status: "ACTIVE" as const,
+    coords: { lat: 12.9140, lng: 77.6400 },
+  },
+  {
+    id: "cctv-006",
+    name: "CAM-HSR-002",
+    location: "HSR Sector 2 Main Road",
+    status: "INACTIVE" as const,
+    coords: { lat: 12.9125, lng: 77.6365 },
+  },
+];
+
+// Mock checkpoints
+const mockCheckpoints = [
+  {
+    id: "cp-001",
+    name: "Koramangala Main Gate",
+    type: "Permanent Nakabandi",
+    status: "ACTIVE" as const,
+    officers: 4,
+    coords: { lat: 12.9375, lng: 77.6180 },
+  },
+  {
+    id: "cp-002",
+    name: "Silk Board Junction",
+    type: "Traffic Checkpoint",
+    status: "ACTIVE" as const,
+    officers: 6,
+    coords: { lat: 12.9172, lng: 77.6228 },
+  },
+  {
+    id: "cp-003",
+    name: "HSR Layout Entry",
+    type: "Night Patrol Point",
+    status: "INACTIVE" as const,
+    officers: 0,
+    coords: { lat: 12.9110, lng: 77.6355 },
+  },
+  {
+    id: "cp-004",
+    name: "Agara Circle",
+    type: "Mobile Checkpoint",
+    status: "ACTIVE" as const,
+    officers: 3,
+    coords: { lat: 12.9255, lng: 77.6295 },
+  },
+];
+
 // Mock layers
 const mapLayers = [
   { id: "patrols", name: "Patrol Units", icon: Car, enabled: true },
@@ -273,11 +395,17 @@ export default function GISPage() {
                     patrols={mockPatrols}
                     incidents={mockIncidents}
                     beats={mockBeats}
+                    hotspots={mockHotspots}
+                    cctvCameras={mockCCTV}
+                    checkpoints={mockCheckpoints}
                     stationLocation={mapCenter}
                     stationName={user?.stationName || "Police Station"}
                     showPatrols={layers.find((l) => l.id === "patrols")?.enabled ?? true}
                     showIncidents={layers.find((l) => l.id === "incidents")?.enabled ?? true}
                     showBeats={layers.find((l) => l.id === "beats")?.enabled ?? true}
+                    showHotspots={layers.find((l) => l.id === "hotspots")?.enabled ?? false}
+                    showCCTV={layers.find((l) => l.id === "cctv")?.enabled ?? false}
+                    showCheckpoints={layers.find((l) => l.id === "checkpoints")?.enabled ?? false}
                   />
 
                   {/* Map Legend */}
@@ -299,6 +427,18 @@ export default function GISPage() {
                       <div className="flex items-center gap-2">
                         <div className="h-3 w-3 rounded-full bg-info" />
                         <span className="text-foreground-muted">Station</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-3 w-3 rounded-full bg-orange-500" />
+                        <span className="text-foreground-muted">Hotspot</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-3 w-3 rounded-full bg-purple-500" />
+                        <span className="text-foreground-muted">CCTV</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-3 w-3 rounded-full bg-cyan-500" />
+                        <span className="text-foreground-muted">Checkpoint</span>
                       </div>
                     </div>
                   </div>
