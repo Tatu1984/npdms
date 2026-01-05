@@ -31,6 +31,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { Avatar } from "@/components/ui/Avatar";
 import { useAuthStore, hasMinimumRole, getRoleDisplayName } from "@/stores/authStore";
+import { useToastStore } from "@/stores/toastStore";
+import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 
 const rankOptions = [
   { value: "", label: "All Ranks" },
@@ -190,6 +192,7 @@ function getStatusIcon(status: string) {
 
 export default function PersonnelPage() {
   const { user } = useAuthStore();
+  const { addToast } = useToastStore();
   const [activeTab, setActiveTab] = useState("roster");
   const [searchQuery, setSearchQuery] = useState("");
   const [rankFilter, setRankFilter] = useState("");
@@ -231,10 +234,12 @@ export default function PersonnelPage() {
             </p>
           </div>
           {canEdit && (
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Personnel
-            </Button>
+            <Link href="/personnel/new">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Personnel
+              </Button>
+            </Link>
           )}
         </div>
 
@@ -333,7 +338,17 @@ export default function PersonnelPage() {
                     onChange={setStatusFilter}
                     className="w-full md:w-40"
                   />
-                  <Button variant="secondary">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      exportToCSV(filteredPersonnel, "personnel", exportConfigs.personnel);
+                      addToast({
+                        type: "success",
+                        title: "Export successful",
+                        message: "Personnel data exported to CSV",
+                      });
+                    }}
+                  >
                     <Download className="h-4 w-4 mr-2" />
                     Export
                   </Button>
@@ -404,14 +419,26 @@ export default function PersonnelPage() {
                               </Button>
                             </Link>
                             {canManage && (
-                              <Button variant="ghost" size="sm">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  addToast({
+                                    type: "info",
+                                    title: "Assign Duty",
+                                    message: "Duty assignment feature coming soon",
+                                  });
+                                }}
+                              >
                                 <Briefcase className="h-4 w-4" />
                               </Button>
                             )}
                             {canEdit && (
-                              <Button variant="ghost" size="sm">
-                                <Edit className="h-4 w-4" />
-                              </Button>
+                              <Link href={`/personnel/${person.id}?edit=true`}>
+                                <Button variant="ghost" size="sm">
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              </Link>
                             )}
                           </div>
                         </TableCell>

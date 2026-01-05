@@ -2,21 +2,22 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   Car,
   Search,
-  Filter,
   Plus,
   Eye,
   MapPin,
   Fuel,
   Wrench,
-  Clock,
   CheckCircle,
   AlertTriangle,
   Navigation,
-  Calendar,
   Download,
+  Maximize2,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -26,111 +27,32 @@ import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { useVehiclesStore } from "@/stores/vehiclesStore";
+import { useToastStore } from "@/stores/toastStore";
+import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 
-// Mock vehicles data
-const mockVehicles = [
+// Dynamic import for map to avoid SSR issues
+const VehicleTrackingMap = dynamic(
+  () => import("@/components/ui/Map").then((mod) => mod.VehicleTrackingMap),
   {
-    id: "v-001",
-    regNumber: "KA-01-P-1234",
-    type: "Patrol",
-    make: "Maruti Swift",
-    status: "ON_DUTY",
-    driver: "HC Mohan",
-    fuelLevel: 78,
-    kmToday: 45,
-    lastService: "2024-01-01",
-    gpsLocation: "12.9352, 77.6245",
-    currentBeat: "Beat A - Koramangala 4th Block",
-  },
-  {
-    id: "v-002",
-    regNumber: "KA-01-P-1235",
-    type: "Patrol",
-    make: "Maruti Swift",
-    status: "ON_DUTY",
-    driver: "Const. Ravi",
-    fuelLevel: 65,
-    kmToday: 32,
-    lastService: "2024-01-05",
-    gpsLocation: "12.9421, 77.6189",
-    currentBeat: "Beat B - Koramangala 5th Block",
-  },
-  {
-    id: "v-003",
-    regNumber: "KA-01-G-5678",
-    type: "Gypsy",
-    make: "Mahindra Thar",
-    status: "ON_DUTY",
-    driver: "Const. Kumar",
-    fuelLevel: 82,
-    kmToday: 28,
-    lastService: "2023-12-20",
-    gpsLocation: "12.9156, 77.6412",
-    currentBeat: "Court Escort Duty",
-  },
-  {
-    id: "v-004",
-    regNumber: "KA-01-P-9999",
-    type: "PCR",
-    make: "Innova",
-    status: "ON_DUTY",
-    driver: "ASI Sharma",
-    fuelLevel: 45,
-    kmToday: 67,
-    lastService: "2024-01-10",
-    gpsLocation: "12.9287, 77.6301",
-    currentBeat: "PCR Duty - Mobile",
-  },
-  {
-    id: "v-005",
-    regNumber: "KA-01-P-1236",
-    type: "Patrol",
-    make: "Maruti Swift",
-    status: "AVAILABLE",
-    driver: null,
-    fuelLevel: 90,
-    kmToday: 0,
-    lastService: "2024-01-08",
-    gpsLocation: "Station",
-  },
-  {
-    id: "v-006",
-    regNumber: "KA-01-G-5679",
-    type: "Gypsy",
-    make: "Mahindra Bolero",
-    status: "AVAILABLE",
-    driver: null,
-    fuelLevel: 95,
-    kmToday: 0,
-    lastService: "2024-01-12",
-    gpsLocation: "Station",
-  },
-  {
-    id: "v-007",
-    regNumber: "KA-01-P-1237",
-    type: "Patrol",
-    make: "Maruti Swift",
-    status: "MAINTENANCE",
-    driver: null,
-    fuelLevel: 30,
-    kmToday: 0,
-    lastService: "2023-11-15",
-    maintenanceNote: "Engine service due",
-  },
-  {
-    id: "v-008",
-    regNumber: "KA-01-B-0001",
-    type: "Bus",
-    make: "Ashok Leyland",
-    status: "RESERVED",
-    driver: null,
-    fuelLevel: 100,
-    kmToday: 0,
-    lastService: "2024-01-05",
-    reservedFor: "Bandobast - Republic Day",
-  },
-];
+    ssr: false,
+    loading: () => (
+      <div className="h-64 bg-background-tertiary rounded-lg flex items-center justify-center">
+        <div className="text-foreground-muted">Loading map...</div>
+      </div>
+    )
+  }
+);
+
+// Convert GPS string to coordinates
+function parseGpsLocation(gps: string | undefined): { lat: number; lng: number } | undefined {
+  if (!gps || gps === "Station") return undefined;
+  const [lat, lng] = gps.split(",").map((s) => parseFloat(s.trim()));
+  if (isNaN(lat) || isNaN(lng)) return undefined;
+  return { lat, lng };
+}
 
 // Mock trips data
 const mockTrips = [
@@ -206,32 +128,81 @@ function getFuelColor(level: number) {
 
 export default function VehiclesPage() {
   const { user } = useAuthStore();
+  const { vehicles, deleteVehicle, isLoading } = useVehiclesStore();
+  const { addToast } = useToastStore();
   const [activeTab, setActiveTab] = useState("fleet");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [showFullMap, setShowFullMap] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [vehicleToDelete, setVehicleToDelete] = useState<string | null>(null);
 
   const canAllocate = user && hasMinimumRole(user.role, "SHO");
+  const canDelete = user && hasMinimumRole(user.role, "SP");
 
-  const filteredVehicles = mockVehicles.filter((v) => {
+  const filteredVehicles = vehicles.filter((v) => {
     if (typeFilter && v.type !== typeFilter) return false;
     if (statusFilter && v.status !== statusFilter) return false;
     if (searchQuery) {
       const search = searchQuery.toLowerCase();
       return (
-        v.regNumber.toLowerCase().includes(search) ||
-        v.driver?.toLowerCase().includes(search) ||
+        v.registrationNumber.toLowerCase().includes(search) ||
+        v.currentDriver?.toLowerCase().includes(search) ||
         false
       );
     }
     return true;
   });
 
+  // Prepare vehicles for map
+  const vehiclesForMap = vehicles
+    .filter((v) => v.gpsLocation)
+    .map((v) => ({
+      id: v.id,
+      registrationNumber: v.registrationNumber,
+      type: v.type,
+      status: v.status,
+      gpsLocation: v.gpsLocation,
+      driver: v.currentDriver,
+    }));
+
   const stats = {
-    total: mockVehicles.length,
-    onDuty: mockVehicles.filter((v) => v.status === "ON_DUTY").length,
-    available: mockVehicles.filter((v) => v.status === "AVAILABLE").length,
-    maintenance: mockVehicles.filter((v) => v.status === "MAINTENANCE").length,
+    total: vehicles.length,
+    onDuty: vehicles.filter((v) => v.status === "ON_DUTY").length,
+    available: vehicles.filter((v) => v.status === "AVAILABLE").length,
+    maintenance: vehicles.filter((v) => v.status === "MAINTENANCE").length,
+  };
+
+  const handleExport = () => {
+    exportToCSV(vehicles, "vehicles-export", exportConfigs.vehicles);
+    addToast({
+      type: "success",
+      title: "Export Successful",
+      message: `Exported ${vehicles.length} vehicles to CSV`,
+    });
+  };
+
+  const handleDeleteClick = (id: string) => {
+    setVehicleToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (vehicleToDelete) {
+      await deleteVehicle(vehicleToDelete);
+      addToast({
+        type: "success",
+        title: "Vehicle Deleted",
+        message: "Vehicle has been removed from the system",
+      });
+      setDeleteDialogOpen(false);
+      setVehicleToDelete(null);
+    }
+  };
+
+  const handleVehicleClick = (vehicleId: string) => {
+    window.location.href = `/vehicles/${vehicleId}`;
   };
 
   return (
@@ -245,12 +216,20 @@ export default function VehiclesPage() {
               Track fleet status, trips, and vehicle allocation
             </p>
           </div>
-          {canAllocate && (
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Allocate Vehicle
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={handleExport}>
+              <Download className="h-4 w-4 mr-2" />
+              Export
             </Button>
-          )}
+            {canAllocate && (
+              <Link href="/vehicles/new">
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Vehicle
+                </Button>
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Stats */}
@@ -309,22 +288,21 @@ export default function VehiclesPage() {
               Live Vehicle Tracking
             </CardTitle>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm">
-                <Navigation className="h-4 w-4 mr-2" />
-                Full Map
+              <Button variant="ghost" size="sm" onClick={() => setShowFullMap(!showFullMap)}>
+                <Maximize2 className="h-4 w-4 mr-2" />
+                {showFullMap ? "Collapse" : "Expand"}
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="h-64 bg-background-tertiary rounded-lg flex items-center justify-center">
-              <div className="text-center">
-                <MapPin className="h-12 w-12 text-foreground-muted mx-auto mb-2" />
-                <p className="text-foreground-muted">Interactive Map View</p>
-                <p className="text-sm text-foreground-muted">
-                  {stats.onDuty} vehicles currently on patrol
-                </p>
-              </div>
-            </div>
+            <VehicleTrackingMap
+              vehicles={vehiclesForMap}
+              height={showFullMap ? "500px" : "300px"}
+              onVehicleClick={handleVehicleClick}
+            />
+            <p className="text-sm text-foreground-muted mt-2 text-center">
+              {stats.onDuty} vehicles currently on patrol • Click markers for details
+            </p>
           </CardContent>
         </Card>
 
@@ -399,7 +377,7 @@ export default function VehiclesPage() {
                     {filteredVehicles.map((vehicle) => (
                       <TableRow key={vehicle.id} className="hover:bg-background-tertiary">
                         <TableCell>
-                          <span className="font-mono text-accent">{vehicle.regNumber}</span>
+                          <span className="font-mono text-accent">{vehicle.registrationNumber}</span>
                         </TableCell>
                         <TableCell>{vehicle.type}</TableCell>
                         <TableCell>
@@ -408,12 +386,12 @@ export default function VehiclesPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {vehicle.driver || (
+                          {vehicle.currentDriver || (
                             <span className="text-foreground-muted">-</span>
                           )}
                         </TableCell>
                         <TableCell>
-                          {vehicle.currentBeat || vehicle.reservedFor || vehicle.maintenanceNote || (
+                          {vehicle.currentDuty || (
                             <span className="text-foreground-muted">-</span>
                           )}
                         </TableCell>
@@ -426,18 +404,28 @@ export default function VehiclesPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-foreground">{vehicle.kmToday} km</span>
+                          <span className="text-foreground">{vehicle.odometerReading} km</span>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             <Link href={`/vehicles/${vehicle.id}`}>
-                              <Button variant="ghost" size="sm">
+                              <Button variant="ghost" size="sm" title="View Details">
                                 <Eye className="h-4 w-4" />
                               </Button>
                             </Link>
-                            {vehicle.gpsLocation && vehicle.gpsLocation !== "Station" && (
-                              <Button variant="ghost" size="sm">
-                                <MapPin className="h-4 w-4" />
+                            <Link href={`/vehicles/${vehicle.id}?edit=true`}>
+                              <Button variant="ghost" size="sm" title="Edit">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </Link>
+                            {canDelete && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Delete"
+                                onClick={() => handleDeleteClick(vehicle.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-error" />
                               </Button>
                             )}
                           </div>
@@ -667,6 +655,17 @@ export default function VehiclesPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Vehicle"
+        message="Are you sure you want to delete this vehicle? This action cannot be undone."
+        confirmText="Delete"
+        type="danger"
+      />
     </DashboardLayout>
   );
 }

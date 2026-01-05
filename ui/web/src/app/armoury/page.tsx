@@ -26,6 +26,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { useToastStore } from "@/stores/toastStore";
+import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 
 // Mock weapons data
 const mockWeapons = [
@@ -147,6 +149,7 @@ function getStatusBadgeVariant(status: string) {
 
 export default function ArmouryPage() {
   const { user } = useAuthStore();
+  const { addToast } = useToastStore();
   const [activeTab, setActiveTab] = useState("weapons");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -196,7 +199,16 @@ export default function ArmouryPage() {
               </Button>
             )}
             {canAudit && (
-              <Button variant="secondary">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  addToast({
+                    type: "info",
+                    title: "Audit Report",
+                    message: "Audit report generation coming soon",
+                  });
+                }}
+              >
                 <FileText className="h-4 w-4 mr-2" />
                 Audit Report
               </Button>
@@ -384,7 +396,17 @@ export default function ArmouryPage() {
                               </Button>
                             </Link>
                             {canIssue && weapon.status === "ISSUED" && (
-                              <Button variant="ghost" size="sm">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  addToast({
+                                    type: "info",
+                                    title: "Return Weapon",
+                                    message: "Weapon return feature coming soon",
+                                  });
+                                }}
+                              >
                                 <RefreshCw className="h-4 w-4" />
                               </Button>
                             )}
@@ -404,7 +426,17 @@ export default function ArmouryPage() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Ammunition Stock</CardTitle>
                 {canIssue && (
-                  <Button variant="secondary" size="sm">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      addToast({
+                        type: "info",
+                        title: "Add Stock",
+                        message: "Add ammunition stock feature coming soon",
+                      });
+                    }}
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Stock
                   </Button>

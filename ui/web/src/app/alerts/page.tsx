@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Textarea } from "@/components/ui/Textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { useToastStore } from "@/stores/toastStore";
 
 const alertTypeOptions = [
   { value: "", label: "All Types" },
@@ -151,6 +152,7 @@ function formatTimeAgo(dateString: string) {
 
 export default function AlertsPage() {
   const { user } = useAuthStore();
+  const { addToast } = useToastStore();
   const [activeTab, setActiveTab] = useState("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -262,7 +264,17 @@ export default function AlertsPage() {
                     {unacknowledged[0].title}
                   </p>
                 </div>
-                <Button variant="default" size="sm">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => {
+                    addToast({
+                      type: "success",
+                      title: "Alert Acknowledged",
+                      message: "Alert has been acknowledged",
+                    });
+                  }}
+                >
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Acknowledge
                 </Button>
@@ -314,11 +326,31 @@ export default function AlertsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Expires At" type="datetime-local" />
                 <div className="flex items-end gap-2">
-                  <Button variant="secondary">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      addToast({
+                        type: "info",
+                        title: "Feature Coming Soon",
+                        message: "Audio attachment feature will be available soon",
+                      });
+                    }}
+                  >
                     <Volume2 className="h-4 w-4 mr-2" />
                     Add Audio
                   </Button>
-                  <Button variant="secondary">Upload Image</Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      addToast({
+                        type: "info",
+                        title: "Feature Coming Soon",
+                        message: "Image upload feature will be available soon",
+                      });
+                    }}
+                  >
+                    Upload Image
+                  </Button>
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-4 border-t border-border">
@@ -416,7 +448,18 @@ export default function AlertsPage() {
                               Acknowledged
                             </Badge>
                           ) : (
-                            <Button size="sm">Acknowledge</Button>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                addToast({
+                                  type: "success",
+                                  title: "Alert Acknowledged",
+                                  message: `Acknowledged: ${alert.title}`,
+                                });
+                              }}
+                            >
+                              Acknowledge
+                            </Button>
                           )}
                           <Link href={`/alerts/${alert.id}`}>
                             <Button variant="ghost" size="sm">

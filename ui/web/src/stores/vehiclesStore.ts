@@ -5,17 +5,16 @@ import { persist } from "zustand/middleware";
 
 export interface Vehicle {
   id: string;
-  regNumber: string;
+  registrationNumber: string;
   type: "Patrol" | "Gypsy" | "PCR" | "Bus";
   make: string;
   status: "ON_DUTY" | "AVAILABLE" | "MAINTENANCE" | "RESERVED";
-  driver: string | null;
+  currentDriver: string | null;
   fuelLevel: number;
-  kmToday: number;
-  totalKm: number;
+  odometerReading: number;
   lastService: string;
-  gpsLocation: string | null;
-  currentBeat: string | null;
+  gpsLocation: { lat: number; lng: number } | null;
+  currentDuty: string | null;
   maintenanceNote?: string;
   reservedFor?: string;
 }
@@ -24,116 +23,108 @@ export interface Vehicle {
 const MOCK_VEHICLES: Vehicle[] = [
   {
     id: "v-001",
-    regNumber: "KA-01-P-1234",
+    registrationNumber: "KA-01-P-1234",
     type: "Patrol",
     make: "Maruti Swift",
     status: "ON_DUTY",
-    driver: "HC Mohan",
+    currentDriver: "HC Mohan",
     fuelLevel: 78,
-    kmToday: 45,
-    totalKm: 45678,
+    odometerReading: 45678,
     lastService: "2024-01-01",
-    gpsLocation: "12.9352, 77.6245",
-    currentBeat: "Beat A - Koramangala 4th Block",
+    gpsLocation: { lat: 12.9352, lng: 77.6245 },
+    currentDuty: "Beat A - Koramangala 4th Block",
   },
   {
     id: "v-002",
-    regNumber: "KA-01-P-1235",
+    registrationNumber: "KA-01-P-1235",
     type: "Patrol",
     make: "Maruti Swift",
     status: "ON_DUTY",
-    driver: "Const. Ravi",
+    currentDriver: "Const. Ravi",
     fuelLevel: 65,
-    kmToday: 32,
-    totalKm: 38921,
+    odometerReading: 38921,
     lastService: "2024-01-05",
-    gpsLocation: "12.9421, 77.6189",
-    currentBeat: "Beat B - Koramangala 5th Block",
+    gpsLocation: { lat: 12.9421, lng: 77.6189 },
+    currentDuty: "Beat B - Koramangala 5th Block",
   },
   {
     id: "v-003",
-    regNumber: "KA-01-G-5678",
+    registrationNumber: "KA-01-G-5678",
     type: "Gypsy",
     make: "Mahindra Thar",
     status: "ON_DUTY",
-    driver: "Const. Kumar",
+    currentDriver: "Const. Kumar",
     fuelLevel: 82,
-    kmToday: 28,
-    totalKm: 23456,
+    odometerReading: 23456,
     lastService: "2023-12-20",
-    gpsLocation: "12.9156, 77.6412",
-    currentBeat: "Court Escort Duty",
+    gpsLocation: { lat: 12.9156, lng: 77.6412 },
+    currentDuty: "Court Escort Duty",
   },
   {
     id: "v-004",
-    regNumber: "KA-01-P-9999",
+    registrationNumber: "KA-01-P-9999",
     type: "PCR",
     make: "Innova",
     status: "ON_DUTY",
-    driver: "ASI Sharma",
+    currentDriver: "ASI Sharma",
     fuelLevel: 45,
-    kmToday: 67,
-    totalKm: 67890,
+    odometerReading: 67890,
     lastService: "2024-01-10",
-    gpsLocation: "12.9287, 77.6301",
-    currentBeat: "PCR Duty - Mobile",
+    gpsLocation: { lat: 12.9287, lng: 77.6301 },
+    currentDuty: "PCR Duty - Mobile",
   },
   {
     id: "v-005",
-    regNumber: "KA-01-P-1236",
+    registrationNumber: "KA-01-P-1236",
     type: "Patrol",
     make: "Maruti Swift",
     status: "AVAILABLE",
-    driver: null,
+    currentDriver: null,
     fuelLevel: 90,
-    kmToday: 0,
-    totalKm: 32100,
+    odometerReading: 32100,
     lastService: "2024-01-08",
     gpsLocation: null,
-    currentBeat: null,
+    currentDuty: null,
   },
   {
     id: "v-006",
-    regNumber: "KA-01-G-5679",
+    registrationNumber: "KA-01-G-5679",
     type: "Gypsy",
     make: "Mahindra Bolero",
     status: "AVAILABLE",
-    driver: null,
+    currentDriver: null,
     fuelLevel: 95,
-    kmToday: 0,
-    totalKm: 28500,
+    odometerReading: 28500,
     lastService: "2024-01-12",
     gpsLocation: null,
-    currentBeat: null,
+    currentDuty: null,
   },
   {
     id: "v-007",
-    regNumber: "KA-01-P-1237",
+    registrationNumber: "KA-01-P-1237",
     type: "Patrol",
     make: "Maruti Swift",
     status: "MAINTENANCE",
-    driver: null,
+    currentDriver: null,
     fuelLevel: 30,
-    kmToday: 0,
-    totalKm: 52000,
+    odometerReading: 52000,
     lastService: "2023-11-15",
     gpsLocation: null,
-    currentBeat: null,
+    currentDuty: null,
     maintenanceNote: "Engine service due",
   },
   {
     id: "v-008",
-    regNumber: "KA-01-B-0001",
+    registrationNumber: "KA-01-B-0001",
     type: "Bus",
     make: "Ashok Leyland",
     status: "RESERVED",
-    driver: null,
+    currentDriver: null,
     fuelLevel: 100,
-    kmToday: 0,
-    totalKm: 15000,
+    odometerReading: 15000,
     lastService: "2024-01-05",
     gpsLocation: null,
-    currentBeat: null,
+    currentDuty: null,
     reservedFor: "Bandobast - Republic Day",
   },
 ];
@@ -223,11 +214,11 @@ export const useVehiclesStore = create<VehiclesState>()(
         }));
       },
 
-      allocateVehicle: async (id, driver, beat) => {
+      allocateVehicle: async (id, driver, duty) => {
         set((state) => ({
           vehicles: state.vehicles.map((v) =>
             v.id === id
-              ? { ...v, driver, currentBeat: beat, status: "ON_DUTY" as const }
+              ? { ...v, currentDriver: driver, currentDuty: duty, status: "ON_DUTY" as const }
               : v
           ),
         }));
@@ -237,7 +228,7 @@ export const useVehiclesStore = create<VehiclesState>()(
         set((state) => ({
           vehicles: state.vehicles.map((v) =>
             v.id === id
-              ? { ...v, driver: null, currentBeat: null, status: "AVAILABLE" as const, gpsLocation: null }
+              ? { ...v, currentDriver: null, currentDuty: null, status: "AVAILABLE" as const, gpsLocation: null }
               : v
           ),
         }));
@@ -252,8 +243,8 @@ export const useVehiclesStore = create<VehiclesState>()(
           if (filters.search) {
             const search = filters.search.toLowerCase();
             const matchesSearch =
-              v.regNumber.toLowerCase().includes(search) ||
-              v.driver?.toLowerCase().includes(search) ||
+              v.registrationNumber.toLowerCase().includes(search) ||
+              v.currentDriver?.toLowerCase().includes(search) ||
               false;
             if (!matchesSearch) return false;
           }

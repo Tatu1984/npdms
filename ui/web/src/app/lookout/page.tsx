@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
   Search,
@@ -27,6 +28,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { useToastStore } from "@/stores/toastStore";
+import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 
 const lookoutTypeOptions = [
   { value: "", label: "All Types" },
@@ -184,6 +187,7 @@ function getPriorityBadgeVariant(priority: string) {
 
 export default function LookoutPage() {
   const { user } = useAuthStore();
+  const { addToast } = useToastStore();
   const [activeTab, setActiveTab] = useState("notices");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -225,10 +229,12 @@ export default function LookoutPage() {
             </p>
           </div>
           {canCreate && (
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Lookout
-            </Button>
+            <Link href="/lookout/new">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Lookout
+              </Button>
+            </Link>
           )}
         </div>
 
@@ -323,7 +329,17 @@ export default function LookoutPage() {
                     onChange={setStatusFilter}
                     className="w-full md:w-36"
                   />
-                  <Button variant="secondary">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      exportToCSV(filteredLookouts, "lookout-notices", exportConfigs.lookout);
+                      addToast({
+                        type: "success",
+                        title: "Export successful",
+                        message: "Lookout notices exported to CSV",
+                      });
+                    }}
+                  >
                     <Download className="h-4 w-4 mr-2" />
                     Export
                   </Button>
@@ -364,11 +380,23 @@ export default function LookoutPage() {
                           FIR: {lookout.linkedFIR}
                         </p>
                         <div className="flex items-center gap-2 mt-3">
-                          <Button variant="secondary" size="sm">
-                            <Eye className="h-4 w-4 mr-1" />
-                            View Details
-                          </Button>
-                          <Button variant="ghost" size="sm">
+                          <Link href={`/lookout/${lookout.id}`}>
+                            <Button variant="secondary" size="sm">
+                              <Eye className="h-4 w-4 mr-1" />
+                              View Details
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              addToast({
+                                type: "info",
+                                title: "Report Sighting",
+                                message: "Sighting report feature coming soon",
+                              });
+                            }}
+                          >
                             <Flag className="h-4 w-4 mr-1" />
                             Report Sighting
                           </Button>
