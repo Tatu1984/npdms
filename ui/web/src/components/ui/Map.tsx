@@ -185,21 +185,31 @@ export interface VehicleMapProps {
 }
 
 export function VehicleTrackingMap({ vehicles, height = '400px', onVehicleClick }: VehicleMapProps) {
-  const markers: MapMarker[] = vehicles
-    .filter((v) => v.gpsLocation)
-    .map((vehicle) => ({
-      id: vehicle.id,
-      lat: vehicle.gpsLocation!.lat,
-      lng: vehicle.gpsLocation!.lng,
-      title: vehicle.registrationNumber,
-      description: `${vehicle.type} - ${vehicle.driver || 'No driver assigned'}`,
-      type: 'vehicle' as const,
-      status: vehicle.status,
-    }));
+  const vehiclesWithLocation = vehicles.filter((v) => v.gpsLocation);
+
+  const markers: MapMarker[] = vehiclesWithLocation.map((vehicle) => ({
+    id: vehicle.id,
+    lat: vehicle.gpsLocation!.lat,
+    lng: vehicle.gpsLocation!.lng,
+    title: vehicle.registrationNumber,
+    description: `${vehicle.type} - ${vehicle.driver || 'No driver assigned'}`,
+    type: 'vehicle' as const,
+    status: vehicle.status,
+  }));
+
+  // Calculate center based on vehicle locations, default to Bangalore
+  let center: [number, number] = [12.9352, 77.6245]; // Bangalore default
+  if (vehiclesWithLocation.length > 0) {
+    const avgLat = vehiclesWithLocation.reduce((sum, v) => sum + v.gpsLocation!.lat, 0) / vehiclesWithLocation.length;
+    const avgLng = vehiclesWithLocation.reduce((sum, v) => sum + v.gpsLocation!.lng, 0) / vehiclesWithLocation.length;
+    center = [avgLat, avgLng];
+  }
 
   return (
     <InteractiveMap
       markers={markers}
+      center={center}
+      zoom={13}
       height={height}
       onMarkerClick={(marker) => onVehicleClick?.(marker.id)}
     />

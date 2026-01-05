@@ -25,6 +25,7 @@ import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
 import { useArmouryStore } from "@/stores/armouryStore";
@@ -104,6 +105,9 @@ export default function ArmouryPage() {
     ammunition: "",
     purpose: "",
   });
+
+  // Overdue modal state
+  const [showOverdueModal, setShowOverdueModal] = useState(false);
 
   const canIssue = user && hasMinimumRole(user.role, "SHO");
   const canAudit = user && hasMinimumRole(user.role, "SP");
@@ -268,7 +272,7 @@ export default function ArmouryPage() {
                     {mockOverdue.length} weapons are overdue for return
                   </p>
                 </div>
-                <Button variant="secondary" size="sm" onClick={() => addToast({ type: "warning", title: "Overdue Returns", message: `${mockOverdue.length} weapons are overdue: ${mockOverdue.map(o => o.weaponId).join(", ")}` })}>
+                <Button variant="secondary" size="sm" onClick={() => setShowOverdueModal(true)}>
                   View Details
                 </Button>
               </div>
@@ -637,6 +641,73 @@ export default function ArmouryPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Overdue Returns Modal */}
+      <Modal
+        isOpen={showOverdueModal}
+        onClose={() => setShowOverdueModal(false)}
+        title="Overdue Weapon Returns"
+        description={`${mockOverdue.length} weapons are overdue for return`}
+        size="lg"
+      >
+        <div className="space-y-4">
+          {mockOverdue.map((item, index) => (
+            <div key={index} className="p-4 border border-warning/30 bg-warning/5 rounded-lg">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-accent font-medium">{item.weaponId}</span>
+                    <Badge variant="warning">{item.daysOverdue} day{item.daysOverdue > 1 ? "s" : ""} overdue</Badge>
+                  </div>
+                  <p className="text-sm text-foreground">{item.type}</p>
+                  <p className="text-sm text-foreground-muted">Assigned to: {item.assignedTo}</p>
+                  <p className="text-sm text-foreground-muted">Due Date: {new Date(item.dueDate).toLocaleDateString("en-IN")}</p>
+                  <p className="text-sm text-foreground-muted">Reason: {item.reason}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Link href={`/armoury/wpn-${item.weaponId.split("-").pop()?.toLowerCase()}`}>
+                    <Button variant="secondary" size="sm">
+                      <Eye className="h-4 w-4 mr-1" />
+                      View
+                    </Button>
+                  </Link>
+                  {canIssue && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        addToast({
+                          type: "info",
+                          title: "Reminder Sent",
+                          message: `Return reminder sent to ${item.assignedTo}`,
+                        });
+                      }}
+                    >
+                      Send Reminder
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setShowOverdueModal(false)}>
+            Close
+          </Button>
+          {canIssue && (
+            <Button onClick={() => {
+              addToast({
+                type: "success",
+                title: "Reminders Sent",
+                message: `Return reminders sent to all ${mockOverdue.length} officers`,
+              });
+              setShowOverdueModal(false);
+            }}>
+              Send All Reminders
+            </Button>
+          )}
+        </ModalFooter>
+      </Modal>
     </DashboardLayout>
   );
 }

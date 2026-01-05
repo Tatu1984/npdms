@@ -358,7 +358,7 @@ export default function DashboardPage() {
             <CardContent>
               <div className="space-y-3">
                 {displayAlerts.map((alert) => (
-                  <Link href="/alerts" key={alert.id}>
+                  <Link href={`/alerts/${alert.id}`} key={alert.id}>
                     <div
                       className={`p-3 rounded-lg ${getAlertStyle(alert.type)} cursor-pointer hover:opacity-80 transition-opacity`}
                     >
