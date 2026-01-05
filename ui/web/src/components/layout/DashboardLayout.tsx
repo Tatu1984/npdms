@@ -14,13 +14,23 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, _hasHydrated } = useAuthStore();
 
   useEffect(() => {
-    if (!isAuthenticated || !user) {
+    // Only redirect after hydration is complete
+    if (_hasHydrated && (!isAuthenticated || !user)) {
       router.push("/login");
     }
-  }, [isAuthenticated, user, router]);
+  }, [isAuthenticated, user, _hasHydrated, router]);
+
+  // Show loading while hydrating OR if not authenticated after hydration
+  if (!_hasHydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated || !user) {
     return (

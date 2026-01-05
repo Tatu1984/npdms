@@ -165,12 +165,14 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   syncState: SyncState;
+  _hasHydrated: boolean;
 
   // Actions
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   setUser: (user: User) => void;
   setSyncStatus: (status: SyncState["status"]) => void;
+  setHasHydrated: (state: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -178,10 +180,15 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       isAuthenticated: false,
+      _hasHydrated: false,
       syncState: {
         status: "ONLINE",
         lastSyncTime: new Date().toISOString(),
         pendingChanges: 0,
+      },
+
+      setHasHydrated: (state: boolean) => {
+        set({ _hasHydrated: state });
       },
 
       login: async (username: string, password: string) => {
@@ -272,6 +279,9 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );
