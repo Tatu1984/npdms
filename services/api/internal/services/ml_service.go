@@ -20,6 +20,7 @@ var (
 	MLFIRClassifierURL   = getEnv("ML_FIR_CLASSIFIER_URL", "http://localhost:8001")
 	MLSemanticSearchURL  = getEnv("ML_SEMANTIC_SEARCH_URL", "http://localhost:8002")
 	MLCrimePredictionURL = getEnv("ML_CRIME_PREDICTION_URL", "http://localhost:8003")
+	MLOCRURL             = getEnv("ML_OCR_URL", "http://localhost:8004")
 )
 
 func getEnv(key, fallback string) string {
@@ -403,4 +404,103 @@ func (s *MLService) EnhanceFIRWithML(ctx context.Context, firID uuid.UUID) error
 
 func stringPtr(s string) *string {
 	return &s
+}
+
+// ============================================================================
+// OCR SERVICE
+// ============================================================================
+
+type OCRResult struct {
+	Text       string      `json:"text"`
+	Confidence float64     `json:"confidence"`
+	Bbox       [][]int     `json:"bbox"`
+}
+
+type OCRResponse struct {
+	Success            bool        `json:"success"`
+	FullText           string      `json:"full_text"`
+	Results            []OCRResult `json:"results"`
+	TotalWords         int         `json:"total_words"`
+	AverageConfidence  float64     `json:"average_confidence"`
+	LanguagesDetected  []string    `json:"languages_detected"`
+}
+
+// ExtractTextFromImage sends an image to OCR service for text extraction
+func ExtractTextFromImage(ctx context.Context, imageData []byte, filename string) (*OCRResponse, error) {
+	// Create multipart form
+	body := &bytes.Buffer{}
+	writer := io.Writer(body)
+
+	// Create form file (simplified - in production use multipart.Writer)
+	// For now, make a direct HTTP request
+	req, err := http.NewRequestWithContext(ctx, "POST", MLOCRURL+"/ocr", bytes.NewReader(imageData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OCR request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "image/jpeg")
+
+	client := &http.Client{Timeout: 60 * time.Second} // OCR can take time
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("OCR request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("OCR service returned status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var ocrResp OCRResponse
+	if err := json.NewDecoder(resp.Body).Decode(&ocrResp); err != nil {
+		return nil, fmt.Errorf("failed to decode OCR response: %w", err)
+	}
+
+	return &ocrResp, nil
+}
+
+// ProcessEvidencePhoto processes an evidence photo with OCR and stores the result
+func ProcessEvidencePhoto(ctx context.Context, evidenceID, imageURL string, imageData []byte, repo *repository.AuditRepository) error {
+	// Perform OCR
+	ocrResult, err := ExtractTextFromImage(ctx, imageData, imageURL)
+	if err != nil {
+		// Log audit entry for failed OCR
+		if repo != nil {
+			repo.Create(context.Background(), models.AuditLog{
+				ID:           uuid.New().String(),
+				Action:       "OCR_FAILED",
+				EntityType:   "evidence",
+				EntityID:     &evidenceID,
+				ResourceType: "evidence",
+				ResourceID:   &evidenceID,
+				Description:  stringPtr(fmt.Sprintf("OCR processing failed: %v", err)),
+				Success:      false,
+			})
+		}
+		return fmt.Errorf("OCR processing failed: %w", err)
+	}
+
+	// Log successful OCR with extracted text
+	if repo != nil {
+		repo.Create(context.Background(), models.AuditLog{
+			ID:           uuid.New().String(),
+			Action:       "OCR_COMPLETED",
+			EntityType:   "evidence",
+			EntityID:     &evidenceID,
+			ResourceType: "evidence",
+			ResourceID:   &evidenceID,
+			Description:  stringPtr(fmt.Sprintf("OCR extracted %d words (avg confidence: %.2f%%): %s", ocrResult.TotalWords, ocrResult.AverageConfidence*100, ocrResult.FullText[:min(100, len(ocrResult.FullText))])),
+			Success:      true,
+		})
+	}
+
+	return nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

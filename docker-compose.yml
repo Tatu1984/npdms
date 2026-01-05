@@ -163,6 +163,30 @@ services:
       - ml
       - full
 
+  # ML Service: OCR (Evidence Photo Text Extraction)
+  ml-ocr:
+    build:
+      context: ./services/ml
+      dockerfile: Dockerfile
+      target: ocr_service
+    container_name: npdms-ml-ocr
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ml_models_cache:/app/cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    profiles:
+      - ml
+      - full
+
   # Monitoring: Prometheus
   prometheus:
     image: prom/prometheus:latest

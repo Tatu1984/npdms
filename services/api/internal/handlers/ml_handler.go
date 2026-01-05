@@ -166,6 +166,58 @@ func (h *MLHandler) GetHotspots(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+// ExtractText performs OCR on an uploaded image
+// POST /api/v1/ml/ocr
+func (h *MLHandler) ExtractText(c *gin.Context) {
+	// Get uploaded file
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "invalid_request",
+			Message: "No file uploaded",
+			Code:    400,
+		})
+		return
+	}
+
+	// Open file
+	fileContent, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "file_read_failed",
+			Message: err.Error(),
+			Code:    500,
+		})
+		return
+	}
+	defer fileContent.Close()
+
+	// Read file bytes
+	fileBytes := make([]byte, file.Size)
+	_, err = fileContent.Read(fileBytes)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "file_read_failed",
+			Message: err.Error(),
+			Code:    500,
+		})
+		return
+	}
+
+	// Perform OCR
+	result, err := services.ExtractTextFromImage(c.Request.Context(), fileBytes, file.Filename)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "ocr_failed",
+			Message: err.Error(),
+			Code:    500,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
 // HealthCheck checks ML services health
 // GET /api/v1/ml/health
 func (h *MLHandler) HealthCheck(c *gin.Context) {
@@ -176,6 +228,7 @@ func (h *MLHandler) HealthCheck(c *gin.Context) {
 			"fir_classifier":   services.MLFIRClassifierURL,
 			"semantic_search":  services.MLSemanticSearchURL,
 			"crime_prediction": services.MLCrimePredictionURL,
+			"ocr":              services.MLOCRURL,
 		},
 	})
 }

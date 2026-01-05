@@ -111,18 +111,22 @@ case $MODE in
         echo "Usage: ./start.sh [MODE]"
         echo ""
         echo "Modes:"
-        echo "  dev      - Start infrastructure only (postgres, redis, minio)"
-        echo "  ml       - Start with ML services"
-        echo "  full     - Start everything (API + ML + frontend)"
-        echo "  stop     - Stop all services"
-        echo "  restart  - Restart all services"
+        echo "  dev        - Start infrastructure only (postgres, redis, minio)"
+        echo "  ml         - Start with ML services"
+        echo "  monitoring - Start with monitoring (Prometheus + Grafana)"
+        echo "  demo       - Start demo mode (infrastructure + monitoring)"
+        echo "  full       - Start everything (API + ML + monitoring)"
+        echo "  stop       - Stop all services"
+        echo "  restart    - Restart all services"
         echo "  logs [service] - View logs (optionally for specific service)"
-        echo "  clean    - Remove all containers and volumes (DATA LOSS!)"
-        echo "  help     - Show this help message"
+        echo "  clean      - Remove all containers and volumes (DATA LOSS!)"
+        echo "  help       - Show this help message"
         echo ""
         echo "Examples:"
         echo "  ./start.sh dev          # Development mode"
         echo "  ./start.sh ml           # With ML services"
+        echo "  ./start.sh monitoring   # With monitoring stack"
+        echo "  ./start.sh demo         # Demo mode"
         echo "  ./start.sh full         # Full stack"
         echo "  ./start.sh logs api     # View API logs"
         echo "  ./start.sh stop         # Stop everything"
@@ -180,11 +184,19 @@ print_success "MinIO is ready"
 # Start additional services based on mode
 if [ "$MODE" == "ml" ] || [ "$MODE" == "full" ]; then
     print_info "Starting ML services..."
-    docker-compose --profile ml up -d ml-fir-classifier ml-semantic-search ml-crime-prediction
+    docker-compose --profile ml up -d ml-fir-classifier ml-semantic-search ml-crime-prediction ml-ocr
 
     # Wait for ML services
     sleep 10
     print_success "ML services started"
+fi
+
+if [ "$MODE" == "monitoring" ] || [ "$MODE" == "demo" ] || [ "$MODE" == "full" ]; then
+    print_info "Starting monitoring services..."
+    docker-compose --profile monitoring up -d prometheus grafana postgres-exporter redis-exporter node-exporter
+
+    sleep 5
+    print_success "Monitoring services started"
 fi
 
 if [ "$MODE" == "full" ]; then
@@ -222,6 +234,19 @@ fi
 
 if docker-compose ps ml-crime-prediction | grep -q Up; then
     echo "║  Crime Prediction:     http://localhost:8003/docs            ║"
+fi
+
+if docker-compose ps ml-ocr | grep -q Up; then
+    echo "║  OCR Service:          http://localhost:8004/docs            ║"
+fi
+
+if docker-compose ps prometheus | grep -q Up; then
+    echo "║  Prometheus:           http://localhost:9090                 ║"
+fi
+
+if docker-compose ps grafana | grep -q Up; then
+    echo "║  Grafana:              http://localhost:3001                 ║"
+    echo "║    (admin/admin123)                                          ║"
 fi
 
 echo "╚══════════════════════════════════════════════════════════════╝"

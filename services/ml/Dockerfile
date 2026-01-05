@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile for NPDMS ML Services
-# Supports: fir_classifier, semantic_search, crime_prediction
+# Supports: fir_classifier, semantic_search, crime_prediction, ocr_service
 
 FROM python:3.10-slim as base
 
@@ -64,3 +64,29 @@ COPY crime_prediction/app.py .
 EXPOSE 8003
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8003"]
+
+# ============================================================================
+# OCR Service Image
+# ============================================================================
+FROM base as ocr_service
+
+# Install additional system dependencies for OCR
+RUN apt-get update && apt-get install -y \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY ocr_service/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY ocr_service/app.py .
+
+# Download OCR models at build time (English + Hindi)
+RUN python -c "import easyocr; easyocr.Reader(['en', 'hi'], gpu=False, download_enabled=True)"
+
+EXPOSE 8004
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8004"]

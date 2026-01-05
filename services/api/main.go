@@ -246,6 +246,7 @@ func main() {
 				ml.GET("/health", mlHandler.HealthCheck)
 				ml.POST("/classify", mlHandler.ClassifyText)
 				ml.POST("/search", mlHandler.SearchSimilar)
+				ml.POST("/ocr", mlHandler.ExtractText)
 				ml.GET("/predictions", mlHandler.GetPredictions)
 				ml.GET("/hotspots", mlHandler.GetHotspots)
 			}
