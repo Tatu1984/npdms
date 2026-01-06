@@ -189,7 +189,7 @@ export function useCreateBail(options?: QueueOptions) {
   return useMutation({
     mutationFn: async (data: Omit<Bail, 'id' | 'createdAt' | 'updatedAt'>) => {
       const id = uuidv4();
-      const now = new Date();
+      const now = new Date().toISOString();
       const bail: Bail = {
         ...data,
         id,
@@ -239,7 +239,7 @@ export function useUpdateBail(options?: QueueOptions) {
       const existing = await db.bail.get(id);
       if (!existing) throw new Error('Bail record not found');
 
-      const updated = { ...existing, ...data, updatedAt: new Date(), _pending: !isOnline };
+      const updated = { ...existing, ...data, updatedAt: new Date().toISOString(), _pending: !isOnline };
       await db.bail.put(updated);
 
       if (isOnline) {

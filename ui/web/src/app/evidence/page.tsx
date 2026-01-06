@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { EvidenceTransferDialog } from "@/components/ui/EvidenceTransferDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useEvidenceStore, type Evidence } from "@/stores/evidenceStore";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
@@ -146,6 +147,7 @@ export default function EvidencePage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [evidenceToDelete, setEvidenceToDelete] = useState<Evidence | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [transferEvidenceId, setTransferEvidenceId] = useState<string | null>(null);
 
   const canAddEvidence = user && hasMinimumRole(user.role, "CONSTABLE");
   const canTransfer = user && hasMinimumRole(user.role, "SI");
@@ -401,7 +403,12 @@ export default function EvidencePage() {
                               </Button>
                             </Link>
                             {canTransfer && (
-                              <Button variant="ghost" size="sm" onClick={() => toast.info("Transfer Evidence", "Evidence transfer form coming soon")} title="Transfer">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setTransferEvidenceId(item.id)}
+                                title="Transfer"
+                              >
                                 <LinkIcon className="h-4 w-4" />
                               </Button>
                             )}

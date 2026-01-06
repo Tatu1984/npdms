@@ -57,6 +57,23 @@ const evidenceApi = {
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
   },
+  transfer: async (id: string, data: {
+    transferredTo: string;
+    transferredToName?: string;
+    transferredToDesignation?: string;
+    location: string;
+    transferDate: string;
+    reason: string;
+    remarks?: string;
+  }): Promise<any> => {
+    const response = await fetch(`${API_BASE}/evidence/${id}/transfer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  },
 };
 
 export const evidenceKeys = {
@@ -184,6 +201,32 @@ export function useDeleteEvidence(options?: QueueOptions) {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: evidenceKeys.lists() });
       queryClient.removeQueries({ queryKey: evidenceKeys.detail(id) });
+    },
+  });
+}
+
+export function useTransferEvidence(options?: QueueOptions) {
+  const queryClient = useQueryClient();
+  const isOnline = networkMonitor.isOnline();
+  return useMutation({
+    mutationFn: async ({ evidenceId, data }: { evidenceId: string; data: any }) => {
+      if (isOnline) {
+        try {
+          const result = await evidenceApi.transfer(evidenceId, data);
+          // Refresh evidence item
+          const updated = await evidenceApi.get(evidenceId);
+          await db.evidence.put({ ...updated, _pending: false, _localOnly: false });
+          return result;
+        } catch (error) {
+          console.error('[useTransferEvidence] Network error:', error);
+          throw error;
+        }
+      }
+      throw new Error('Transfer requires network connection');
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: evidenceKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: evidenceKeys.detail(variables.evidenceId) });
     },
   });
 }
