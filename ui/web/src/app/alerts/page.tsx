@@ -154,7 +154,7 @@ export default function AlertsPage() {
 
     addToast({ type: "success", title: "Alert Issued", message: "Your alert has been broadcast successfully" });
     setShowIssueForm(false);
-    setNewAlert({ type: "", scope: "STATION", title: "", description: "", expiresAt: "", priority: 2 });
+    setNewAlert({ type: "", scope: "STATION", title: "", description: "", expiresAt: "", priority: 2, imageUrl: "" });
   };
 
   return (
