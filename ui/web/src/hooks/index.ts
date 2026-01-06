@@ -15,9 +15,32 @@ export * from './use-evidence';
 // Warrants
 export * from './use-warrants';
 
+// Bail
+export * from './use-bail';
+
 // Alerts
 export * from './use-alerts';
 
-// Note: Additional hooks (bail, forensics, personnel, vehicles, court-hearings,
-// court-orders, accused, witnesses) follow the same pattern as above and can be
-// added as needed by following the blueprint in use-firs.ts
+// Forensics
+export * from './use-forensics';
+
+// Personnel
+export * from './use-personnel';
+
+// Vehicles
+export * from './use-vehicles';
+
+// Court Hearings
+export * from './use-court-hearings';
+
+// Court Orders
+export * from './use-court-orders';
+
+// Accused
+export * from './use-accused';
+
+// Witnesses
+export * from './use-witnesses';
+
+// Audit Logs
+export * from './use-audit';

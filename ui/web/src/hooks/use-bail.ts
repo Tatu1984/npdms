@@ -12,52 +12,105 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
-interface ListResponse<T> { data: T[]; total: number; page: number; pageSize: number; }
-interface BailFilters { type?: BailType; status?: BailStatus; caseId?: string; page?: number; pageSize?: number; }
+interface ListResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+interface BailFilters {
+  type?: BailType;
+  status?: BailStatus;
+  caseId?: string;
+  page?: number;
+  pageSize?: number;
+}
 
 const bailApi = {
   list: async (filters: BailFilters = {}): Promise<ListResponse<Bail>> => {
     const params = new URLSearchParams();
-    if (filters.type) params.append('type', filters.type);
-    if (filters.status) params.append('status', filters.status);
-    if (filters.caseId) params.append('caseId', filters.caseId);
-    if (filters.page) params.append('page', filters.page.toString());
-    if (filters.pageSize) params.append('pageSize', filters.pageSize.toString());
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined) {
+        params.append(key, String(value));
+      }
+    });
 
-    const res = await fetch(`${API_BASE}/bail?${params}`);
-    if (!res.ok) throw new Error('Failed to fetch bail records');
-    return res.json();
+    const response = await fetch(`${API_BASE}/bail?${params}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
   },
 
   getById: async (id: string): Promise<Bail> => {
-    const res = await fetch(`${API_BASE}/bail/${id}`);
-    if (!res.ok) throw new Error('Bail record not found');
-    return res.json();
+    const response = await fetch(`${API_BASE}/bail/${id}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
   },
 
-  create: async (data: Omit<Bail, 'id' | 'createdAt' | 'updatedAt'>): Promise<Bail> => {
-    const res = await fetch(`${API_BASE}/bail`, {
+  create: async (data: Partial<Bail>): Promise<Bail> => {
+    const response = await fetch(`${API_BASE}/bail`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Failed to create bail record');
-    return res.json();
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
   },
 
   update: async (id: string, data: Partial<Bail>): Promise<Bail> => {
-    const res = await fetch(`${API_BASE}/bail/${id}`, {
+    const response = await fetch(`${API_BASE}/bail/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Failed to update bail record');
-    return res.json();
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
   },
 
   delete: async (id: string): Promise<void> => {
-    const res = await fetch(`${API_BASE}/bail/${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('Failed to delete bail record');
+    const response = await fetch(`${API_BASE}/bail/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
   },
 };
 
@@ -146,20 +199,28 @@ export function useCreateBail(options?: QueueOptions) {
         _localOnly: !isOnline,
       };
 
-      await db.bail.add(bail);
-
       if (isOnline) {
         try {
           const created = await bailApi.create(data);
-          await db.bail.put({ ...created, _pending: false, _localOnly: false });
+          await db.bail.put({
+            ...created,
+            _pending: false,
+            _localOnly: false,
+          });
           return created;
         } catch (error) {
-          await queueCreate('bail', id, data, options);
-          throw error;
+          console.error('[useCreateBail] Network error, queuing for offline sync:', error);
         }
-      } else {
-        await queueCreate('bail', id, data, options);
       }
+
+      await db.bail.put(bail);
+      await queueCreate(
+        'bail',
+        id,
+        data,
+        `${API_BASE}/bail`,
+        options
+      );
 
       return bail;
     },
@@ -183,16 +244,26 @@ export function useUpdateBail(options?: QueueOptions) {
 
       if (isOnline) {
         try {
-          const result = await bailApi.update(id, data);
-          await db.bail.put({ ...result, _pending: false });
-          return result;
+          const updated = await bailApi.update(id, data);
+          await db.bail.put({
+            ...updated,
+            _pending: false,
+            _localOnly: false,
+          });
+          return updated;
         } catch (error) {
-          await queueUpdate('bail', id, data, options);
-          throw error;
+          console.error('[useUpdateBail] Network error, queuing for offline sync:', error);
         }
-      } else {
-        await queueUpdate('bail', id, data, options);
       }
+
+      await db.bail.put(updated);
+      await queueUpdate(
+        'bail',
+        id,
+        data,
+        `${API_BASE}/bail/${id}`,
+        options
+      );
 
       return updated;
     },
@@ -213,18 +284,26 @@ export function useDeleteBail(options?: QueueOptions) {
         try {
           await bailApi.delete(id);
           await db.bail.delete(id);
+          return;
         } catch (error) {
-          await queueDelete('bail', id, options);
-          throw error;
-        }
-      } else {
-        const bail = await db.bail.get(id);
-        if (bail?._localOnly) {
-          await db.bail.delete(id);
-        } else {
-          await queueDelete('bail', id, options);
+          console.error('[useDeleteBail] Network error, queuing for offline sync:', error);
         }
       }
+
+      const existing = await db.bail.get(id);
+      if (existing) {
+        await db.bail.put({
+          ...existing,
+          _pending: true,
+        });
+      }
+
+      await queueDelete(
+        'bail',
+        id,
+        `${API_BASE}/bail/${id}`,
+        options
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: bailKeys.lists() });
