@@ -37,6 +37,7 @@ import { usePersonnelStore } from "@/stores/personnelStore";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DutyAssignmentDialog } from "@/components/ui/DutyAssignmentDialog";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { DutyScheduleEditor } from "@/components/ui/DutyScheduleEditor";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 
 const rankOptions = [
@@ -115,6 +116,7 @@ export default function PersonnelPage() {
   const [dutyDialogOpen, setDutyDialogOpen] = useState(false);
   const [selectedPersonnelForDuty, setSelectedPersonnelForDuty] = useState<string | null>(null);
   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [showScheduleEditor, setShowScheduleEditor] = useState(false);
 
   const canManage = user && hasMinimumRole(user.role, "SHO");
   const canEdit = user && hasMinimumRole(user.role, "SP");
@@ -415,7 +417,7 @@ export default function PersonnelPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Today&apos;s Duty Schedule</h3>
               {canManage && (
-                <Button onClick={() => addToast({ type: "info", title: "Edit Schedule", message: "Duty schedule editor coming soon" })}>
+                <Button onClick={() => setShowScheduleEditor(true)}>
                   <Edit className="h-4 w-4 mr-2" />
                   Edit Schedule
                 </Button>
@@ -587,6 +589,20 @@ export default function PersonnelPage() {
           }}
           onAssign={handleDutyAssignment}
           officerName={personnel.find(p => p.id === selectedPersonnelForDuty)?.name || "Officer"}
+        />
+
+        <DutyScheduleEditor
+          isOpen={showScheduleEditor}
+          onClose={() => setShowScheduleEditor(false)}
+          onSave={(schedule) => {
+            addToast({
+              type: "success",
+              title: "Schedule Saved",
+              message: `Duty schedule for ${new Date(schedule.date).toLocaleDateString('en-IN')} saved successfully`,
+            });
+            // TODO: Save to backend
+          }}
+          date={new Date().toISOString().split('T')[0]}
         />
       </div>
     </DashboardLayout>

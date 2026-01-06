@@ -23,6 +23,7 @@ import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { AdvancedFilters } from "@/components/ui/AdvancedFilters";
 import { useFIRStore } from "@/stores/firStore";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
@@ -92,6 +93,7 @@ export default function FIRListPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [firToDelete, setFirToDelete] = useState<FIR | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const itemsPerPage = 10;
 
   const canCreateFIR = user && hasMinimumRole(user.role, "CONSTABLE");
@@ -250,7 +252,7 @@ export default function FIRListPage() {
                 onChange={handlePriorityFilter}
                 className="w-full md:w-40"
               />
-              <Button variant="secondary" onClick={() => toast.info("Advanced Filters", "Advanced filtering options coming soon")}>
+              <Button variant="secondary" onClick={() => setShowAdvancedFilters(true)}>
                 <Filter className="h-4 w-4 mr-2" />
                 More Filters
               </Button>
@@ -413,6 +415,21 @@ export default function FIRListPage() {
         confirmText="Delete"
         type="danger"
         isLoading={isDeleting}
+      />
+
+      <AdvancedFilters
+        isOpen={showAdvancedFilters}
+        onClose={() => setShowAdvancedFilters(false)}
+        onApply={(advancedFilters) => {
+          setFilters({ ...filters, ...advancedFilters });
+          setCurrentPage(1);
+        }}
+        onReset={() => {
+          setFilters({ search: filters.search, status: filters.status, priority: filters.priority });
+          setCurrentPage(1);
+        }}
+        resourceType="fir"
+        currentFilters={filters}
       />
     </DashboardLayout>
   );

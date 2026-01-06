@@ -33,6 +33,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { sanitizeString } from "@/lib/validations";
 import { toast } from "@/stores/toastStore";
 import { FileUpload } from "@/components/ui/FileUpload";
+import { FIRPreviewDialog } from "@/components/ui/FIRPreviewDialog";
 
 // Validation Schema
 const firFormSchema = z.object({
@@ -183,6 +184,7 @@ export default function NewFIRPage() {
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [verificationChecked, setVerificationChecked] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const {
     register,
@@ -818,7 +820,7 @@ export default function NewFIRPage() {
                     <Save className="h-4 w-4 mr-2" />
                     Save Draft
                   </Button>
-                  <Button type="button" variant="ghost" className="w-full" onClick={() => toast.info("Preview", "FIR preview feature coming soon")}>
+                  <Button type="button" variant="ghost" className="w-full" onClick={() => setShowPreview(true)}>
                     <Eye className="h-4 w-4 mr-2" />
                     Preview
                   </Button>
@@ -828,6 +830,17 @@ export default function NewFIRPage() {
           </div>
         </div>
       </form>
+
+      <FIRPreviewDialog
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+        firData={{
+          ...watch(),
+          propertyItems,
+          stationName: user?.stationName || "Koramangala",
+          registeredBy: user?.name || "Current User",
+        }}
+      />
     </DashboardLayout>
   );
 }

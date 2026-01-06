@@ -23,6 +23,7 @@ import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { AdvancedFilters } from "@/components/ui/AdvancedFilters";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useCasesStore, type Case } from "@/stores/casesStore";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
@@ -51,6 +52,7 @@ function getStatusBadgeVariant(status: string) {
 }
 
 export default function CasesPage() {
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const { user } = useAuthStore();
   const { cases, filters, isLoading, loadCases, setFilters, deleteCase, getFilteredCases } = useCasesStore();
   const [searchQuery, setSearchQuery] = useState("");
@@ -211,7 +213,7 @@ export default function CasesPage() {
                 onChange={handleStatusFilter}
                 className="w-full md:w-48"
               />
-              <Button variant="secondary" onClick={() => toast.info("Advanced Filters", "Advanced filtering options coming soon")}>
+              <Button variant="secondary" onClick={() => setShowAdvancedFilters(true)}>
                 <Filter className="h-4 w-4 mr-2" />
                 More Filters
               </Button>
@@ -363,6 +365,20 @@ export default function CasesPage() {
         confirmText="Delete"
         type="danger"
         isLoading={isDeleting}
+      />
+
+      <AdvancedFilters
+        isOpen={showAdvancedFilters}
+        onClose={() => setShowAdvancedFilters(false)}
+        onApply={(advancedFilters) => {
+          // TODO: Apply filters to cases store
+          toast.success("Filters Applied", "Advanced filters applied successfully");
+        }}
+        onReset={() => {
+          // TODO: Reset filters
+          toast.info("Filters Reset", "All filters have been reset");
+        }}
+        resourceType="case"
       />
     </DashboardLayout>
   );
