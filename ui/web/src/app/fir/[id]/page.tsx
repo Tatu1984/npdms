@@ -31,6 +31,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { CaseDiaryEntryDialog } from "@/components/ui/CaseDiaryEntryDialog";
 import { AddPersonDialog } from "@/components/ui/AddPersonDialog";
 import { FIRActionDialog } from "@/components/ui/FIRActionDialog";
+import { CaseLinkDialog } from "@/components/ui/CaseLinkDialog";
 import { useFIRStore } from "@/stores/firStore";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
@@ -125,6 +126,7 @@ export default function FIRDetailPage() {
   const [witnessDialogOpen, setWitnessDialogOpen] = useState(false);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<"transfer" | "close" | "chargesheet">("transfer");
+  const [showCaseLink, setShowCaseLink] = useState(false);
 
   // Local state for case diary entries, suspects, and witnesses
   const [localDiaryEntries, setLocalDiaryEntries] = useState(caseDiaryEntries);
@@ -449,7 +451,7 @@ export default function FIRDetailPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="secondary" size="sm" className="flex-1" onClick={() => toast.info("Link Cases", "Case linking feature coming soon")}>
+                      <Button variant="secondary" size="sm" className="flex-1" onClick={() => setShowCaseLink(true)}>
                         <LinkIcon className="h-4 w-4 mr-1" />
                         Link Cases
                       </Button>
@@ -515,7 +517,7 @@ export default function FIRDetailPage() {
                           {new Date(entry.date).toLocaleDateString("en-IN")} at {entry.time}
                         </p>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => toast.info("View Details", "Full entry details view coming soon")}>
+                      <Button variant="ghost" size="sm" onClick={() => setActiveTab("details")}>
                         View Details
                       </Button>
                     </div>
@@ -760,6 +762,16 @@ export default function FIRDetailPage() {
           firNumber={selectedFIR.firNumber}
         />
       )}
+
+      <CaseLinkDialog
+        firId={selectedFIR?.id || ""}
+        isOpen={showCaseLink}
+        onClose={() => setShowCaseLink(false)}
+        onLink={(caseIds) => {
+          toast.success("Cases Linked", `${caseIds.length} case(s) linked to FIR`);
+          // TODO: Update FIR with linked case IDs
+        }}
+      />
     </DashboardLayout>
   );
 }

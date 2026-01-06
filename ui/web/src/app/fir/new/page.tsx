@@ -34,6 +34,7 @@ import { sanitizeString } from "@/lib/validations";
 import { toast } from "@/stores/toastStore";
 import { FileUpload } from "@/components/ui/FileUpload";
 import { FIRPreviewDialog } from "@/components/ui/FIRPreviewDialog";
+import { VoiceInput } from "@/components/ui/VoiceInput";
 
 // Validation Schema
 const firFormSchema = z.object({
@@ -338,7 +339,6 @@ export default function NewFIRPage() {
                 variant={inputMode === "voice" ? "default" : "secondary"}
                 onClick={() => {
                   setInputMode("voice");
-                  toast.info("Voice Input", "Voice recognition feature coming soon");
                 }}
               >
                 <Mic className="h-4 w-4 mr-2" />

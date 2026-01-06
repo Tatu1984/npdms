@@ -16,3 +16,6 @@ export { ForensicRequestDialog } from "./ForensicRequestDialog";
 export { DutyScheduleEditor } from "./DutyScheduleEditor";
 export { FIRPreviewDialog } from "./FIRPreviewDialog";
 export { AdvancedFilters } from "./AdvancedFilters";
+export { VoiceInput } from "./VoiceInput";
+export { CaseLinkDialog } from "./CaseLinkDialog";
+export { SightingReportDialog } from "./SightingReportDialog";

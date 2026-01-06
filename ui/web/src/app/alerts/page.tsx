@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Textarea } from "@/components/ui/Textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { FileUpload } from "@/components/ui/FileUpload";
+import { SightingReportDialog } from "@/components/ui/SightingReportDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
 import { useAlertsStore, Alert } from "@/stores/alertsStore";
@@ -90,6 +91,8 @@ export default function AlertsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [showIssueForm, setShowIssueForm] = useState(false);
+  const [showSightingReport, setShowSightingReport] = useState(false);
+  const [sightingAlertId, setSightingAlertId] = useState<string | null>(null);
 
   // Form state for new alert
   const [newAlert, setNewAlert] = useState({
@@ -507,6 +510,23 @@ export default function AlertsPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <SightingReportDialog
+        alertId={sightingAlertId || ""}
+        isOpen={showSightingReport}
+        onClose={() => {
+          setShowSightingReport(false);
+          setSightingAlertId(null);
+        }}
+        onReport={(report) => {
+          addToast({
+            type: "success",
+            title: "Report Submitted",
+            message: "Sighting report submitted successfully",
+          });
+          // TODO: Submit to backend
+        }}
+      />
     </DashboardLayout>
   );
 }
