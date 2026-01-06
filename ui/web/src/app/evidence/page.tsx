@@ -28,6 +28,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EvidenceTransferDialog } from "@/components/ui/EvidenceTransferDialog";
+import { ForensicRequestDialog } from "@/components/ui/ForensicRequestDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useEvidenceStore, type Evidence } from "@/stores/evidenceStore";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
@@ -148,6 +149,8 @@ export default function EvidencePage() {
   const [evidenceToDelete, setEvidenceToDelete] = useState<Evidence | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [transferEvidenceId, setTransferEvidenceId] = useState<string | null>(null);
+  const [showForensicRequest, setShowForensicRequest] = useState(false);
+  const [forensicRequestEvidenceId, setForensicRequestEvidenceId] = useState<string | null>(null);
 
   const canAddEvidence = user && hasMinimumRole(user.role, "CONSTABLE");
   const canTransfer = user && hasMinimumRole(user.role, "SI");
@@ -520,7 +523,7 @@ export default function EvidencePage() {
           <TabsContent value="forensic" className="space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Forensic Lab Requests</h3>
-              <Button onClick={() => toast.info("New Request", "Forensic lab request form coming soon")}>
+              <Button onClick={() => setShowForensicRequest(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 New Request
               </Button>
@@ -595,6 +598,33 @@ export default function EvidencePage() {
         confirmText="Delete"
         type="danger"
         isLoading={isDeleting}
+      />
+
+      {transferEvidenceId && (
+        <EvidenceTransferDialog
+          evidenceId={transferEvidenceId}
+          evidenceNumber={evidence.find(e => e.id === transferEvidenceId)?.evidenceNumber || ""}
+          isOpen={!!transferEvidenceId}
+          onClose={() => setTransferEvidenceId(null)}
+          onSuccess={() => {
+            toast.success("Transfer Complete", "Evidence transfer recorded successfully");
+            loadEvidence();
+          }}
+        />
+      )}
+
+      <ForensicRequestDialog
+        caseId={evidence.find(e => e.id === forensicRequestEvidenceId)?.caseId}
+        evidenceId={forensicRequestEvidenceId || undefined}
+        isOpen={showForensicRequest}
+        onClose={() => {
+          setShowForensicRequest(false);
+          setForensicRequestEvidenceId(null);
+        }}
+        onSuccess={() => {
+          toast.success("Request Created", "Forensic lab request created successfully");
+          loadEvidence();
+        }}
       />
     </DashboardLayout>
   );

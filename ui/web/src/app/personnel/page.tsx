@@ -36,6 +36,7 @@ import { useToastStore } from "@/stores/toastStore";
 import { usePersonnelStore } from "@/stores/personnelStore";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DutyAssignmentDialog } from "@/components/ui/DutyAssignmentDialog";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 
 const rankOptions = [
@@ -113,6 +114,7 @@ export default function PersonnelPage() {
   const [personnelToDelete, setPersonnelToDelete] = useState<string | null>(null);
   const [dutyDialogOpen, setDutyDialogOpen] = useState(false);
   const [selectedPersonnelForDuty, setSelectedPersonnelForDuty] = useState<string | null>(null);
+  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
 
   const canManage = user && hasMinimumRole(user.role, "SHO");
   const canEdit = user && hasMinimumRole(user.role, "SP");
@@ -451,13 +453,19 @@ export default function PersonnelPage() {
           <TabsContent value="attendance" className="space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">
-                Attendance - {new Date(mockAttendance.date).toLocaleDateString("en-IN")}
+                Attendance - {new Date(attendanceDate).toLocaleDateString("en-IN")}
               </h3>
               <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => addToast({ type: "info", title: "Date Selection", message: "Date picker coming soon" })}>
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Select Date
-                </Button>
+                <DatePicker
+                  value={attendanceDate}
+                  onChange={(date) => {
+                    setAttendanceDate(date);
+                    // TODO: Load attendance for selected date
+                    addToast({ type: "info", title: "Date Selected", message: `Loading attendance for ${new Date(date).toLocaleDateString('en-IN')}` });
+                  }}
+                  label="Select Date"
+                  className="w-48"
+                />
                 <Button variant="secondary" onClick={() => addToast({ type: "success", title: "Export Complete", message: "Attendance report exported to CSV" })}>
                   <Download className="h-4 w-4 mr-2" />
                   Export Report

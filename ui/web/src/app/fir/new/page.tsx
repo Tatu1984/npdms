@@ -32,6 +32,7 @@ import { useFIRStore } from "@/stores/firStore";
 import { useAuthStore } from "@/stores/authStore";
 import { sanitizeString } from "@/lib/validations";
 import { toast } from "@/stores/toastStore";
+import { FileUpload } from "@/components/ui/FileUpload";
 
 // Validation Schema
 const firFormSchema = z.object({
@@ -734,38 +735,55 @@ export default function NewFIRPage() {
               <CardHeader>
                 <CardTitle>Initial Evidence</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button type="button" variant="secondary" size="sm" className="w-full" onClick={() => toast.info("Photo Upload", "Photo evidence upload coming soon")}>
-                    <Camera className="h-4 w-4 mr-1" />
-                    Photo
-                  </Button>
-                  <Button type="button" variant="secondary" size="sm" className="w-full" onClick={() => toast.info("Document Upload", "Document upload coming soon")}>
-                    <Upload className="h-4 w-4 mr-1" />
-                    Document
-                  </Button>
-                  <Button type="button" variant="secondary" size="sm" className="w-full" onClick={() => toast.info("Audio Recording", "Audio recording coming soon")}>
-                    <Mic className="h-4 w-4 mr-1" />
-                    Audio
-                  </Button>
-                  <Button type="button" variant="secondary" size="sm" className="w-full" onClick={() => toast.info("Video Upload", "Video upload coming soon")}>
-                    <Upload className="h-4 w-4 mr-1" />
-                    Video
-                  </Button>
-                </div>
-                {attachments.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    {attachments.map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-2 rounded-md bg-background-tertiary"
-                      >
-                        <span className="text-sm text-foreground">{file.name}</span>
-                        <span className="text-xs text-foreground-muted">{file.size}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <CardContent className="space-y-4">
+                <FileUpload
+                  fileType="image"
+                  multiple
+                  maxSize={10}
+                  label="Photos"
+                  hint="Upload evidence photos (JPG, PNG up to 10MB each)"
+                  onUpload={async (files) => {
+                    // TODO: Upload to MinIO and store URLs
+                    console.log("Uploading photos:", files);
+                    toast.success("Photos Uploaded", `${files.length} photo(s) uploaded successfully`);
+                  }}
+                />
+                <FileUpload
+                  fileType="document"
+                  multiple
+                  maxSize={20}
+                  label="Documents"
+                  hint="Upload documents (PDF, DOC, DOCX up to 20MB each)"
+                  onUpload={async (files) => {
+                    // TODO: Upload to MinIO and store URLs
+                    console.log("Uploading documents:", files);
+                    toast.success("Documents Uploaded", `${files.length} document(s) uploaded successfully`);
+                  }}
+                />
+                <FileUpload
+                  fileType="audio"
+                  multiple
+                  maxSize={50}
+                  label="Audio Recordings"
+                  hint="Upload audio files (MP3, WAV up to 50MB each)"
+                  onUpload={async (files) => {
+                    // TODO: Upload to MinIO and store URLs
+                    console.log("Uploading audio:", files);
+                    toast.success("Audio Uploaded", `${files.length} audio file(s) uploaded successfully`);
+                  }}
+                />
+                <FileUpload
+                  fileType="video"
+                  multiple
+                  maxSize={100}
+                  label="Videos"
+                  hint="Upload video files (MP4, AVI up to 100MB each)"
+                  onUpload={async (files) => {
+                    // TODO: Upload to MinIO and store URLs
+                    console.log("Uploading videos:", files);
+                    toast.success("Videos Uploaded", `${files.length} video(s) uploaded successfully`);
+                  }}
+                />
               </CardContent>
             </Card>
 

@@ -26,6 +26,7 @@ import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { Textarea } from "@/components/ui/Textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { FileUpload } from "@/components/ui/FileUpload";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
 import { useAlertsStore, Alert } from "@/stores/alertsStore";
@@ -98,7 +99,9 @@ export default function AlertsPage() {
     description: "",
     expiresAt: "",
     priority: 2,
+    imageUrl: "",
   });
+  const [alertImages, setAlertImages] = useState<File[]>([]);
 
   const canIssue = user && hasMinimumRole(user.role, "SHO");
   const canIssueDistrict = user && hasMinimumRole(user.role, "SP");
@@ -305,33 +308,26 @@ export default function AlertsPage() {
                   value={newAlert.expiresAt}
                   onChange={(value: string) => setNewAlert({ ...newAlert, expiresAt: value })}
                 />
-                <div className="flex items-end gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
+                <FileUpload
+                  fileType="image"
+                  multiple={false}
+                  maxSize={5}
+                  label="Alert Image"
+                  hint="Upload image for BOLO/FLASH alerts (JPG, PNG up to 5MB)"
+                  onUpload={async (files) => {
+                    if (files.length > 0) {
+                      setAlertImages(files);
+                      // TODO: Upload to MinIO and get URL
+                      // For now, store file reference
                       addToast({
-                        type: "info",
-                        title: "Feature Coming Soon",
-                        message: "Audio attachment feature will be available soon",
+                        type: "success",
+                        title: "Image Uploaded",
+                        message: "Image will be attached when alert is created",
                       });
-                    }}
-                  >
-                    <Volume2 className="h-4 w-4 mr-2" />
-                    Add Audio
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      addToast({
-                        type: "info",
-                        title: "Feature Coming Soon",
-                        message: "Image upload feature will be available soon",
-                      });
-                    }}
-                  >
-                    Upload Image
-                  </Button>
-                </div>
+                    }
+                  }}
+                  className="col-span-2"
+                />
               </div>
               <div className="flex justify-end gap-2 pt-4 border-t border-border">
                 <Button variant="ghost" onClick={() => setShowIssueForm(false)}>
