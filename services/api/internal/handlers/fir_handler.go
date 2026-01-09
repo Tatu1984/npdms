@@ -91,13 +91,22 @@ func (h *FIRHandler) Create(c *gin.Context) {
 
 	userID := middleware.GetUserID(c)
 
-	// Get station code from context or default
-	stationCode := "KOR" // TODO: Get from user's station
+	// Get station code from user's station in context
+	stationCode := "UNK"
+	if code, exists := c.Get("stationCode"); exists {
+		stationCode = code.(string)
+	}
+
+	// Fallback: try to get from request body or use station ID
+	if stationCode == "UNK" && fir.StationID != uuid.Nil {
+		// Will generate FIR number using station ID prefix
+		stationCode = fir.StationID.String()[:3]
+	}
 
 	if err := h.firService.Create(c.Request.Context(), &fir, userID, stationCode); err != nil {
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 			Error:   "creation_failed",
-			Message: "Failed to create FIR",
+			Message: "Failed to create FIR: " + err.Error(),
 			Code:    500,
 		})
 		return
@@ -181,6 +190,48 @@ func (h *FIRHandler) UpdateStatus(c *gin.Context) {
 }
 
 func (h *FIRHandler) GetTimeline(c *gin.Context) {
-	// TODO: Implement FIR timeline/case diary
-	c.JSON(http.StatusOK, gin.H{"timeline": []interface{}{}})
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "invalid_id",
+			Message: "Invalid FIR ID",
+			Code:    400,
+		})
+		return
+	}
+
+	// Get FIR details first
+	fir, err := h.firService.Get(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, models.ErrorResponse{
+			Error:   "not_found",
+			Message: "FIR not found",
+			Code:    404,
+		})
+		return
+	}
+
+	// Get timeline from service
+	timeline, err := h.firService.GetTimeline(c.Request.Context(), id)
+	if err != nil {
+		// Return minimal timeline with just the FIR creation
+		timeline = []models.TimelineEntry{
+			{
+				ID:          fir.ID.String() + "-created",
+				Type:        "FIR_REGISTERED",
+				Title:       "FIR Registered",
+				Description: "FIR " + fir.FIRNumber + " was registered",
+				Timestamp:   fir.CreatedAt,
+				User:        fir.RegisteredByName,
+				Icon:        "file-plus",
+			},
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"firId":     id,
+		"firNumber": fir.FIRNumber,
+		"timeline":  timeline,
+	})
 }
+

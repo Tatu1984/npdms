@@ -8,22 +8,36 @@ type Config struct {
 	MinioEndpoint   string
 	MinioAccessKey  string
 	MinioSecretKey  string
+	MinioBucket     string
+	MinioPublicURL  string
+	MinioUseSSL     bool
 	JWTSecret       string
 	Port            string
 	Env             string
 }
 
 func Load() *Config {
-	return &Config{
-		DatabaseURL:     getEnv("DATABASE_URL", "postgres://npdms:npdms_secret_2024@localhost:5432/npdms?sslmode=disable"),
-		RedisURL:        getEnv("REDIS_URL", "redis://localhost:6379"),
-		MinioEndpoint:   getEnv("MINIO_ENDPOINT", "localhost:9000"),
-		MinioAccessKey:  getEnv("MINIO_ACCESS_KEY", "npdms_admin"),
-		MinioSecretKey:  getEnv("MINIO_SECRET_KEY", "npdms_minio_secret_2024"),
-		JWTSecret:       getEnv("JWT_SECRET", "npdms_jwt_secret_key_change_in_production"),
-		Port:            getEnv("PORT", "8080"),
-		Env:             getEnv("ENV", "development"),
+	cfg := &Config{
+		DatabaseURL:    getEnvRequired("DATABASE_URL"),
+		RedisURL:       getEnv("REDIS_URL", "redis://localhost:6379"),
+		MinioEndpoint:  getEnvRequired("MINIO_ENDPOINT"),
+		MinioAccessKey: getEnvRequired("MINIO_ACCESS_KEY"),
+		MinioSecretKey: getEnvRequired("MINIO_SECRET_KEY"),
+		MinioBucket:    getEnv("MINIO_BUCKET", "npdms"),
+		MinioPublicURL: getEnv("MINIO_PUBLIC_URL", ""),
+		MinioUseSSL:    getEnv("MINIO_USE_SSL", "false") == "true",
+		JWTSecret:      getEnvRequired("JWT_SECRET"),
+		Port:           getEnv("PORT", "8080"),
+		Env:            getEnv("ENV", "development"),
 	}
+	if cfg.MinioPublicURL == "" {
+		protocol := "http"
+		if cfg.MinioUseSSL {
+			protocol = "https"
+		}
+		cfg.MinioPublicURL = protocol + "://" + cfg.MinioEndpoint
+	}
+	return cfg
 }
 
 func getEnv(key, defaultValue string) string {
@@ -31,4 +45,12 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func getEnvRequired(key string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		panic("required environment variable " + key + " is not set")
+	}
+	return value
 }

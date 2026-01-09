@@ -17,6 +17,7 @@ export interface Alert {
   acknowledgedAt?: string;
   priority: number;
   image?: boolean;
+  imageUrl?: string;
 }
 
 // Mock data

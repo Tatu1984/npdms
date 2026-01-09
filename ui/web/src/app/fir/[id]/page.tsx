@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -32,7 +32,7 @@ import { CaseDiaryEntryDialog } from "@/components/ui/CaseDiaryEntryDialog";
 import { AddPersonDialog } from "@/components/ui/AddPersonDialog";
 import { FIRActionDialog } from "@/components/ui/FIRActionDialog";
 import { CaseLinkDialog } from "@/components/ui/CaseLinkDialog";
-import { useFIRStore } from "@/stores/firStore";
+import { useFIR, useUpdateFIR } from "@/hooks/use-firs";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
 import type { FIRStatus, FIRPriority } from "@/types";
@@ -117,8 +117,13 @@ export default function FIRDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { user } = useAuthStore();
-  const { firs, loadFIRs, selectedFIR, setSelectedFIR, updateFIR } = useFIRStore();
   const [activeTab, setActiveTab] = useState("details");
+
+  // Fetch FIR by ID
+  const { data: selectedFIR, isLoading, error } = useFIR(params.id as string);
+
+  // Update mutation
+  const updateMutation = useUpdateFIR();
 
   // Dialog states
   const [diaryDialogOpen, setDiaryDialogOpen] = useState(false);
@@ -185,17 +190,21 @@ export default function FIRDetailPage() {
   const handleFIRAction = async (data: { reason: string; targetStation?: string; courtName?: string }) => {
     if (!selectedFIR) return;
 
-    if (actionType === "transfer") {
-      await updateFIR(selectedFIR.id, { status: "TRANSFERRED" as FIRStatus });
-      toast.success("Case Transferred", `${selectedFIR.firNumber} has been transferred to ${data.targetStation}`);
-    } else if (actionType === "close") {
-      await updateFIR(selectedFIR.id, { status: "CLOSED" as FIRStatus });
-      toast.success("Case Closed", `${selectedFIR.firNumber} has been closed`);
-    } else if (actionType === "chargesheet") {
-      await updateFIR(selectedFIR.id, { status: "CHARGESHEET_FILED" as FIRStatus });
-      toast.success("Chargesheet Filed", `Chargesheet for ${selectedFIR.firNumber} has been submitted to ${data.courtName}`);
+    try {
+      if (actionType === "transfer") {
+        await updateMutation.mutateAsync({ id: selectedFIR.id, data: { status: "TRANSFERRED" as FIRStatus } });
+        toast.success("Case Transferred", `${selectedFIR.firNumber} has been transferred to ${data.targetStation}`);
+      } else if (actionType === "close") {
+        await updateMutation.mutateAsync({ id: selectedFIR.id, data: { status: "CLOSED" as FIRStatus } });
+        toast.success("Case Closed", `${selectedFIR.firNumber} has been closed`);
+      } else if (actionType === "chargesheet") {
+        await updateMutation.mutateAsync({ id: selectedFIR.id, data: { status: "CHARGESHEET_FILED" as FIRStatus } });
+        toast.success("Chargesheet Filed", `Chargesheet for ${selectedFIR.firNumber} has been submitted to ${data.courtName}`);
+      }
+      setActionDialogOpen(false);
+    } catch (error) {
+      toast.error("Error", "Failed to update FIR status");
     }
-    setActionDialogOpen(false);
   };
 
   const openActionDialog = (type: "transfer" | "close" | "chargesheet") => {
@@ -203,26 +212,36 @@ export default function FIRDetailPage() {
     setActionDialogOpen(true);
   };
 
-  useEffect(() => {
-    if (firs.length === 0) {
-      loadFIRs();
-    }
-  }, [firs.length, loadFIRs]);
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
-  useEffect(() => {
-    if (firs.length > 0 && params.id) {
-      const fir = firs.find((f) => f.id === params.id);
-      if (fir) {
-        setSelectedFIR(fir);
-      }
-    }
-  }, [firs, params.id, setSelectedFIR]);
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-error mb-2">Failed to load FIR</p>
+            <p className="text-sm text-foreground-muted">{error.message}</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (!selectedFIR) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+          <div className="text-center">
+            <p className="text-foreground-muted">FIR not found</p>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -767,9 +786,16 @@ export default function FIRDetailPage() {
         firId={selectedFIR?.id || ""}
         isOpen={showCaseLink}
         onClose={() => setShowCaseLink(false)}
-        onLink={(caseIds) => {
-          toast.success("Cases Linked", `${caseIds.length} case(s) linked to FIR`);
-          // TODO: Update FIR with linked case IDs
+        existingLinks={selectedFIR?.linkedCases || []}
+        onLink={async (caseIds) => {
+          if (selectedFIR) {
+            try {
+              await updateMutation.mutateAsync({ id: selectedFIR.id, data: { linkedCases: caseIds } });
+              toast.success("Cases Linked", `${caseIds.length} case(s) linked to FIR`);
+            } catch (error) {
+              toast.error("Error", "Failed to link cases");
+            }
+          }
         }}
       />
     </DashboardLayout>

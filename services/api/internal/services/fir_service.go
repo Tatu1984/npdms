@@ -114,3 +114,7 @@ func (s *FIRService) UpdateStatus(ctx context.Context, id uuid.UUID, status mode
 func (s *FIRService) GetStats(ctx context.Context, stationID *uuid.UUID) (map[string]int64, error) {
 	return s.firRepo.GetStats(ctx, stationID)
 }
+
+func (s *FIRService) GetTimeline(ctx context.Context, firID uuid.UUID) ([]models.TimelineEntry, error) {
+	return s.firRepo.GetTimeline(ctx, firID)
+}

@@ -28,13 +28,16 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
-import { useFIRStore } from "@/stores/firStore";
+import { useCreateFIR } from "@/hooks/use-firs";
 import { useAuthStore } from "@/stores/authStore";
 import { sanitizeString } from "@/lib/validations";
 import { toast } from "@/stores/toastStore";
 import { FileUpload } from "@/components/ui/FileUpload";
 import { FIRPreviewDialog } from "@/components/ui/FIRPreviewDialog";
 import { VoiceInput } from "@/components/ui/VoiceInput";
+import { DocumentScanner } from "@/components/ui/DocumentScanner";
+import { NLPExtractor } from "@/components/ui/NLPExtractor";
+import { uploadViaAPI, UploadCategory } from "@/lib/upload";
 
 // Validation Schema
 const firFormSchema = z.object({
@@ -174,18 +177,54 @@ interface PropertyItem {
   estimatedValue: string;
 }
 
+interface UploadedFile {
+  name: string;
+  url: string;
+  key: string;
+  category: UploadCategory;
+}
+
 export default function NewFIRPage() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { createFIR } = useFIRStore();
+
+  // Create FIR mutation
+  const createMutation = useCreateFIR();
 
   const [inputMode, setInputMode] = useState<"type" | "voice" | "scan" | "upload">("type");
   const [propertyItems, setPropertyItems] = useState<PropertyItem[]>([]);
-  const [attachments, setAttachments] = useState<{ name: string; size: string; status: string }[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
   const [verificationChecked, setVerificationChecked] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+
+  // Upload handler function
+  const handleFileUpload = async (files: File[], category: UploadCategory) => {
+    const results: UploadedFile[] = [];
+
+    for (const file of files) {
+      try {
+        const response = await uploadViaAPI(file, category);
+        if (response.success && response.url && response.key) {
+          results.push({
+            name: file.name,
+            url: response.url,
+            key: response.key,
+            category,
+          });
+          toast.success("File Uploaded", `${file.name} uploaded successfully`);
+        } else {
+          toast.error("Upload Failed", response.error || `Failed to upload ${file.name}`);
+        }
+      } catch (error) {
+        toast.error("Upload Error", `Error uploading ${file.name}`);
+      }
+    }
+
+    if (results.length > 0) {
+      setUploadedFiles(prev => [...prev, ...results]);
+    }
+  };
 
   const {
     register,
@@ -258,9 +297,8 @@ export default function NewFIRPage() {
       return;
     }
 
-    setIsSaving(true);
     try {
-      await createFIR({
+      const createdFIR = await createMutation.mutateAsync({
         stationId: user?.stationId || "",
         stationName: user?.stationName || "",
         complainantName: data.complainantName,
@@ -277,11 +315,11 @@ export default function NewFIRPage() {
         priority: "NORMAL",
         registeredBy: user?.id || "",
       });
+      toast.success("FIR Registered", `FIR ${createdFIR.firNumber} has been successfully registered`);
       router.push("/fir");
     } catch (error) {
       console.error("Error creating FIR:", error);
-    } finally {
-      setIsSaving(false);
+      toast.error("Error", "Failed to register FIR. Please try again.");
     }
   };
 
@@ -347,10 +385,7 @@ export default function NewFIRPage() {
               <Button
                 type="button"
                 variant={inputMode === "scan" ? "default" : "secondary"}
-                onClick={() => {
-                  setInputMode("scan");
-                  toast.info("Document Scanning", "Handwritten document scanning coming soon");
-                }}
+                onClick={() => setInputMode("scan")}
               >
                 <Camera className="h-4 w-4 mr-2" />
                 Scan Handwritten
@@ -369,6 +404,31 @@ export default function NewFIRPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Document Scanner Section */}
+        {inputMode === "scan" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Camera className="h-5 w-5" />
+                Document Scanner (OCR)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DocumentScanner
+                onTextExtracted={(text, results) => {
+                  // Append extracted text to description
+                  const currentDesc = watch("description") || "";
+                  setValue("description", currentDesc ? `${currentDesc}\n\n--- OCR Extracted Text ---\n${text}` : text);
+                  toast.success("Text Extracted", `Successfully extracted ${results.length} text blocks from document`);
+                }}
+                onError={(error) => {
+                  toast.error("OCR Error", error);
+                }}
+              />
+            </CardContent>
+          </Card>
+        )}
 
         {/* Main Form */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -609,7 +669,28 @@ export default function NewFIRPage() {
               <CardHeader>
                 <CardTitle>Incident Description *</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
+                {/* Voice Input Section */}
+                {inputMode === "voice" && (
+                  <div className="p-4 rounded-lg bg-background-tertiary border border-border">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Mic className="h-4 w-4 text-accent" />
+                      <span className="text-sm font-medium text-foreground">
+                        Voice Recording
+                      </span>
+                    </div>
+                    <VoiceInput
+                      onTranscript={(text: string) => {
+                        const currentDesc = watch("description") || "";
+                        setValue("description", currentDesc ? `${currentDesc} ${text}` : text);
+                      }}
+                      language="en-IN"
+                    />
+                    <div className="mt-3 text-xs text-foreground-muted">
+                      Speak clearly in English or Hindi. The transcription will be appended to the description below.
+                    </div>
+                  </div>
+                )}
                 <Textarea
                   {...register("description")}
                   placeholder="Provide a detailed description of the incident as narrated by the complainant..."
@@ -628,6 +709,29 @@ export default function NewFIRPage() {
                   )}
                 </div>
                 <FieldError name="description" />
+
+                {/* NLP Auto-Extraction */}
+                {description.length >= 50 && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <NLPExtractor
+                      text={description}
+                      onExtracted={(data) => {
+                        toast.success("AI Extraction Complete", `Found ${data.phone_numbers.length} phone numbers, ${data.accused.length} accused persons`);
+                      }}
+                      onApplyField={(field, value) => {
+                        if (field === "complainantName") setValue("complainantName", value);
+                        else if (field === "complainantPhone") setValue("complainantPhone", value);
+                        else if (field === "incidentDate") setValue("incidentDate", value);
+                        else if (field === "incidentTime") setValue("incidentTime", value);
+                        else if (field === "accusedDetails") {
+                          setValue("accusedKnown", true);
+                          setValue("accusedDetails", value);
+                        }
+                        toast.success("Field Applied", `${field} has been populated`);
+                      }}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -744,11 +848,10 @@ export default function NewFIRPage() {
                   maxSize={10}
                   label="Photos"
                   hint="Upload evidence photos (JPG, PNG up to 10MB each)"
-                  onUpload={async (files) => {
-                    // TODO: Upload to MinIO and store URLs
-                    console.log("Uploading photos:", files);
-                    toast.success("Photos Uploaded", `${files.length} photo(s) uploaded successfully`);
-                  }}
+                  onUpload={(files) => handleFileUpload(files, "photos")}
+                  existingFiles={uploadedFiles
+                    .filter(f => f.category === "photos")
+                    .map(f => ({ name: f.name, url: f.url }))}
                 />
                 <FileUpload
                   fileType="document"
@@ -756,11 +859,10 @@ export default function NewFIRPage() {
                   maxSize={20}
                   label="Documents"
                   hint="Upload documents (PDF, DOC, DOCX up to 20MB each)"
-                  onUpload={async (files) => {
-                    // TODO: Upload to MinIO and store URLs
-                    console.log("Uploading documents:", files);
-                    toast.success("Documents Uploaded", `${files.length} document(s) uploaded successfully`);
-                  }}
+                  onUpload={(files) => handleFileUpload(files, "documents")}
+                  existingFiles={uploadedFiles
+                    .filter(f => f.category === "documents")
+                    .map(f => ({ name: f.name, url: f.url }))}
                 />
                 <FileUpload
                   fileType="audio"
@@ -768,11 +870,10 @@ export default function NewFIRPage() {
                   maxSize={50}
                   label="Audio Recordings"
                   hint="Upload audio files (MP3, WAV up to 50MB each)"
-                  onUpload={async (files) => {
-                    // TODO: Upload to MinIO and store URLs
-                    console.log("Uploading audio:", files);
-                    toast.success("Audio Uploaded", `${files.length} audio file(s) uploaded successfully`);
-                  }}
+                  onUpload={(files) => handleFileUpload(files, "audio")}
+                  existingFiles={uploadedFiles
+                    .filter(f => f.category === "audio")
+                    .map(f => ({ name: f.name, url: f.url }))}
                 />
                 <FileUpload
                   fileType="video"
@@ -780,11 +881,10 @@ export default function NewFIRPage() {
                   maxSize={100}
                   label="Videos"
                   hint="Upload video files (MP4, AVI up to 100MB each)"
-                  onUpload={async (files) => {
-                    // TODO: Upload to MinIO and store URLs
-                    console.log("Uploading videos:", files);
-                    toast.success("Videos Uploaded", `${files.length} video(s) uploaded successfully`);
-                  }}
+                  onUpload={(files) => handleFileUpload(files, "video")}
+                  existingFiles={uploadedFiles
+                    .filter(f => f.category === "video")
+                    .map(f => ({ name: f.name, url: f.url }))}
                 />
               </CardContent>
             </Card>
@@ -809,7 +909,7 @@ export default function NewFIRPage() {
                 <Button
                   type="submit"
                   className="w-full"
-                  isLoading={isSaving || isSubmitting}
+                  isLoading={createMutation.isPending || isSubmitting}
                   disabled={!verificationChecked}
                 >
                   <Send className="h-4 w-4 mr-2" />

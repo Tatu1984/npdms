@@ -119,6 +119,14 @@ func (s *AuthService) GetUser(ctx context.Context, userID uuid.UUID) (*models.Us
 	return s.userRepo.FindByID(ctx, userID)
 }
 
+func (s *AuthService) UpdateProfile(ctx context.Context, userID uuid.UUID, name, email, phone string) error {
+	return s.userRepo.UpdateProfile(ctx, userID, name, email, phone)
+}
+
+func (s *AuthService) GetUserWithStation(ctx context.Context, userID uuid.UUID) (*models.User, string, error) {
+	return s.userRepo.GetUserWithStation(ctx, userID)
+}
+
 func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error {
 	user, err := s.userRepo.FindByID(ctx, userID)
 	if err != nil {

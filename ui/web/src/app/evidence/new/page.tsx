@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { useAuthStore } from "@/stores/authStore";
+import { useCreateEvidence } from "@/hooks/use-evidence";
 import { sanitizeString } from "@/lib/validations";
 import { toast } from "@/stores/toastStore";
 
@@ -32,11 +33,14 @@ import { toast } from "@/stores/toastStore";
 const evidenceFormSchema = z.object({
   linkedFIR: z.string()
     .min(1, "FIR number is required")
-    .regex(/^[A-Z]{2,5}\/\d{4}\/\d{4,6}$/, "Invalid FIR format (e.g., KOR/2024/00123)")
     .transform(sanitizeString),
-  evidenceType: z.enum(["PHYSICAL", "DIGITAL", "DOCUMENTARY", "BIOLOGICAL", "TRACE", "TESTIMONIAL"], {
+  caseId: z.string()
+    .min(1, "Case ID is required")
+    .transform(sanitizeString),
+  evidenceType: z.enum(["PHYSICAL", "DIGITAL", "DOCUMENTARY", "TESTIMONIAL", "PHOTOGRAPHIC", "FORENSIC"], {
     message: "Please select an evidence type"
   }),
+  status: z.enum(["COLLECTED", "UNDER_ANALYSIS", "PRESERVED", "SUBMITTED", "DESTROYED"]).default("COLLECTED"),
   description: z.string()
     .min(20, "Description must be at least 20 characters")
     .max(2000, "Description must be less than 2000 characters")
@@ -48,15 +52,13 @@ const evidenceFormSchema = z.object({
   collectionDate: z.string().min(1, "Collection date is required"),
   collectionTime: z.string().min(1, "Collection time is required"),
   collectedBy: z.string().optional(),
-  storageLocation: z.enum(["MALKHANA", "FSL", "COURT", "DIGITAL_VAULT"]),
-  containerType: z.string().max(100).optional().transform(v => v ? sanitizeString(v) : v),
-  sealNumber: z.string()
-    .max(50)
-    .optional()
-    .transform(v => v ? sanitizeString(v) : v),
-  weight: z.string().max(50).optional(),
-  dimensions: z.string().max(100).optional(),
-  condition: z.string().max(100).optional().transform(v => v ? sanitizeString(v) : v),
+  collectedFrom: z.string()
+    .min(1, "Collected from is required")
+    .transform(sanitizeString),
+  storageLocation: z.string()
+    .min(1, "Storage location is required")
+    .transform(sanitizeString),
+  chainOfCustody: z.string().optional(),
   remarks: z.string().max(1000).optional().transform(v => v ? sanitizeString(v) : v),
   requiresForensic: z.boolean().default(false),
   forensicType: z.string().optional(),
@@ -69,22 +71,24 @@ const evidenceTypes = [
   { value: "PHYSICAL", label: "Physical Evidence" },
   { value: "DIGITAL", label: "Digital Evidence" },
   { value: "DOCUMENTARY", label: "Documentary Evidence" },
-  { value: "BIOLOGICAL", label: "Biological Evidence" },
-  { value: "TRACE", label: "Trace Evidence" },
   { value: "TESTIMONIAL", label: "Testimonial Evidence" },
+  { value: "PHOTOGRAPHIC", label: "Photographic Evidence" },
+  { value: "FORENSIC", label: "Forensic Evidence" },
 ];
 
-const storageLocations = [
-  { value: "MALKHANA", label: "Station Malkhana" },
-  { value: "FSL", label: "Forensic Science Lab" },
-  { value: "COURT", label: "Court Registry" },
-  { value: "DIGITAL_VAULT", label: "Digital Evidence Vault" },
+const statusOptions = [
+  { value: "COLLECTED", label: "Collected" },
+  { value: "UNDER_ANALYSIS", label: "Under Analysis" },
+  { value: "PRESERVED", label: "Preserved" },
+  { value: "SUBMITTED", label: "Submitted" },
+  { value: "DESTROYED", label: "Destroyed" },
 ];
 
 export default function NewEvidencePage() {
   const router = useRouter();
   const { user } = useAuthStore();
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const createEvidenceMutation = useCreateEvidence();
 
   const {
     register,
@@ -96,18 +100,17 @@ export default function NewEvidencePage() {
     resolver: zodResolver(evidenceFormSchema),
     defaultValues: {
       linkedFIR: "",
+      caseId: "",
       evidenceType: undefined,
+      status: "COLLECTED",
       description: "",
       collectionLocation: "",
       collectionDate: new Date().toISOString().split("T")[0],
       collectionTime: new Date().toTimeString().slice(0, 5),
       collectedBy: user?.name || "",
-      storageLocation: "MALKHANA",
-      containerType: "",
-      sealNumber: "",
-      weight: "",
-      dimensions: "",
-      condition: "",
+      collectedFrom: "",
+      storageLocation: "",
+      chainOfCustody: "",
       remarks: "",
       requiresForensic: false,
       forensicType: "",
@@ -118,14 +121,34 @@ export default function NewEvidencePage() {
   const forensicType = watch("forensicType");
 
   const onSubmit = async (data: EvidenceFormData) => {
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      // Combine date and time
+      const collectedDate = `${data.collectionDate}T${data.collectionTime}:00Z`;
 
-    // Generate evidence number
-    const evidenceNumber = `EVD-${new Date().getFullYear()}-${user?.stationId?.substring(0, 3).toUpperCase() || "KOR"}-${String(Math.floor(Math.random() * 10000)).padStart(5, "0")}`;
+      // Build chain of custody
+      const chainOfCustody = `Collected by ${data.collectedBy || user?.name} from ${data.collectedFrom} at ${data.collectionLocation}`;
 
-    alert(`Evidence registered successfully!\nEvidence Number: ${evidenceNumber}`);
-    router.push("/evidence");
+      const evidenceData = {
+        type: data.evidenceType,
+        status: data.status,
+        description: data.description,
+        collectedDate,
+        collectedBy: data.collectedBy || user?.name || "Unknown",
+        collectedFrom: data.collectedFrom,
+        location: data.storageLocation,
+        caseId: data.caseId,
+        firId: data.linkedFIR,
+        chainOfCustody,
+        hasPhoto: uploadedFiles.length > 0,
+        analysisReport: data.remarks,
+      };
+
+      const result = await createEvidenceMutation.mutateAsync(evidenceData);
+      toast.success("Evidence registered", `Evidence ${result.evidenceNumber} has been registered successfully`);
+      router.push("/evidence");
+    } catch (error) {
+      toast.error("Error", "Failed to register evidence. Please try again.");
+    }
   };
 
   const handleFileUpload = () => {
@@ -176,13 +199,25 @@ export default function NewEvidencePage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Input
-                        label="Linked FIR Number *"
+                        label="Case ID *"
+                        placeholder="e.g., CASE-2024-001"
+                        {...register("caseId")}
+                        error={!!errors.caseId}
+                      />
+                      <FieldError name="caseId" />
+                    </div>
+                    <div>
+                      <Input
+                        label="Linked FIR Number"
                         placeholder="e.g., KOR/2024/00123"
                         {...register("linkedFIR")}
                         error={!!errors.linkedFIR}
                       />
                       <FieldError name="linkedFIR" />
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Select
                         label="Evidence Type *"
@@ -192,6 +227,16 @@ export default function NewEvidencePage() {
                         error={!!errors.evidenceType}
                       />
                       <FieldError name="evidenceType" />
+                    </div>
+                    <div>
+                      <Select
+                        label="Status *"
+                        value={watch("status")}
+                        onChange={(v: string) => setValue("status", v as EvidenceFormData["status"])}
+                        options={statusOptions}
+                        error={!!errors.status}
+                      />
+                      <FieldError name="status" />
                     </div>
                   </div>
 
@@ -206,45 +251,14 @@ export default function NewEvidencePage() {
                     <FieldError name="description" />
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <Input
-                        label="Container/Package Type"
-                        placeholder="e.g., Sealed envelope"
-                        {...register("containerType")}
-                      />
-                    </div>
-                    <div>
-                      <Input
-                        label="Seal Number"
-                        placeholder="e.g., SEAL-2024-001"
-                        {...register("sealNumber")}
-                      />
-                    </div>
-                    <div>
-                      <Input
-                        label="Weight (if applicable)"
-                        placeholder="e.g., 250g"
-                        {...register("weight")}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Input
-                        label="Dimensions"
-                        placeholder="e.g., 10cm x 5cm x 3cm"
-                        {...register("dimensions")}
-                      />
-                    </div>
-                    <div>
-                      <Input
-                        label="Condition"
-                        placeholder="e.g., Good, Damaged, Partial"
-                        {...register("condition")}
-                      />
-                    </div>
+                  <div>
+                    <Input
+                      label="Collected From *"
+                      placeholder="Person or location evidence was collected from"
+                      {...register("collectedFrom")}
+                      error={!!errors.collectedFrom}
+                    />
+                    <FieldError name="collectedFrom" />
                   </div>
                 </CardContent>
               </Card>
@@ -298,12 +312,13 @@ export default function NewEvidencePage() {
                   </div>
 
                   <div>
-                    <Select
+                    <Input
                       label="Storage Location *"
-                      value={watch("storageLocation")}
-                      onChange={(v: string) => setValue("storageLocation", v as EvidenceFormData["storageLocation"])}
-                      options={storageLocations}
+                      placeholder="e.g., Station Malkhana, FSL Lab"
+                      {...register("storageLocation")}
+                      error={!!errors.storageLocation}
                     />
+                    <FieldError name="storageLocation" />
                   </div>
                 </CardContent>
               </Card>
@@ -470,8 +485,8 @@ export default function NewEvidencePage() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isSubmitting}
-                isLoading={isSubmitting}
+                disabled={createEvidenceMutation.isPending}
+                isLoading={createEvidenceMutation.isPending}
               >
                 <Check className="h-4 w-4 mr-2" />
                 Register Evidence

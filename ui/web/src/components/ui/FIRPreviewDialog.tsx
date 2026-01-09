@@ -3,6 +3,7 @@
 import { FileText, Download, Printer } from "lucide-react";
 import { Modal, ModalFooter } from "./Modal";
 import { Button } from "./Button";
+import { printFIR, downloadFIRPDF, FIRPDFData } from "@/lib/pdf";
 
 export interface FIRPreviewDialogProps {
   isOpen: boolean;
@@ -15,14 +16,32 @@ export function FIRPreviewDialog({
   onClose,
   firData,
 }: FIRPreviewDialogProps) {
+  const preparePDFData = (): FIRPDFData => ({
+    firNumber: firData.firNumber,
+    stationName: firData.stationName || "Police Station",
+    complainantName: firData.complainantName || "",
+    complainantFatherName: firData.complainantFatherName,
+    complainantPhone: firData.complainantPhone || "",
+    complainantAddress: firData.complainantAddress || "",
+    complainantAge: firData.complainantAge,
+    complainantGender: firData.complainantGender,
+    incidentDate: firData.incidentDate || "",
+    incidentTime: firData.incidentTime,
+    incidentLocation: firData.incidentLocation || "",
+    offenceCategory: firData.offenceCategory,
+    offenceType: firData.offenceType,
+    ipcSections: firData.ipcSections || [],
+    description: firData.description || "",
+    propertyItems: firData.propertyItems,
+    registeredBy: firData.registeredBy || "Officer",
+  });
+
   const handlePrint = () => {
-    window.print();
+    printFIR(preparePDFData());
   };
 
   const handleDownload = () => {
-    // Generate PDF and download
-    // TODO: Implement PDF generation
-    alert("PDF download feature coming soon");
+    downloadFIRPDF(preparePDFData());
   };
 
   if (!isOpen || !firData) return null;

@@ -3,6 +3,8 @@
  * Tracks online/offline status and provides utilities for network-aware operations
  */
 
+import { networkLogger as log } from '../logger';
+
 export type NetworkStatus = 'online' | 'offline' | 'slow';
 
 export interface NetworkInfo {
@@ -48,7 +50,7 @@ class NetworkMonitor {
    * Handle online event
    */
   private handleOnline = (): void => {
-    console.log('[Network] Online');
+    log.debug(' Online');
     this.updateStatus();
     this.notifyListeners();
   };
@@ -57,7 +59,7 @@ class NetworkMonitor {
    * Handle offline event
    */
   private handleOffline = (): void => {
-    console.log('[Network] Offline');
+    log.debug(' Offline');
     this.updateStatus();
     this.notifyListeners();
   };
@@ -66,7 +68,7 @@ class NetworkMonitor {
    * Handle connection change
    */
   private handleConnectionChange = (): void => {
-    console.log('[Network] Connection changed');
+    log.debug(' Connection changed');
     this.updateStatus();
     this.notifyListeners();
   };
@@ -118,7 +120,7 @@ class NetworkMonitor {
       try {
         callback(this.networkInfo);
       } catch (error) {
-        console.error('[Network] Error in listener:', error);
+        log.error(' Error in listener:', error);
       }
     });
   }

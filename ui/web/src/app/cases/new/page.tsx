@@ -23,7 +23,8 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
-import { useCasesStore } from "@/stores/casesStore";
+import { useCreateCase } from "@/hooks/use-cases";
+import { type CaseStatus } from "@/lib/db/schema";
 
 const caseCategories = [
   { value: "MURDER", label: "Murder" },
@@ -66,8 +67,7 @@ export default function NewCasePage() {
   const router = useRouter();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
-  const { createCase } = useCasesStore();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const createCaseMutation = useCreateCase();
   const [selectedSections, setSelectedSections] = useState<string[]>([]);
 
   const canCreate = user && hasMinimumRole(user.role, "SI");
@@ -112,24 +112,18 @@ export default function NewCasePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
 
     try {
-      const newCase = await createCase({
+      const newCase = await createCaseMutation.mutateAsync({
         firId: formData.linkedFIR,
-        firNumber: formData.linkedFIR,
         title: formData.title,
         description: formData.synopsis,
-        status: "INVESTIGATION",
-        accused: accused.filter(a => a.name).map((a, index) => ({
-          id: `acc-${Date.now()}-${index}`,
-          name: a.name,
-          identificationMarks: a.description,
-          status: a.status as "WANTED" | "ARRESTED" | "ABSCONDING" | "BAILED" | "CONVICTED",
-        })),
-        witnesses: [],
+        status: "INVESTIGATION" as CaseStatus,
+        stationId: user?.stationId || "default-station",
         investigatingOfficer: user?.id,
-        investigatingOfficerName: formData.assignedOfficer,
+        prosecutingOfficer: undefined,
+        courtName: undefined,
+        nextHearing: undefined,
       });
 
       addToast({
@@ -144,8 +138,6 @@ export default function NewCasePage() {
         title: "Error",
         message: "Failed to create case. Please try again.",
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -464,8 +456,8 @@ export default function NewCasePage() {
               </Card>
 
               {/* Submit */}
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? (
+              <Button type="submit" className="w-full" disabled={createCaseMutation.isPending}>
+                {createCaseMutation.isPending ? (
                   <>
                     <span className="animate-spin mr-2">...</span>
                     Creating Case...

@@ -98,8 +98,43 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 }
 
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
-	// TODO: Implement profile update
-	c.JSON(http.StatusOK, gin.H{"message": "Profile updated"})
+	userID := middleware.GetUserID(c)
+
+	var req struct {
+		Name  string `json:"name" binding:"required"`
+		Email string `json:"email" binding:"required,email"`
+		Phone string `json:"phone"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "validation_error",
+			Message: "Invalid profile data",
+			Code:    400,
+		})
+		return
+	}
+
+	if err := h.authService.UpdateProfile(c.Request.Context(), userID, req.Name, req.Email, req.Phone); err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "update_failed",
+			Message: "Failed to update profile",
+			Code:    500,
+		})
+		return
+	}
+
+	// Get updated user
+	user, err := h.authService.GetUser(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "Profile updated"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Profile updated successfully",
+		"user":    user,
+	})
 }
 
 func (h *AuthHandler) ChangePassword(c *gin.Context) {

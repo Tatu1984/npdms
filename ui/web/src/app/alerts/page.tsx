@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import {
   Bell,
@@ -17,6 +17,7 @@ import {
   Download,
   Volume2,
   X,
+  Loader2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -30,7 +31,9 @@ import { FileUpload } from "@/components/ui/FileUpload";
 import { SightingReportDialog } from "@/components/ui/SightingReportDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
-import { useAlertsStore, Alert } from "@/stores/alertsStore";
+import { Alert, AlertType, AlertScope } from "@/lib/db/schema";
+import { useAlerts, useCreateAlert, useAcknowledgeAlert } from "@/hooks/use-alerts";
+import { uploadViaAPI } from "@/lib/upload";
 
 const alertTypeOptions = [
   { value: "", label: "All Types" },
@@ -86,52 +89,82 @@ function formatTimeAgo(dateString: string) {
 export default function AlertsPage() {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
-  const { alerts, createAlert, acknowledgeAlert, getActiveAlerts, getUnacknowledgedAlerts } = useAlertsStore();
   const [activeTab, setActiveTab] = useState("active");
   const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState<AlertType | "">("");
   const [showIssueForm, setShowIssueForm] = useState(false);
   const [showSightingReport, setShowSightingReport] = useState(false);
   const [sightingAlertId, setSightingAlertId] = useState<string | null>(null);
 
   // Form state for new alert
   const [newAlert, setNewAlert] = useState({
-    type: "" as Alert["type"] | "",
-    scope: "STATION" as Alert["scope"],
+    type: "" as AlertType | "",
+    scope: "STATION" as AlertScope,
     title: "",
     description: "",
     expiresAt: "",
-    priority: 2,
+    priority: 2 as 1 | 2 | 3,
     imageUrl: "",
   });
-  const [alertImages, setAlertImages] = useState<File[]>([]);
 
   const canIssue = user && hasMinimumRole(user.role, "SHO");
   const canIssueDistrict = user && hasMinimumRole(user.role, "SP");
   const canIssueState = user && hasMinimumRole(user.role, "DIG");
 
-  const activeAlerts = getActiveAlerts();
-  const unacknowledged = getUnacknowledgedAlerts();
-
-  const filteredAlerts = alerts.filter((a) => {
-    if (typeFilter && a.type !== typeFilter) return false;
-    if (searchQuery) {
-      const search = searchQuery.toLowerCase();
-      return (
-        a.title.toLowerCase().includes(search) ||
-        a.description.toLowerCase().includes(search)
-      );
-    }
-    return true;
+  // Fetch all alerts using React Query
+  const { data: alertsResponse, isLoading, error } = useAlerts({
+    type: typeFilter || undefined,
   });
 
+  // Create alert mutation
+  const createAlertMutation = useCreateAlert();
+
+  // Acknowledge alert mutation
+  const acknowledgeAlertMutation = useAcknowledgeAlert();
+
+  // Extract alerts data
+  const alerts = alertsResponse?.data || [];
+
+  // Memoized computations for active and unacknowledged alerts
+  const activeAlerts = useMemo(() => {
+    const now = new Date().toISOString();
+    return alerts.filter((a) => a.expiresAt > now);
+  }, [alerts]);
+
+  const unacknowledged = useMemo(() => {
+    const now = new Date().toISOString();
+    return alerts.filter((a) => !a.acknowledged && a.expiresAt > now);
+  }, [alerts]);
+
+  // Filtered alerts based on search query
+  const filteredAlerts = useMemo(() => {
+    return alerts.filter((a) => {
+      if (searchQuery) {
+        const search = searchQuery.toLowerCase();
+        return (
+          a.title.toLowerCase().includes(search) ||
+          a.description.toLowerCase().includes(search)
+        );
+      }
+      return true;
+    });
+  }, [alerts, searchQuery]);
+
   const handleAcknowledge = async (alert: Alert) => {
-    if (user) {
-      await acknowledgeAlert(alert.id, user.name);
+    if (!user) return;
+
+    try {
+      await acknowledgeAlertMutation.mutateAsync(alert.id);
       addToast({
         type: "success",
         title: "Alert Acknowledged",
         message: `Acknowledged: ${alert.title}`,
+      });
+    } catch (error) {
+      addToast({
+        type: "error",
+        title: "Acknowledgment Failed",
+        message: "Failed to acknowledge alert. Please try again.",
       });
     }
   };
@@ -142,19 +175,29 @@ export default function AlertsPage() {
       return;
     }
 
-    await createAlert({
-      type: newAlert.type as Alert["type"],
-      scope: newAlert.scope,
-      title: newAlert.title,
-      description: newAlert.description,
-      expiresAt: new Date(newAlert.expiresAt).toISOString(),
-      issuedBy: user?.name || "Unknown",
-      priority: newAlert.priority,
-    });
+    try {
+      await createAlertMutation.mutateAsync({
+        type: newAlert.type as AlertType,
+        scope: newAlert.scope,
+        title: newAlert.title,
+        description: newAlert.description,
+        expiresAt: new Date(newAlert.expiresAt).toISOString(),
+        issuedBy: user?.name || "Unknown",
+        priority: newAlert.priority,
+        hasImage: !!newAlert.imageUrl,
+        imageUrl: newAlert.imageUrl || undefined,
+      });
 
-    addToast({ type: "success", title: "Alert Issued", message: "Your alert has been broadcast successfully" });
-    setShowIssueForm(false);
-    setNewAlert({ type: "", scope: "STATION", title: "", description: "", expiresAt: "", priority: 2, imageUrl: "" });
+      addToast({ type: "success", title: "Alert Issued", message: "Your alert has been broadcast successfully" });
+      setShowIssueForm(false);
+      setNewAlert({ type: "", scope: "STATION", title: "", description: "", expiresAt: "", priority: 2, imageUrl: "" });
+    } catch (error) {
+      addToast({
+        type: "error",
+        title: "Failed to Issue Alert",
+        message: "Failed to create alert. Please try again.",
+      });
+    }
   };
 
   return (
@@ -176,7 +219,37 @@ export default function AlertsPage() {
           )}
         </div>
 
+        {/* Error State */}
+        {error && (
+          <Card className="border-error/50 bg-error/5">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-5 w-5 text-error" />
+                <div>
+                  <p className="font-medium text-foreground">Failed to Load Alerts</p>
+                  <p className="text-sm text-foreground-muted">
+                    Unable to fetch alerts. Please check your connection and try again.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Loading State */}
+        {isLoading && (
+          <Card>
+            <CardContent className="p-8">
+              <div className="flex flex-col items-center justify-center gap-3">
+                <Loader2 className="h-8 w-8 text-accent animate-spin" />
+                <p className="text-foreground-muted">Loading alerts...</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Stats */}
+        {!isLoading && !error && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-4">
@@ -277,7 +350,7 @@ export default function AlertsPage() {
                     { value: "NOTICE", label: "Notice - Information" },
                   ]}
                   value={newAlert.type}
-                  onChange={(value: string) => setNewAlert({ ...newAlert, type: value as Alert["type"] })}
+                  onChange={(value: string) => setNewAlert({ ...newAlert, type: value as AlertType })}
                 />
                 <Select
                   label="Scope"
@@ -288,7 +361,7 @@ export default function AlertsPage() {
                     return true;
                   })}
                   value={newAlert.scope}
-                  onChange={(value: string) => setNewAlert({ ...newAlert, scope: value as Alert["scope"] })}
+                  onChange={(value: string) => setNewAlert({ ...newAlert, scope: value as AlertScope })}
                 />
               </div>
               <Input
@@ -319,14 +392,29 @@ export default function AlertsPage() {
                   hint="Upload image for BOLO/FLASH alerts (JPG, PNG up to 5MB)"
                   onUpload={async (files) => {
                     if (files.length > 0) {
-                      setAlertImages(files);
-                      // TODO: Upload to MinIO and get URL
-                      // For now, store file reference
-                      addToast({
-                        type: "success",
-                        title: "Image Uploaded",
-                        message: "Image will be attached when alert is created",
-                      });
+                      try {
+                        const response = await uploadViaAPI(files[0], "photos");
+                        if (response.success && response.url) {
+                          setNewAlert({ ...newAlert, imageUrl: response.url });
+                          addToast({
+                            type: "success",
+                            title: "Image Uploaded",
+                            message: "Image uploaded successfully",
+                          });
+                        } else {
+                          addToast({
+                            type: "error",
+                            title: "Upload Failed",
+                            message: response.error || "Failed to upload image",
+                          });
+                        }
+                      } catch (error) {
+                        addToast({
+                          type: "error",
+                          title: "Upload Error",
+                          message: "Error uploading image",
+                        });
+                      }
                     }
                   }}
                   className="col-span-2"
@@ -457,7 +545,7 @@ export default function AlertsPage() {
                   <Card key={bolo.id} className="border-l-4 border-l-info">
                     <CardContent className="p-4">
                       <div className="flex gap-4">
-                        {bolo.image && (
+                        {bolo.hasImage && (
                           <div className="h-24 w-24 bg-background-tertiary rounded-lg flex items-center justify-center flex-shrink-0">
                             <Shield className="h-8 w-8 text-foreground-muted" />
                           </div>
@@ -509,6 +597,7 @@ export default function AlertsPage() {
             </Card>
           </TabsContent>
         </Tabs>
+        )}
       </div>
 
       <SightingReportDialog

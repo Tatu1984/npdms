@@ -283,3 +283,111 @@ func (r *FIRRepository) GetStats(ctx context.Context, stationID *uuid.UUID) (map
 
 	return stats, nil
 }
+
+func (r *FIRRepository) GetTimeline(ctx context.Context, firID uuid.UUID) ([]models.TimelineEntry, error) {
+	var timeline []models.TimelineEntry
+
+	// Get audit logs for this FIR
+	query := `
+		SELECT a.id::text, a.action, COALESCE(a.description, ''), a.created_at, COALESCE(u.name, 'System')
+		FROM audit_logs a
+		LEFT JOIN users u ON a.user_id = u.id
+		WHERE a.resource_type = 'FIR' AND a.resource_id = $1
+		ORDER BY a.created_at ASC
+	`
+
+	rows, err := r.db.Query(ctx, query, firID)
+	if err != nil {
+		return timeline, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id, action, description, userName string
+		var createdAt time.Time
+
+		if err := rows.Scan(&id, &action, &description, &createdAt, &userName); err != nil {
+			continue
+		}
+
+		timeline = append(timeline, models.TimelineEntry{
+			ID:          id,
+			Type:        action,
+			Title:       formatAuditAction(action),
+			Description: description,
+			Timestamp:   createdAt,
+			User:        userName,
+			Icon:        getIconForAuditAction(action),
+		})
+	}
+
+	// Get case diary entries if any
+	diaryQuery := `
+		SELECT id::text, entry_date, entry_type, description, COALESCE(u.name, 'Unknown')
+		FROM case_diary_entries cde
+		LEFT JOIN users u ON cde.created_by = u.id
+		WHERE cde.fir_id = $1
+		ORDER BY cde.entry_date ASC
+	`
+
+	diaryRows, _ := r.db.Query(ctx, diaryQuery, firID)
+	if diaryRows != nil {
+		defer diaryRows.Close()
+		for diaryRows.Next() {
+			var id, entryType, description, userName string
+			var entryDate time.Time
+
+			if err := diaryRows.Scan(&id, &entryDate, &entryType, &description, &userName); err == nil {
+				timeline = append(timeline, models.TimelineEntry{
+					ID:          id,
+					Type:        "DIARY_ENTRY",
+					Title:       "Case Diary: " + entryType,
+					Description: description,
+					Timestamp:   entryDate,
+					User:        userName,
+					Icon:        "book-open",
+				})
+			}
+		}
+	}
+
+	return timeline, nil
+}
+
+func formatAuditAction(action string) string {
+	switch action {
+	case "CREATE":
+		return "Created"
+	case "UPDATE":
+		return "Updated"
+	case "UPDATE_STATUS":
+		return "Status Changed"
+	case "TRANSFER":
+		return "Transferred"
+	case "ASSIGN":
+		return "Assigned"
+	case "DELETE":
+		return "Deleted"
+	default:
+		return action
+	}
+}
+
+func getIconForAuditAction(action string) string {
+	switch action {
+	case "CREATE":
+		return "plus-circle"
+	case "UPDATE":
+		return "edit"
+	case "UPDATE_STATUS":
+		return "refresh-cw"
+	case "TRANSFER":
+		return "arrow-right"
+	case "ASSIGN":
+		return "user-plus"
+	case "DELETE":
+		return "trash-2"
+	default:
+		return "activity"
+	}
+}

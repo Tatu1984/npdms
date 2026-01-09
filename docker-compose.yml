@@ -37,6 +37,33 @@ services:
       timeout: 5s
       retries: 5
 
+  # HashiCorp Vault for secrets management
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: npdms-vault
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: npdms-dev-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_ADDR: http://127.0.0.1:8200
+    ports:
+      - "8200:8200"
+    volumes:
+      - vault_data:/vault/data
+      - ./deploy/vault/config.hcl:/vault/config/config.hcl:ro
+      - ./deploy/vault/policies:/vault/policies:ro
+    command: server -dev
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - security
+      - full
+
   # MinIO for file storage (evidence photos, documents)
   minio:
     image: minio/minio:latest
@@ -56,6 +83,59 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
+
+  # Redpanda (Kafka-compatible message broker)
+  redpanda:
+    image: redpandadata/redpanda:latest
+    container_name: npdms-redpanda
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --smp 1
+      - --memory 1G
+      - --mode dev-container
+      - --default-log-level=warn
+    ports:
+      - "19092:19092"   # Kafka external
+      - "18082:18082"   # Pandaproxy external
+      - "18081:18081"   # Schema registry external
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health", "--exit-when-unhealthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    profiles:
+      - messaging
+      - full
+
+  # Redpanda Console (Kafka UI)
+  redpanda-console:
+    image: redpandadata/console:latest
+    container_name: npdms-redpanda-console
+    restart: unless-stopped
+    environment:
+      - KAFKA_BROKERS=redpanda:9092
+      - KAFKA_SCHEMAREGISTRY_ENABLED=true
+      - KAFKA_SCHEMAREGISTRY_URLS=http://redpanda:8081
+    ports:
+      - "8085:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    profiles:
+      - messaging
+      - full
 
   # API Gateway (Go backend)
   api:
@@ -187,6 +267,109 @@ services:
       - ml
       - full
 
+  # ML Service: Voice Transcription
+  ml-transcription:
+    build:
+      context: ./services/ml
+      dockerfile: Dockerfile
+      target: transcription
+    container_name: npdms-ml-transcription
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ml_models_cache:/app/cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    profiles:
+      - ml
+      - full
+
+  # Neo4j Graph Database
+  neo4j:
+    image: neo4j:5.15-community
+    container_name: npdms-neo4j
+    restart: unless-stopped
+    environment:
+      - NEO4J_AUTH=neo4j/npdms_neo4j_2024
+      - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*,gds.*
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
+    ports:
+      - "7474:7474"   # HTTP
+      - "7687:7687"   # Bolt
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_plugins:/plugins
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7474"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    profiles:
+      - graph
+      - full
+
+  # OpenSearch for Full-Text Search
+  opensearch:
+    image: opensearchproject/opensearch:2.11.1
+    container_name: npdms-opensearch
+    restart: unless-stopped
+    environment:
+      - cluster.name=npdms-cluster
+      - node.name=opensearch-node1
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - DISABLE_SECURITY_PLUGIN=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 | grep -q 'cluster_name'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    profiles:
+      - search
+      - full
+
+  # OpenSearch Dashboards
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.1
+    container_name: npdms-opensearch-dashboards
+    restart: unless-stopped
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "5601:5601"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    profiles:
+      - search
+      - full
+
   # Monitoring: Prometheus
   prometheus:
     image: prom/prometheus:latest
@@ -276,11 +459,17 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  vault_data:
   minio_data:
+  redpanda_data:
   ml_models_cache:
   ml_faiss_index:
   prometheus_data:
   grafana_data:
+  neo4j_data:
+  neo4j_logs:
+  neo4j_plugins:
+  opensearch_data:
 
 networks:
   default:

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   FileText,
@@ -24,7 +24,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { AdvancedFilters } from "@/components/ui/AdvancedFilters";
-import { useFIRStore } from "@/stores/firStore";
+import { useFIRs, useDeleteFIR } from "@/hooks/use-firs";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 import { toast } from "@/stores/toastStore";
@@ -87,41 +87,50 @@ function formatTime(timeString: string) {
 
 export default function FIRListPage() {
   const { user } = useAuthStore();
-  const { firs, filters, isLoading, loadFIRs, setFilters, deleteFIR, getFilteredFIRs } = useFIRStore();
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<FIRStatus | undefined>();
+  const [priorityFilter, setPriorityFilter] = useState<FIRPriority | undefined>();
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [firToDelete, setFirToDelete] = useState<FIR | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
   const itemsPerPage = 10;
 
   const canCreateFIR = user && hasMinimumRole(user.role, "CONSTABLE");
   const canEditFIR = user && hasMinimumRole(user.role, "SI");
   const canDeleteFIR = user && hasMinimumRole(user.role, "SP");
 
-  useEffect(() => {
-    loadFIRs();
-  }, [loadFIRs]);
+  // Fetch FIRs with filters
+  const { data: firData, isLoading, error } = useFIRs({
+    search: searchQuery,
+    status: statusFilter,
+    priority: priorityFilter,
+    page: currentPage,
+    pageSize: itemsPerPage,
+    ...advancedFilters,
+  });
+
+  // Delete mutation
+  const deleteMutation = useDeleteFIR();
 
   const handleSearch = (value: string) => {
     setSearchQuery(value);
-    setFilters({ ...filters, search: value });
     setCurrentPage(1);
   };
 
   const handleStatusFilter = (value: string) => {
-    setFilters({ ...filters, status: value as FIRStatus | undefined });
+    setStatusFilter(value as FIRStatus | undefined);
     setCurrentPage(1);
   };
 
   const handlePriorityFilter = (value: string) => {
-    setFilters({ ...filters, priority: value as FIRPriority | undefined });
+    setPriorityFilter(value as FIRPriority | undefined);
     setCurrentPage(1);
   };
 
   const handleExport = () => {
-    const data = getFilteredFIRs();
+    const data = firData?.data || [];
     exportToCSV(data, "fir_export", exportConfigs.firs as any);
     toast.success("Export successful", "FIR data exported to CSV");
   };
@@ -133,25 +142,19 @@ export default function FIRListPage() {
 
   const handleDeleteConfirm = async () => {
     if (!firToDelete) return;
-    setIsDeleting(true);
     try {
-      await deleteFIR(firToDelete.id);
+      await deleteMutation.mutateAsync(firToDelete.id);
       toast.success("FIR deleted", `FIR ${firToDelete.firNumber} has been deleted`);
       setDeleteDialogOpen(false);
       setFirToDelete(null);
     } catch (error) {
       toast.error("Error", "Failed to delete FIR");
-    } finally {
-      setIsDeleting(false);
     }
   };
 
-  const filteredFIRs = getFilteredFIRs();
-  const totalPages = Math.ceil(filteredFIRs.length / itemsPerPage);
-  const paginatedFIRs = filteredFIRs.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const firs = firData?.data || [];
+  const totalRecords = firData?.total || 0;
+  const totalPages = Math.ceil(totalRecords / itemsPerPage);
 
   return (
     <DashboardLayout>
@@ -242,13 +245,13 @@ export default function FIRListPage() {
               </div>
               <Select
                 options={statusOptions}
-                value={filters.status || ""}
+                value={statusFilter || ""}
                 onChange={handleStatusFilter}
                 className="w-full md:w-48"
               />
               <Select
                 options={priorityOptions}
-                value={filters.priority || ""}
+                value={priorityFilter || ""}
                 onChange={handlePriorityFilter}
                 className="w-full md:w-40"
               />
@@ -269,13 +272,20 @@ export default function FIRListPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              FIR Records ({filteredFIRs.length})
+              FIR Records ({totalRecords})
             </CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+              </div>
+            ) : error ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <p className="text-error mb-2">Failed to load FIRs</p>
+                  <p className="text-sm text-foreground-muted">{error.message}</p>
+                </div>
               </div>
             ) : (
               <>
@@ -293,7 +303,7 @@ export default function FIRListPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedFIRs.map((fir) => (
+                    {firs.map((fir) => (
                       <TableRow key={fir.id} className="hover:bg-background-tertiary cursor-pointer">
                         <TableCell>
                           <span className="font-mono text-accent">{fir.firNumber}</span>
@@ -368,8 +378,8 @@ export default function FIRListPage() {
                   <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
                     <p className="text-sm text-foreground-muted">
                       Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                      {Math.min(currentPage * itemsPerPage, filteredFIRs.length)} of{" "}
-                      {filteredFIRs.length} results
+                      {Math.min(currentPage * itemsPerPage, totalRecords)} of{" "}
+                      {totalRecords} results
                     </p>
                     <div className="flex items-center gap-2">
                       <Button
@@ -414,22 +424,27 @@ export default function FIRListPage() {
         message={`Are you sure you want to delete FIR ${firToDelete?.firNumber}? This action cannot be undone.`}
         confirmText="Delete"
         type="danger"
-        isLoading={isDeleting}
+        isLoading={deleteMutation.isPending}
       />
 
       <AdvancedFilters
         isOpen={showAdvancedFilters}
         onClose={() => setShowAdvancedFilters(false)}
-        onApply={(advancedFilters) => {
-          setFilters({ ...filters, ...advancedFilters });
+        onApply={(filters) => {
+          setAdvancedFilters(filters);
           setCurrentPage(1);
         }}
         onReset={() => {
-          setFilters({ search: filters.search, status: filters.status, priority: filters.priority });
+          setAdvancedFilters({});
           setCurrentPage(1);
         }}
         resourceType="fir"
-        currentFilters={filters}
+        currentFilters={{
+          search: searchQuery,
+          status: statusFilter,
+          priority: priorityFilter,
+          ...advancedFilters,
+        }}
       />
     </DashboardLayout>
   );

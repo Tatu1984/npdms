@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   Package,
@@ -30,7 +30,8 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EvidenceTransferDialog } from "@/components/ui/EvidenceTransferDialog";
 import { ForensicRequestDialog } from "@/components/ui/ForensicRequestDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
-import { useEvidenceStore, type Evidence } from "@/stores/evidenceStore";
+import { useEvidence, useDeleteEvidence, useTransferEvidence } from "@/hooks/use-evidence";
+import type { Evidence } from "@/lib/db/schema";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 import { toast } from "@/stores/toastStore";
 
@@ -39,15 +40,18 @@ const typeOptions = [
   { value: "PHYSICAL", label: "Physical" },
   { value: "DIGITAL", label: "Digital" },
   { value: "DOCUMENTARY", label: "Documentary" },
+  { value: "TESTIMONIAL", label: "Testimonial" },
+  { value: "PHOTOGRAPHIC", label: "Photographic" },
+  { value: "FORENSIC", label: "Forensic" },
 ];
 
 const statusOptions = [
   { value: "", label: "All Statuses" },
   { value: "COLLECTED", label: "Collected" },
-  { value: "IN_CUSTODY", label: "In Custody" },
-  { value: "AT_LAB", label: "At Lab" },
-  { value: "RETURNED", label: "Returned" },
-  { value: "DISPOSED", label: "Disposed" },
+  { value: "UNDER_ANALYSIS", label: "Under Analysis" },
+  { value: "PRESERVED", label: "Preserved" },
+  { value: "SUBMITTED", label: "Submitted" },
+  { value: "DESTROYED", label: "Destroyed" },
 ];
 
 // Mock chain of custody entries
@@ -130,24 +134,22 @@ function getTypeIcon(type: string) {
 function getStatusBadgeVariant(status: string) {
   const variants: Record<string, string> = {
     COLLECTED: "info",
-    IN_CUSTODY: "success",
-    AT_LAB: "warning",
-    RETURNED: "secondary",
-    DISPOSED: "closed",
+    UNDER_ANALYSIS: "warning",
+    PRESERVED: "success",
+    SUBMITTED: "secondary",
+    DESTROYED: "closed",
   };
   return variants[status] || "secondary";
 }
 
 export default function EvidencePage() {
   const { user } = useAuthStore();
-  const { evidence, isLoading, loadEvidence, deleteEvidence, getFilteredEvidence, setFilters, filters } = useEvidenceStore();
   const [activeTab, setActiveTab] = useState("registry");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [evidenceToDelete, setEvidenceToDelete] = useState<Evidence | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [transferEvidenceId, setTransferEvidenceId] = useState<string | null>(null);
   const [showForensicRequest, setShowForensicRequest] = useState(false);
   const [forensicRequestEvidenceId, setForensicRequestEvidenceId] = useState<string | null>(null);
@@ -156,28 +158,35 @@ export default function EvidencePage() {
   const canTransfer = user && hasMinimumRole(user.role, "SI");
   const canDelete = user && hasMinimumRole(user.role, "SP");
 
-  useEffect(() => {
-    loadEvidence();
-  }, [loadEvidence]);
+  // Build filters for React Query
+  const filters = {
+    type: typeFilter || undefined,
+    status: statusFilter || undefined,
+    search: searchQuery || undefined,
+  };
+
+  // Fetch evidence using React Query
+  const { data: evidenceData, isLoading, error } = useEvidence(filters);
+  const deleteEvidenceMutation = useDeleteEvidence();
+  const transferEvidenceMutation = useTransferEvidence();
+
+  const evidence = evidenceData?.data || [];
+  const filteredEvidence = evidence;
 
   const handleSearch = (value: string) => {
     setSearchQuery(value);
-    setFilters({ ...filters, search: value });
   };
 
   const handleTypeFilter = (value: string) => {
     setTypeFilter(value);
-    setFilters({ ...filters, type: value as Evidence["type"] | undefined });
   };
 
   const handleStatusFilter = (value: string) => {
     setStatusFilter(value);
-    setFilters({ ...filters, status: value as Evidence["status"] | undefined });
   };
 
   const handleExport = () => {
-    const data = getFilteredEvidence();
-    exportToCSV(data, "evidence_export", exportConfigs.evidence as any);
+    exportToCSV(evidence, "evidence_export", exportConfigs.evidence as any);
     toast.success("Export successful", "Evidence data exported to CSV");
   };
 
@@ -188,26 +197,21 @@ export default function EvidencePage() {
 
   const handleDeleteConfirm = async () => {
     if (!evidenceToDelete) return;
-    setIsDeleting(true);
     try {
-      await deleteEvidence(evidenceToDelete.id);
+      await deleteEvidenceMutation.mutateAsync(evidenceToDelete.id);
       toast.success("Evidence deleted", `Evidence ${evidenceToDelete.evidenceNumber} has been deleted`);
       setDeleteDialogOpen(false);
       setEvidenceToDelete(null);
     } catch (error) {
       toast.error("Error", "Failed to delete evidence");
-    } finally {
-      setIsDeleting(false);
     }
   };
-
-  const filteredEvidence = getFilteredEvidence();
 
   const stats = {
     total: evidence.length,
     physical: evidence.filter((e) => e.type === "PHYSICAL").length,
     digital: evidence.filter((e) => e.type === "DIGITAL").length,
-    atLab: evidence.filter((e) => e.status === "AT_LAB").length,
+    atLab: evidence.filter((e) => e.status === "UNDER_ANALYSIS").length,
   };
 
   return (
@@ -339,97 +343,102 @@ export default function EvidencePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Evidence ID</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>FIR</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Custodian</TableHead>
-                      <TableHead>Integrity</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredEvidence.map((item) => (
-                      <TableRow key={item.id} className="hover:bg-background-tertiary">
-                        <TableCell>
-                          <span className="font-mono text-accent text-sm">
-                            {item.evidenceNumber}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getTypeIcon(item.type)}
-                            <span className="text-foreground">{item.type}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-foreground">{item.category}</span>
-                        </TableCell>
-                        <TableCell>
-                          <Link
-                            href={`/fir/${item.firId}`}
-                            className="font-mono text-accent hover:underline"
-                          >
-                            {item.firNumber}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getStatusBadgeVariant(item.status) as any}>
-                            {item.status.replace(/_/g, " ")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-foreground-muted">{item.currentCustodian}</span>
-                        </TableCell>
-                        <TableCell>
-                          {item.integrityVerified ? (
-                            <div className="flex items-center gap-1 text-success">
-                              <CheckCircle className="h-4 w-4" />
-                              <span className="text-xs">Verified</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1 text-warning">
-                              <AlertCircle className="h-4 w-4" />
-                              <span className="text-xs">Pending</span>
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Link href={`/evidence/${item.id}`}>
-                              <Button variant="ghost" size="sm">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </Link>
-                            {canTransfer && (
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => setTransferEvidenceId(item.id)}
-                                title="Transfer"
-                              >
-                                <LinkIcon className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {canDelete && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteClick(item)}
-                              >
-                                <Trash2 className="h-4 w-4 text-error" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
+                {isLoading ? (
+                  <div className="text-center py-8">
+                    <p className="text-foreground-muted">Loading evidence...</p>
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-8">
+                    <p className="text-error">Error loading evidence: {error.message}</p>
+                  </div>
+                ) : filteredEvidence.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Package className="h-12 w-12 text-foreground-muted mx-auto mb-4" />
+                    <p className="text-foreground-muted">No evidence found</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Evidence ID</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Case ID</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Collected By</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredEvidence.map((item) => (
+                        <TableRow key={item.id} className="hover:bg-background-tertiary">
+                          <TableCell>
+                            <span className="font-mono text-accent text-sm">
+                              {item.evidenceNumber}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {getTypeIcon(item.type)}
+                              <span className="text-foreground">{item.type}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-foreground line-clamp-2">{item.description}</span>
+                          </TableCell>
+                          <TableCell>
+                            <Link
+                              href={`/cases/${item.caseId}`}
+                              className="font-mono text-accent hover:underline"
+                            >
+                              {item.caseId}
+                            </Link>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={getStatusBadgeVariant(item.status) as any}>
+                              {item.status.replace(/_/g, " ")}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-foreground-muted">{item.location}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-foreground-muted">{item.collectedBy}</span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Link href={`/evidence/${item.id}`}>
+                                <Button variant="ghost" size="sm">
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                              {canTransfer && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setTransferEvidenceId(item.id)}
+                                  title="Transfer"
+                                >
+                                  <LinkIcon className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {canDelete && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteClick(item)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-error" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -597,7 +606,7 @@ export default function EvidencePage() {
         message={`Are you sure you want to delete evidence ${evidenceToDelete?.evidenceNumber}? This action cannot be undone.`}
         confirmText="Delete"
         type="danger"
-        isLoading={isDeleting}
+        isLoading={deleteEvidenceMutation.isPending}
       />
 
       {transferEvidenceId && (
@@ -608,7 +617,7 @@ export default function EvidencePage() {
           onClose={() => setTransferEvidenceId(null)}
           onSuccess={() => {
             toast.success("Transfer Complete", "Evidence transfer recorded successfully");
-            loadEvidence();
+            setTransferEvidenceId(null);
           }}
         />
       )}
@@ -623,7 +632,8 @@ export default function EvidencePage() {
         }}
         onSuccess={() => {
           toast.success("Request Created", "Forensic lab request created successfully");
-          loadEvidence();
+          setShowForensicRequest(false);
+          setForensicRequestEvidenceId(null);
         }}
       />
     </DashboardLayout>

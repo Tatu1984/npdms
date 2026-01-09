@@ -21,6 +21,8 @@ import {
   Award,
   Download,
   Trash2,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -33,7 +35,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { Avatar } from "@/components/ui/Avatar";
 import { useAuthStore, hasMinimumRole, getRoleDisplayName } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
-import { usePersonnelStore } from "@/stores/personnelStore";
+import { usePersonnel, useDeletePersonnel, useAssignDuty } from "@/hooks/use-personnel";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DutyAssignmentDialog } from "@/components/ui/DutyAssignmentDialog";
 import { DatePicker } from "@/components/ui/DatePicker";
@@ -59,23 +61,47 @@ const statusOptions = [
   { value: "SUSPENDED", label: "Suspended" },
 ];
 
-// Personnel data now comes from usePersonnelStore
+// Helper function to group personnel by shift from their current assignment
+function groupPersonnelByShift(personnelList: any[]) {
+  const shifts: { [key: string]: any[] } = {
+    "Day (0600-1400)": [],
+    "Evening (1400-2200)": [],
+    "Night (2200-0600)": [],
+  };
 
-// Mock duty roster
-const mockDutyRoster = [
-  { shift: "Day (0600-1400)", officers: ["Ramesh Kumar", "Mohan Singh", "Suresh Patil", "Insp. Sharma"] },
-  { shift: "Evening (1400-2200)", officers: ["Vijay Raj", "Kiran S", "Deepak M"] },
-  { shift: "Night (2200-0600)", officers: ["Anand Reddy", "Naveen K", "Prasad B"] },
-];
+  personnelList.forEach((person) => {
+    if (person.currentAssignment && person.dutyStatus === "ON_DUTY") {
+      // Try to extract shift from assignment if it contains shift info
+      const assignment = person.currentAssignment.toLowerCase();
+      if (assignment.includes("day") || assignment.includes("0600") || assignment.includes("06:00")) {
+        shifts["Day (0600-1400)"].push(person);
+      } else if (assignment.includes("evening") || assignment.includes("1400") || assignment.includes("14:00")) {
+        shifts["Evening (1400-2200)"].push(person);
+      } else if (assignment.includes("night") || assignment.includes("2200") || assignment.includes("22:00")) {
+        shifts["Night (2200-0600)"].push(person);
+      } else {
+        // Default to day shift if no clear indication
+        shifts["Day (0600-1400)"].push(person);
+      }
+    }
+  });
 
-// Mock attendance
-const mockAttendance = {
-  date: "2024-01-18",
-  present: 12,
-  onLeave: 3,
-  absent: 1,
-  total: 16,
-};
+  return Object.entries(shifts).map(([shift, officers]) => ({
+    shift,
+    officers: officers.map(o => o.name),
+  }));
+}
+
+// Calculate attendance from real personnel data
+function calculateAttendance(personnelList: any[]) {
+  return {
+    date: new Date().toISOString().split('T')[0],
+    present: personnelList.filter(p => p.dutyStatus === "ON_DUTY").length,
+    onLeave: personnelList.filter(p => p.dutyStatus === "ON_LEAVE").length,
+    absent: personnelList.filter(p => p.dutyStatus === "SUSPENDED").length,
+    total: personnelList.length,
+  };
+}
 
 function getStatusBadgeVariant(status: string) {
   const variants: Record<string, string> = {
@@ -106,7 +132,6 @@ function getStatusIcon(status: string) {
 export default function PersonnelPage() {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
-  const { personnel, deletePersonnel, assignDuty, setFilters, getFilteredPersonnel } = usePersonnelStore();
   const [activeTab, setActiveTab] = useState("roster");
   const [searchQuery, setSearchQuery] = useState("");
   const [rankFilter, setRankFilter] = useState("");
@@ -121,26 +146,30 @@ export default function PersonnelPage() {
   const canManage = user && hasMinimumRole(user.role, "SHO");
   const canEdit = user && hasMinimumRole(user.role, "SP");
 
-  const filteredPersonnel = personnel.filter((p) => {
-    if (rankFilter && p.rank !== rankFilter) return false;
-    if (statusFilter && p.status !== statusFilter) return false;
-    if (searchQuery) {
-      const search = searchQuery.toLowerCase();
-      return (
-        p.name.toLowerCase().includes(search) ||
-        p.badgeNumber.toLowerCase().includes(search) ||
-        p.phone.includes(search)
-      );
-    }
-    return true;
+  // Fetch personnel data using React Query
+  const { data: personnelResponse, isLoading, error, refetch } = usePersonnel({
+    rank: rankFilter || undefined,
+    dutyStatus: statusFilter || undefined,
+    search: searchQuery || undefined,
   });
 
+  // Get mutations for delete and assign duty
+  const deletePersonnelMutation = useDeletePersonnel();
+  const assignDutyMutation = useAssignDuty();
+
+  const personnel = personnelResponse?.data || [];
+
+  // Stats based on real data
   const stats = {
     total: personnel.length,
-    onDuty: personnel.filter((p) => p.status === "ON_DUTY").length,
-    onLeave: personnel.filter((p) => p.status === "ON_LEAVE").length,
-    offDuty: personnel.filter((p) => p.status === "OFF_DUTY").length,
+    onDuty: personnel.filter((p) => p.dutyStatus === "ON_DUTY").length,
+    onLeave: personnel.filter((p) => p.dutyStatus === "ON_LEAVE").length,
+    offDuty: personnel.filter((p) => p.dutyStatus === "OFF_DUTY").length,
   };
+
+  // Calculate duty roster and attendance from real data
+  const dutyRoster = groupPersonnelByShift(personnel);
+  const attendanceData = calculateAttendance(personnel);
 
   const handleDeleteClick = (id: string) => {
     setPersonnelToDelete(id);
@@ -149,14 +178,22 @@ export default function PersonnelPage() {
 
   const handleDeleteConfirm = async () => {
     if (personnelToDelete) {
-      await deletePersonnel(personnelToDelete);
-      addToast({
-        type: "success",
-        title: "Personnel Deleted",
-        message: "Personnel record has been removed",
-      });
-      setDeleteDialogOpen(false);
-      setPersonnelToDelete(null);
+      try {
+        await deletePersonnelMutation.mutateAsync(personnelToDelete);
+        addToast({
+          type: "success",
+          title: "Personnel Deleted",
+          message: "Personnel record has been removed",
+        });
+        setDeleteDialogOpen(false);
+        setPersonnelToDelete(null);
+      } catch (error) {
+        addToast({
+          type: "error",
+          title: "Delete Failed",
+          message: error instanceof Error ? error.message : "Failed to delete personnel",
+        });
+      }
     }
   };
 
@@ -167,17 +204,55 @@ export default function PersonnelPage() {
 
   const handleDutyAssignment = async (duty: string, shift: string) => {
     if (selectedPersonnelForDuty) {
-      await assignDuty(selectedPersonnelForDuty, duty, shift);
-      const person = personnel.find(p => p.id === selectedPersonnelForDuty);
-      addToast({
-        type: "success",
-        title: "Duty Assigned",
-        message: `${person?.name || "Officer"} assigned to ${duty} (${shift})`,
-      });
-      setDutyDialogOpen(false);
-      setSelectedPersonnelForDuty(null);
+      try {
+        // Combine duty and shift into assignment string
+        const assignment = `${duty} - ${shift}`;
+        await assignDutyMutation.mutateAsync({
+          id: selectedPersonnelForDuty,
+          assignment,
+        });
+        const person = personnel.find(p => p.id === selectedPersonnelForDuty);
+        addToast({
+          type: "success",
+          title: "Duty Assigned",
+          message: `${person?.name || "Officer"} assigned to ${duty} (${shift})`,
+        });
+        setDutyDialogOpen(false);
+        setSelectedPersonnelForDuty(null);
+      } catch (error) {
+        addToast({
+          type: "error",
+          title: "Assignment Failed",
+          message: error instanceof Error ? error.message : "Failed to assign duty",
+        });
+      }
     }
   };
+
+  // Show error state
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Card className="max-w-md w-full">
+            <CardContent className="p-6 text-center">
+              <div className="text-error mb-4">
+                <UserX className="h-12 w-12 mx-auto" />
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">Failed to Load Personnel</h3>
+              <p className="text-foreground-muted mb-4">
+                {error instanceof Error ? error.message : "An error occurred while loading personnel data"}
+              </p>
+              <Button onClick={() => refetch()}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -298,13 +373,14 @@ export default function PersonnelPage() {
                   <Button
                     variant="secondary"
                     onClick={() => {
-                      exportToCSV(filteredPersonnel, "personnel", exportConfigs.personnel);
+                      exportToCSV(personnel, "personnel", exportConfigs.personnel);
                       addToast({
                         type: "success",
                         title: "Export successful",
                         message: "Personnel data exported to CSV",
                       });
                     }}
+                    disabled={isLoading || personnel.length === 0}
                   >
                     <Download className="h-4 w-4 mr-2" />
                     Export
@@ -329,45 +405,56 @@ export default function PersonnelPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredPersonnel.map((person) => (
-                      <TableRow key={person.id} className="hover:bg-background-tertiary">
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar fallback={person.name} size="sm" />
-                            <div>
-                              <p className="font-medium text-foreground">{person.name}</p>
-                              <p className="text-xs text-foreground-muted">{person.phone}</p>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-12">
+                          <Loader2 className="h-8 w-8 animate-spin mx-auto text-accent mb-2" />
+                          <p className="text-foreground-muted">Loading personnel data...</p>
+                        </TableCell>
+                      </TableRow>
+                    ) : personnel.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-12">
+                          <Users className="h-12 w-12 mx-auto text-foreground-muted opacity-50 mb-2" />
+                          <p className="text-foreground-muted">No personnel found</p>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      personnel.map((person) => (
+                        <TableRow key={person.id} className="hover:bg-background-tertiary">
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Avatar fallback={person.name} size="sm" />
+                              <div>
+                                <p className="font-medium text-foreground">{person.name}</p>
+                                <p className="text-xs text-foreground-muted">{person.phone}</p>
+                              </div>
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="font-mono text-accent">{person.badgeNumber}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-foreground">{getRoleDisplayName(person.rank as any)}</span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getStatusBadgeVariant(person.status) as any}>
-                            <span className="flex items-center gap-1">
-                              {getStatusIcon(person.status)}
-                              {person.status.replace(/_/g, " ")}
-                            </span>
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {person.currentDuty ? (
-                            <span className="text-foreground">{person.currentDuty}</span>
-                          ) : person.leaveType ? (
-                            <span className="text-foreground-muted">
-                              {person.leaveType} until {person.leaveUntil}
-                            </span>
-                          ) : (
-                            <span className="text-foreground-muted">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-foreground">{person.assignedCases}</span>
-                        </TableCell>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-mono text-accent">{person.badgeNumber}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-foreground">{getRoleDisplayName(person.rank as any)}</span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={getStatusBadgeVariant(person.dutyStatus) as any}>
+                              <span className="flex items-center gap-1">
+                                {getStatusIcon(person.dutyStatus)}
+                                {person.dutyStatus.replace(/_/g, " ")}
+                              </span>
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {person.currentAssignment ? (
+                              <span className="text-foreground">{person.currentAssignment}</span>
+                            ) : (
+                              <span className="text-foreground-muted">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-foreground">{person.casesAssigned || 0}</span>
+                          </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             <Link href={`/personnel/${person.id}`}>
@@ -405,7 +492,8 @@ export default function PersonnelPage() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ))
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -425,29 +513,45 @@ export default function PersonnelPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {mockDutyRoster.map((shift, index) => (
-                <Card key={index}>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Clock className="h-5 w-5" />
-                      {shift.shift}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {shift.officers.map((officer, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-3 p-2 rounded-md bg-background-tertiary"
-                        >
-                          <Avatar fallback={officer} size="sm" />
-                          <span className="text-foreground">{officer}</span>
+              {isLoading ? (
+                <div className="col-span-3 flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-accent" />
+                </div>
+              ) : dutyRoster.length === 0 || dutyRoster.every(s => s.officers.length === 0) ? (
+                <div className="col-span-3 text-center py-12">
+                  <Clock className="h-12 w-12 mx-auto text-foreground-muted opacity-50 mb-2" />
+                  <p className="text-foreground-muted">No duty assignments found</p>
+                  <p className="text-sm text-foreground-muted mt-1">Assign personnel to duties to see them here</p>
+                </div>
+              ) : (
+                dutyRoster.map((shift, index) => (
+                  <Card key={index}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Clock className="h-5 w-5" />
+                        {shift.shift}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {shift.officers.length === 0 ? (
+                        <p className="text-sm text-foreground-muted text-center py-4">No officers assigned</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {shift.officers.map((officer, i) => (
+                            <div
+                              key={i}
+                              className="flex items-center gap-3 p-2 rounded-md bg-background-tertiary"
+                            >
+                              <Avatar fallback={officer} size="sm" />
+                              <span className="text-foreground">{officer}</span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      )}
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           </TabsContent>
 
@@ -475,50 +579,65 @@ export default function PersonnelPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-success">{mockAttendance.present}</p>
-                  <p className="text-sm text-foreground-muted">Present</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-warning">{mockAttendance.onLeave}</p>
-                  <p className="text-sm text-foreground-muted">On Leave</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-error">{mockAttendance.absent}</p>
-                  <p className="text-sm text-foreground-muted">Absent</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-accent">{mockAttendance.total}</p>
-                  <p className="text-sm text-foreground-muted">Total Strength</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Attendance percentage visualization */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Attendance Overview</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-4 bg-background-tertiary rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-success"
-                    style={{ width: `${(mockAttendance.present / mockAttendance.total) * 100}%` }}
-                  />
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-accent" />
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <p className="text-3xl font-bold text-success">{attendanceData.present}</p>
+                      <p className="text-sm text-foreground-muted">Present</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <p className="text-3xl font-bold text-warning">{attendanceData.onLeave}</p>
+                      <p className="text-sm text-foreground-muted">On Leave</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <p className="text-3xl font-bold text-error">{attendanceData.absent}</p>
+                      <p className="text-sm text-foreground-muted">Absent</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <p className="text-3xl font-bold text-accent">{attendanceData.total}</p>
+                      <p className="text-sm text-foreground-muted">Total Strength</p>
+                    </CardContent>
+                  </Card>
                 </div>
-                <p className="text-sm text-foreground-muted mt-2">
-                  {((mockAttendance.present / mockAttendance.total) * 100).toFixed(1)}% attendance rate
-                </p>
-              </CardContent>
-            </Card>
+
+                {/* Attendance percentage visualization */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Attendance Overview</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-4 bg-background-tertiary rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-success"
+                        style={{
+                          width: attendanceData.total > 0
+                            ? `${(attendanceData.present / attendanceData.total) * 100}%`
+                            : '0%'
+                        }}
+                      />
+                    </div>
+                    <p className="text-sm text-foreground-muted mt-2">
+                      {attendanceData.total > 0
+                        ? `${((attendanceData.present / attendanceData.total) * 100).toFixed(1)}% attendance rate`
+                        : 'No attendance data available'
+                      }
+                    </p>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </TabsContent>
 
           {/* Performance Tab */}
@@ -532,36 +651,61 @@ export default function PersonnelPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Officer</TableHead>
+                      <TableHead>Rank</TableHead>
                       <TableHead>Cases Assigned</TableHead>
-                      <TableHead>Cases Closed</TableHead>
-                      <TableHead>Closure Rate</TableHead>
-                      <TableHead>Avg. Resolution Time</TableHead>
-                      <TableHead>Rating</TableHead>
+                      <TableHead>Experience (Years)</TableHead>
+                      <TableHead>Specializations</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredPersonnel.slice(0, 5).map((person) => (
-                      <TableRow key={person.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar fallback={person.name} size="sm" />
-                            <span className="font-medium text-foreground">{person.name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{Math.floor(Math.random() * 20) + 5}</TableCell>
-                        <TableCell>{Math.floor(Math.random() * 15) + 3}</TableCell>
-                        <TableCell>
-                          <span className="text-success">{Math.floor(Math.random() * 30) + 60}%</span>
-                        </TableCell>
-                        <TableCell>{Math.floor(Math.random() * 20) + 10} days</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            {"★".repeat(Math.floor(Math.random() * 2) + 3)}
-                            {"☆".repeat(5 - Math.floor(Math.random() * 2) - 3)}
-                          </div>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-12">
+                          <Loader2 className="h-8 w-8 animate-spin mx-auto text-accent mb-2" />
+                          <p className="text-foreground-muted">Loading performance data...</p>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : personnel.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-12">
+                          <Award className="h-12 w-12 mx-auto text-foreground-muted opacity-50 mb-2" />
+                          <p className="text-foreground-muted">No performance data available</p>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      personnel.slice(0, 10).map((person) => (
+                        <TableRow key={person.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Avatar fallback={person.name} size="sm" />
+                              <span className="font-medium text-foreground">{person.name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>{getRoleDisplayName(person.rank as any)}</TableCell>
+                          <TableCell>{person.casesAssigned || 0}</TableCell>
+                          <TableCell>{person.experience || 0} years</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {person.specializations && person.specializations.length > 0 ? (
+                                person.specializations.slice(0, 2).map((spec, i) => (
+                                  <Badge key={i} variant="secondary" className="text-xs">
+                                    {spec}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <span className="text-foreground-muted text-sm">-</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={getStatusBadgeVariant(person.dutyStatus) as any}>
+                              {person.dutyStatus.replace(/_/g, " ")}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>

@@ -51,6 +51,10 @@ type User struct {
 	BadgeNumber  *string    `json:"badgeNumber" db:"badge_number"`
 	StationID    *uuid.UUID `json:"stationId" db:"station_id"`
 	StationName  string     `json:"stationName,omitempty"`
+	DistrictID   *uuid.UUID `json:"districtId,omitempty" db:"district_id"`
+	DistrictName string     `json:"districtName,omitempty"`
+	StateID      *uuid.UUID `json:"stateId,omitempty" db:"state_id"`
+	StateName    string     `json:"stateName,omitempty"`
 	Phone        *string    `json:"phone" db:"phone"`
 	IsActive     bool       `json:"isActive" db:"is_active"`
 	LastLogin    *time.Time `json:"lastLogin" db:"last_login"`
@@ -270,6 +274,17 @@ type AuditLog struct {
 	Success       bool       `json:"success" db:"success"`
 	FailureReason *string    `json:"failureReason" db:"failure_reason"`
 	CreatedAt     time.Time  `json:"createdAt" db:"created_at"`
+}
+
+// TimelineEntry represents an event in a timeline (FIR/Case history)
+type TimelineEntry struct {
+	ID          string      `json:"id"`
+	Type        string      `json:"type"`
+	Title       string      `json:"title"`
+	Description string      `json:"description"`
+	Timestamp   interface{} `json:"timestamp"`
+	User        string      `json:"user"`
+	Icon        string      `json:"icon"`
 }
 
 // JWT Claims

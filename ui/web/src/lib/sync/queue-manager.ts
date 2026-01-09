@@ -1,5 +1,6 @@
 import { db, OfflineQueueItem, MutationType, SyncStatus } from '../db/schema';
 import { v4 as uuidv4 } from 'uuid';
+import { queueLogger as log } from '../logger';
 
 // ============================================================================
 // OFFLINE QUEUE MANAGER
@@ -50,7 +51,7 @@ class OfflineQueueManager {
     };
 
     await db.offlineQueue.add(item);
-    console.log(`[Queue] Added ${mutationType} ${resourceType} (${resourceId}) to queue`);
+    log.debug(` Added ${mutationType} ${resourceType} (${resourceId}) to queue`);
 
     // Try to process immediately if online
     if (navigator.onLine) {
@@ -66,13 +67,13 @@ class OfflineQueueManager {
   async processQueue(options: QueueOptions = {}): Promise<void> {
     // Prevent concurrent processing
     if (this.isProcessing) {
-      console.log('[Queue] Already processing, skipping...');
+      log.debug(' Already processing, skipping...');
       return;
     }
 
     // Check if online
     if (!navigator.onLine) {
-      console.log('[Queue] Offline, skipping queue processing');
+      log.debug(' Offline, skipping queue processing');
       return;
     }
 
@@ -86,20 +87,20 @@ class OfflineQueueManager {
         .sortBy('timestamp');
 
       if (pendingItems.length === 0) {
-        console.log('[Queue] No pending items to process');
+        log.debug(' No pending items to process');
         return;
       }
 
-      console.log(`[Queue] Processing ${pendingItems.length} pending items...`);
+      log.debug(` Processing ${pendingItems.length} pending items...`);
 
       // Process items sequentially to maintain order
       for (const item of pendingItems) {
         await this.processItem(item, options);
       }
 
-      console.log('[Queue] Finished processing queue');
+      log.debug(' Finished processing queue');
     } catch (error) {
-      console.error('[Queue] Error processing queue:', error);
+      log.error(' Error processing queue:', error);
     } finally {
       this.isProcessing = false;
     }
@@ -350,10 +351,10 @@ class OfflineQueueManager {
           break;
 
         default:
-          console.warn(`[Queue] Unknown resource type: ${resourceType}`);
+          log.warn(` Unknown resource type: ${resourceType}`);
       }
     } catch (error) {
-      console.error(`[Queue] Failed to update local resource:`, error);
+      log.error(` Failed to update local resource:`, error);
     }
   }
 
@@ -362,11 +363,11 @@ class OfflineQueueManager {
    */
   startAutoSync(): void {
     if (this.processingInterval) {
-      console.log('[Queue] Auto-sync already running');
+      log.debug(' Auto-sync already running');
       return;
     }
 
-    console.log('[Queue] Starting auto-sync...');
+    log.debug(' Starting auto-sync...');
 
     // Process immediately
     this.processQueue();
@@ -387,7 +388,7 @@ class OfflineQueueManager {
     if (this.processingInterval) {
       clearInterval(this.processingInterval);
       this.processingInterval = null;
-      console.log('[Queue] Auto-sync stopped');
+      log.debug(' Auto-sync stopped');
     }
 
     window.removeEventListener('online', this.handleOnline);
@@ -397,7 +398,7 @@ class OfflineQueueManager {
    * Handle online event
    */
   private handleOnline = (): void => {
-    console.log('[Queue] Network online - processing queue');
+    log.debug(' Network online - processing queue');
     this.processQueue();
   };
 
@@ -457,7 +458,7 @@ class OfflineQueueManager {
 
     await db.offlineQueue.where('status').equals('COMPLETED').delete();
 
-    console.log(`[Queue] Cleared ${count} completed items`);
+    log.debug(` Cleared ${count} completed items`);
     return count;
   }
 
@@ -470,7 +471,7 @@ class OfflineQueueManager {
 
     await db.offlineQueue.where('status').equals('FAILED').delete();
 
-    console.log(`[Queue] Cleared ${count} failed items`);
+    log.debug(` Cleared ${count} failed items`);
     return count;
   }
 
@@ -480,7 +481,7 @@ class OfflineQueueManager {
   async retryFailed(): Promise<void> {
     const failed = await db.offlineQueue.where('status').equals('FAILED').toArray();
 
-    console.log(`[Queue] Retrying ${failed.length} failed items...`);
+    log.debug(` Retrying ${failed.length} failed items...`);
 
     for (const item of failed) {
       await db.offlineQueue.update(item.id, {
@@ -499,7 +500,7 @@ class OfflineQueueManager {
    */
   async deleteItem(itemId: string): Promise<void> {
     await db.offlineQueue.delete(itemId);
-    console.log(`[Queue] Deleted item ${itemId}`);
+    log.debug(` Deleted item ${itemId}`);
   }
 
   /**

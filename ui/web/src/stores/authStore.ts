@@ -204,10 +204,10 @@ export const useAuthStore = create<AuthState>()(
               role: apiUser.role as Role,
               stationId: apiUser.stationId,
               stationName: apiUser.stationName,
-              districtId: 'district-001', // TODO: Get from API
-              districtName: 'Bengaluru Urban',
-              stateId: 'state-001',
-              stateName: 'Karnataka',
+              districtId: apiUser.districtId || '',
+              districtName: apiUser.districtName || '',
+              stateId: apiUser.stateId || '',
+              stateName: apiUser.stateName || '',
             };
             set({
               user,
@@ -220,7 +220,6 @@ export const useAuthStore = create<AuthState>()(
             });
             return true;
           } catch (error) {
-            console.error('Login failed:', error);
             return false;
           }
         }
@@ -247,8 +246,8 @@ export const useAuthStore = create<AuthState>()(
         if (USE_REAL_API) {
           try {
             await authApi.logout();
-          } catch (error) {
-            console.error('Logout error:', error);
+          } catch {
+            // Logout errors are non-critical, continue with local cleanup
           }
         }
         apiClient.clearTokens();

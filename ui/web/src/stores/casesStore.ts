@@ -107,6 +107,10 @@ const MOCK_CASES: Case[] = [
 interface CaseFilters {
   status?: Case["status"];
   search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  officer?: string;
+  courtName?: string;
 }
 
 interface CasesState {
@@ -225,16 +229,40 @@ export const useCasesStore = create<CasesState>()(
         const { cases, filters } = get();
 
         return cases.filter((c) => {
+          // Status filter
           if (filters.status && c.status !== filters.status) return false;
+
+          // Search filter
           if (filters.search) {
             const search = filters.search.toLowerCase();
             const matchesSearch =
               c.caseNumber.toLowerCase().includes(search) ||
               c.firNumber.toLowerCase().includes(search) ||
               c.title.toLowerCase().includes(search) ||
-              c.description.toLowerCase().includes(search);
+              c.description.toLowerCase().includes(search) ||
+              c.investigatingOfficerName?.toLowerCase().includes(search);
             if (!matchesSearch) return false;
           }
+
+          // Date range filter
+          if (filters.dateFrom) {
+            const caseDate = new Date(c.createdAt);
+            const fromDate = new Date(filters.dateFrom);
+            if (caseDate < fromDate) return false;
+          }
+          if (filters.dateTo) {
+            const caseDate = new Date(c.createdAt);
+            const toDate = new Date(filters.dateTo);
+            toDate.setHours(23, 59, 59, 999);
+            if (caseDate > toDate) return false;
+          }
+
+          // Officer filter
+          if (filters.officer && c.investigatingOfficer !== filters.officer) return false;
+
+          // Court name filter
+          if (filters.courtName && c.courtName !== filters.courtName) return false;
+
           return true;
         });
       },

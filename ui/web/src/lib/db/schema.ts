@@ -364,6 +364,32 @@ export interface OfflineQueueItem {
   createdAt: string;
 }
 
+// Federated Sync Types
+export type SyncLevel = 'STATION' | 'DISTRICT' | 'STATE' | 'NATIONAL';
+export type SyncDirection = 'PUSH' | 'PULL' | 'BIDIRECTIONAL';
+
+export interface SyncCheckpoint {
+  id: string;
+  resourceType: string;
+  lastSyncTime: number;
+  lastVersion: number;
+  direction: SyncDirection;
+  level: SyncLevel;
+}
+
+export interface SyncConflict {
+  id: string;
+  resourceType: string;
+  resourceId: string;
+  localData: any;
+  serverData: any;
+  localVersion: number;
+  serverVersion: number;
+  detectedAt: number;
+  resolvedAt?: number;
+  resolution?: string;
+}
+
 // ============================================================================
 // DEXIE DATABASE SCHEMA
 // ============================================================================
@@ -384,6 +410,8 @@ export class NPDMSDatabase extends Dexie {
   accused!: Table<Accused, string>;
   witnesses!: Table<Witness, string>;
   offlineQueue!: Table<OfflineQueueItem, string>;
+  syncCheckpoints!: Table<SyncCheckpoint, string>;
+  syncConflicts!: Table<SyncConflict, string>;
 
   constructor() {
     super('npdms');
@@ -431,6 +459,10 @@ export class NPDMSDatabase extends Dexie {
 
       // Offline Queue - searchable by status, resource type, timestamp
       offlineQueue: 'id, status, resourceType, resourceId, timestamp, retries, [status+resourceType], [timestamp+status]',
+
+      // Federated Sync - checkpoints and conflicts
+      syncCheckpoints: 'id, resourceType, level, lastSyncTime, [resourceType+level]',
+      syncConflicts: 'id, resourceType, resourceId, detectedAt, resolvedAt, [resourceType+resolvedAt]',
     });
   }
 }

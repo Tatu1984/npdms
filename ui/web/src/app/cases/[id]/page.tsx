@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { AddPersonDialog } from "@/components/ui/AddPersonDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
-import { useCasesStore } from "@/stores/casesStore";
+import { useCase, useUpdateCase } from "@/hooks/use-cases";
 import { toast } from "@/stores/toastStore";
 
 // Mock case data
@@ -99,30 +99,23 @@ export default function CaseDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuthStore();
-  const { cases, addAccused, addWitness } = useCasesStore();
   const [activeTab, setActiveTab] = useState<"overview" | "accused" | "evidence" | "timeline" | "court">("overview");
   const [accusedDialogOpen, setAccusedDialogOpen] = useState(false);
   const [witnessDialogOpen, setWitnessDialogOpen] = useState(false);
 
-  // Get case from store or use mock data
-  const caseFromStore = cases.find(c => c.id === params.id);
-  const currentCase = caseFromStore || mockCase;
+  // Fetch case from API using React Query
+  const caseId = typeof params.id === 'string' ? params.id : undefined;
+  const { data: currentCase, isLoading, error } = useCase(caseId);
+  const updateCaseMutation = useUpdateCase();
 
-  // Local state for accused and witnesses (merge with store data)
+  // Local state for accused and witnesses (using mock data for now since API doesn't support these yet)
   const [localAccused, setLocalAccused] = useState(mockCase.accused);
   const [localWitnesses, setLocalWitnesses] = useState(mockCase.witnesses);
 
   const canEdit = user && hasMinimumRole(user.role, "SI");
 
   const handleAddAccused = async (person: { name: string; phone?: string; address?: string; description?: string; status?: string }) => {
-    if (caseFromStore) {
-      await addAccused(caseFromStore.id, {
-        name: person.name,
-        address: person.address,
-        identificationMarks: person.description,
-        status: (person.status as "WANTED" | "ARRESTED" | "ABSCONDING" | "BAILED" | "CONVICTED") || "WANTED",
-      });
-    }
+    // For now, just update local state since the API doesn't support accused/witness management yet
     setLocalAccused([...localAccused, {
       name: person.name,
       status: person.status || "ABSCONDING",
@@ -133,14 +126,7 @@ export default function CaseDetailPage() {
   };
 
   const handleAddWitness = async (person: { name: string; phone?: string; address?: string; description?: string; status?: string }) => {
-    if (caseFromStore) {
-      await addWitness(caseFromStore.id, {
-        name: person.name,
-        phone: person.phone,
-        address: person.address,
-        statementRecorded: person.status === "RECORDED",
-      });
-    }
+    // For now, just update local state since the API doesn't support accused/witness management yet
     setLocalWitnesses([...localWitnesses, {
       name: person.name,
       type: "WITNESS",
@@ -158,6 +144,44 @@ export default function CaseDetailPage() {
     { id: "court", label: "Court", icon: Gavel },
   ];
 
+  // Show loading state
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show error state
+  if (error || !currentCase) {
+    return (
+      <DashboardLayout>
+        <Card>
+          <CardContent className="p-12 text-center">
+            <AlertTriangle className="h-12 w-12 text-error mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-foreground mb-2">Error Loading Case</h2>
+            <p className="text-foreground-muted mb-4">
+              {error ? "Failed to load case details. Please try again." : "Case not found."}
+            </p>
+            <Button onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Go Back
+            </Button>
+          </CardContent>
+        </Card>
+      </DashboardLayout>
+    );
+  }
+
+  // Use currentCase from API or fallback to mockCase for display fields not in schema
+  const displayCase = {
+    ...mockCase,
+    ...currentCase,
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -169,17 +193,17 @@ export default function CaseDetailPage() {
             </Button>
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground">{mockCase.id}</h1>
-                <Badge variant={statusConfig[mockCase.status as keyof typeof statusConfig]?.color as any}>
-                  {statusConfig[mockCase.status as keyof typeof statusConfig]?.label}
+                <h1 className="text-2xl font-bold text-foreground">{currentCase.caseNumber}</h1>
+                <Badge variant={statusConfig[currentCase.status as keyof typeof statusConfig]?.color as any}>
+                  {statusConfig[currentCase.status as keyof typeof statusConfig]?.label || currentCase.status}
                 </Badge>
-                <Badge variant={priorityConfig[mockCase.priority as keyof typeof priorityConfig]?.color as any}>
-                  {mockCase.priority} Priority
+                <Badge variant={priorityConfig[displayCase.priority as keyof typeof priorityConfig]?.color as any}>
+                  {displayCase.priority} Priority
                 </Badge>
               </div>
-              <p className="text-foreground-muted mt-1">{mockCase.title}</p>
+              <p className="text-foreground-muted mt-1">{currentCase.title}</p>
               <p className="text-sm text-foreground-muted mt-1">
-                FIR: {mockCase.firNumber} | Registered: {mockCase.registeredDate}
+                FIR: {currentCase.firNumber || currentCase.firId} | Registered: {new Date(currentCase.createdAt).toLocaleDateString("en-IN")}
               </p>
             </div>
           </div>
@@ -203,7 +227,7 @@ export default function CaseDetailPage() {
                   <Users className="h-5 w-5 text-error" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{mockCase.accused.length}</p>
+                  <p className="text-2xl font-bold text-foreground">{localAccused.length}</p>
                   <p className="text-xs text-foreground-muted">Accused</p>
                 </div>
               </div>
@@ -216,7 +240,7 @@ export default function CaseDetailPage() {
                   <Shield className="h-5 w-5 text-info" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{mockCase.evidence.length}</p>
+                  <p className="text-2xl font-bold text-foreground">{displayCase.evidence.length}</p>
                   <p className="text-xs text-foreground-muted">Evidence Items</p>
                 </div>
               </div>
@@ -229,7 +253,7 @@ export default function CaseDetailPage() {
                   <Users className="h-5 w-5 text-warning" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{mockCase.witnesses.length}</p>
+                  <p className="text-2xl font-bold text-foreground">{localWitnesses.length}</p>
                   <p className="text-xs text-foreground-muted">Witnesses</p>
                 </div>
               </div>
@@ -242,7 +266,9 @@ export default function CaseDetailPage() {
                   <Calendar className="h-5 w-5 text-accent" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-foreground">{mockCase.courtNextHearing}</p>
+                  <p className="text-sm font-bold text-foreground">
+                    {currentCase.nextHearing ? new Date(currentCase.nextHearing).toLocaleDateString("en-IN") : "Not Set"}
+                  </p>
                   <p className="text-xs text-foreground-muted">Next Hearing</p>
                 </div>
               </div>
@@ -281,7 +307,9 @@ export default function CaseDetailPage() {
                     <CardTitle>Case Synopsis</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-foreground-muted whitespace-pre-line">{mockCase.synopsis}</p>
+                    <p className="text-foreground-muted whitespace-pre-line">
+                      {currentCase.description || displayCase.synopsis}
+                    </p>
                   </CardContent>
                 </Card>
 
@@ -295,7 +323,7 @@ export default function CaseDetailPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
-                      {mockCase.ipcSections.map((section) => (
+                      {displayCase.ipcSections.map((section) => (
                         <Badge key={section} variant="muted" className="text-sm">
                           {section}
                         </Badge>
@@ -338,15 +366,19 @@ export default function CaseDetailPage() {
                   <CardContent className="space-y-3">
                     <div>
                       <p className="text-sm text-foreground-muted">Court</p>
-                      <p className="text-foreground">{mockCase.courtName}</p>
+                      <p className="text-foreground">{currentCase.courtName || "Not assigned"}</p>
                     </div>
                     <div>
                       <p className="text-sm text-foreground-muted">Case Number</p>
-                      <p className="text-foreground">{mockCase.caseNumber}</p>
+                      <p className="text-foreground">{currentCase.caseNumber}</p>
                     </div>
                     <div>
                       <p className="text-sm text-foreground-muted">Next Hearing</p>
-                      <p className="text-foreground font-medium">{mockCase.courtNextHearing}</p>
+                      <p className="text-foreground font-medium">
+                        {currentCase.nextHearing
+                          ? new Date(currentCase.nextHearing).toLocaleDateString("en-IN")
+                          : "Not scheduled"}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -528,15 +560,19 @@ export default function CaseDetailPage() {
                   <div className="grid grid-cols-3 gap-6">
                     <div className="p-4 rounded-lg bg-background-tertiary">
                       <p className="text-sm text-foreground-muted">Court Name</p>
-                      <p className="font-medium text-foreground mt-1">{mockCase.courtName}</p>
+                      <p className="font-medium text-foreground mt-1">{currentCase.courtName || "Not assigned"}</p>
                     </div>
                     <div className="p-4 rounded-lg bg-background-tertiary">
                       <p className="text-sm text-foreground-muted">Case Number</p>
-                      <p className="font-medium text-foreground mt-1">{mockCase.caseNumber}</p>
+                      <p className="font-medium text-foreground mt-1">{currentCase.caseNumber}</p>
                     </div>
                     <div className="p-4 rounded-lg bg-accent/10 border border-accent/20">
                       <p className="text-sm text-accent">Next Hearing</p>
-                      <p className="font-bold text-accent mt-1">{mockCase.courtNextHearing}</p>
+                      <p className="font-bold text-accent mt-1">
+                        {currentCase.nextHearing
+                          ? new Date(currentCase.nextHearing).toLocaleDateString("en-IN")
+                          : "Not scheduled"}
+                      </p>
                     </div>
                   </div>
 

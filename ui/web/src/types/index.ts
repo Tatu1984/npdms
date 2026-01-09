@@ -68,6 +68,9 @@ export interface FIR {
   investigatingOfficer?: string;
   investigatingOfficerName?: string;
 
+  // Related cases
+  linkedCases?: string[];
+
   // Dates
   registeredAt: string;
   registeredBy: string;

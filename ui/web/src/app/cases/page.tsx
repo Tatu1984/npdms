@@ -25,28 +25,31 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { AdvancedFilters } from "@/components/ui/AdvancedFilters";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
-import { useCasesStore, type Case } from "@/stores/casesStore";
+import { useCases, useDeleteCase, type Case as StoreCase } from "@/hooks/use-cases";
+import { type Case, type CaseStatus } from "@/lib/db/schema";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 import { toast } from "@/stores/toastStore";
 
 const statusOptions = [
   { value: "", label: "All Statuses" },
+  { value: "ACTIVE", label: "Active" },
   { value: "INVESTIGATION", label: "Investigation" },
   { value: "CHARGESHEET", label: "Chargesheet" },
   { value: "TRIAL", label: "Trial" },
-  { value: "JUDGMENT", label: "Judgment" },
   { value: "CLOSED", label: "Closed" },
-  { value: "APPEAL", label: "Appeal" },
+  { value: "ACQUITTED", label: "Acquitted" },
+  { value: "CONVICTED", label: "Convicted" },
 ];
 
 function getStatusBadgeVariant(status: string) {
   const variants: Record<string, string> = {
+    ACTIVE: "info",
     INVESTIGATION: "investigating",
     CHARGESHEET: "chargesheet",
-    TRIAL: "info",
-    JUDGMENT: "warning",
+    TRIAL: "warning",
     CLOSED: "closed",
-    APPEAL: "secondary",
+    ACQUITTED: "success",
+    CONVICTED: "error",
   };
   return variants[status] || "secondary";
 }
@@ -54,34 +57,39 @@ function getStatusBadgeVariant(status: string) {
 export default function CasesPage() {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const { user } = useAuthStore();
-  const { cases, filters, isLoading, loadCases, setFilters, deleteCase, getFilteredCases } = useCasesStore();
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<CaseStatus | undefined>(undefined);
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [caseToDelete, setCaseToDelete] = useState<Case | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const itemsPerPage = 10;
 
   const canCreate = user && hasMinimumRole(user.role, "SI");
   const canDelete = user && hasMinimumRole(user.role, "SP");
 
-  useEffect(() => {
-    loadCases();
-  }, [loadCases]);
+  // Fetch cases with filters using React Query
+  const { data: casesData, isLoading, error } = useCases({
+    search: searchQuery,
+    status: statusFilter,
+    page: currentPage,
+    pageSize: itemsPerPage,
+  });
+
+  // Delete case mutation
+  const deleteCaseMutation = useDeleteCase();
 
   const handleSearch = (value: string) => {
     setSearchQuery(value);
-    setFilters({ ...filters, search: value });
     setCurrentPage(1);
   };
 
   const handleStatusFilter = (value: string) => {
-    setFilters({ ...filters, status: value as Case["status"] | undefined });
+    setStatusFilter(value as CaseStatus | undefined);
     setCurrentPage(1);
   };
 
   const handleExport = () => {
-    const data = getFilteredCases();
+    const data = casesData?.data || [];
     exportToCSV(data, "cases_export", exportConfigs.cases as any);
     toast.success("Export successful", "Cases data exported to CSV");
   };
@@ -93,28 +101,22 @@ export default function CasesPage() {
 
   const handleDeleteConfirm = async () => {
     if (!caseToDelete) return;
-    setIsDeleting(true);
     try {
-      await deleteCase(caseToDelete.id);
+      await deleteCaseMutation.mutateAsync(caseToDelete.id);
       toast.success("Case deleted", `Case ${caseToDelete.caseNumber} has been deleted`);
       setDeleteDialogOpen(false);
       setCaseToDelete(null);
     } catch (error) {
       toast.error("Error", "Failed to delete case");
-    } finally {
-      setIsDeleting(false);
     }
   };
 
-  const filteredCases = getFilteredCases();
-  const totalPages = Math.ceil(filteredCases.length / itemsPerPage);
-  const paginatedCases = filteredCases.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // Extract data from React Query response
+  const cases = casesData?.data || [];
+  const totalPages = casesData ? Math.ceil(casesData.total / itemsPerPage) : 0;
 
   const stats = {
-    total: cases.length,
+    total: casesData?.total || 0,
     investigation: cases.filter((c) => c.status === "INVESTIGATION").length,
     trial: cases.filter((c) => c.status === "TRIAL" || c.status === "CHARGESHEET").length,
     closed: cases.filter((c) => c.status === "CLOSED").length,
@@ -209,7 +211,7 @@ export default function CasesPage() {
               </div>
               <Select
                 options={statusOptions}
-                value={filters.status || ""}
+                value={statusFilter || ""}
                 onChange={handleStatusFilter}
                 className="w-full md:w-48"
               />
@@ -226,13 +228,29 @@ export default function CasesPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Briefcase className="h-5 w-5" />
-              Case Records ({filteredCases.length})
+              Case Records ({casesData?.total || 0})
             </CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+              </div>
+            ) : error ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <AlertCircle className="h-12 w-12 text-error mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">Error Loading Cases</h3>
+                  <p className="text-foreground-muted">Failed to load cases. Please try again.</p>
+                </div>
+              </div>
+            ) : cases.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Briefcase className="h-12 w-12 text-foreground-muted mx-auto mb-4 opacity-50" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">No Cases Found</h3>
+                  <p className="text-foreground-muted">No cases match your current filters.</p>
+                </div>
               </div>
             ) : (
               <>
@@ -250,7 +268,7 @@ export default function CasesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedCases.map((caseItem) => (
+                    {cases.map((caseItem) => (
                       <TableRow key={caseItem.id} className="hover:bg-background-tertiary">
                         <TableCell>
                           <span className="font-mono text-accent">{caseItem.caseNumber}</span>
@@ -263,7 +281,7 @@ export default function CasesPage() {
                             href={`/fir/${caseItem.firId}`}
                             className="font-mono text-accent hover:underline"
                           >
-                            {caseItem.firNumber}
+                            {caseItem.firNumber || caseItem.firId}
                           </Link>
                         </TableCell>
                         <TableCell>
@@ -287,7 +305,7 @@ export default function CasesPage() {
                         </TableCell>
                         <TableCell>
                           <span className="text-foreground-muted">
-                            {caseItem.investigatingOfficerName || "-"}
+                            {caseItem.investigatingOfficer || "-"}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
@@ -318,8 +336,8 @@ export default function CasesPage() {
                   <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
                     <p className="text-sm text-foreground-muted">
                       Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                      {Math.min(currentPage * itemsPerPage, filteredCases.length)} of{" "}
-                      {filteredCases.length} results
+                      {Math.min(currentPage * itemsPerPage, casesData?.total || 0)} of{" "}
+                      {casesData?.total || 0} results
                     </p>
                     <div className="flex items-center gap-2">
                       <Button
@@ -364,18 +382,22 @@ export default function CasesPage() {
         message={`Are you sure you want to delete case ${caseToDelete?.caseNumber}? This action cannot be undone.`}
         confirmText="Delete"
         type="danger"
-        isLoading={isDeleting}
+        isLoading={deleteCaseMutation.isPending}
       />
 
       <AdvancedFilters
         isOpen={showAdvancedFilters}
         onClose={() => setShowAdvancedFilters(false)}
         onApply={(advancedFilters) => {
-          // TODO: Apply filters to cases store
+          setStatusFilter(advancedFilters.status as CaseStatus | undefined);
+          setCurrentPage(1);
+          setShowAdvancedFilters(false);
           toast.success("Filters Applied", "Advanced filters applied successfully");
         }}
         onReset={() => {
-          // TODO: Reset filters
+          setStatusFilter(undefined);
+          setSearchQuery("");
+          setCurrentPage(1);
           toast.info("Filters Reset", "All filters have been reset");
         }}
         resourceType="case"

@@ -10,6 +10,10 @@ export interface User {
   badgeNumber: string;
   stationId: string;
   stationName: string;
+  districtId?: string;
+  districtName?: string;
+  stateId?: string;
+  stateName?: string;
   isActive: boolean;
 }
 

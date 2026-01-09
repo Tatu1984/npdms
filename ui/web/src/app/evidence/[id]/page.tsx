@@ -19,6 +19,8 @@ import {
   Microscope,
   Camera,
   Download,
+  Loader2,
+  Eye,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -26,99 +28,23 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { useEvidenceItem, useUpdateEvidence, useTransferEvidence } from "@/hooks/use-evidence";
 import { toast } from "@/stores/toastStore";
-
-// Mock evidence data
-const mockEvidence = {
-  id: "evd-001",
-  evidenceNumber: "EVD-2024-KOR-00123-001",
-  linkedFIR: "KOR/2024/00123",
-  caseNumber: "CC/2024/KOR/00089",
-  type: "PHYSICAL",
-  description: "Blood-stained knife recovered from crime scene. Approximately 15cm blade length with wooden handle. Visible fingerprints on handle.",
-  status: "AT_FSL",
-  collectionDetails: {
-    location: "123, 4th Cross, Koramangala 4th Block, Bangalore",
-    date: "2024-01-15",
-    time: "14:30",
-    collectedBy: "HC Mohan Singh",
-    badgeNumber: "KAR-HC-3456",
-    witnesses: ["Ramesh Kumar (Complainant)", "Const. Vijay"],
-  },
-  physicalDetails: {
-    containerType: "Sealed Evidence Bag",
-    sealNumber: "SEAL-2024-KOR-0045",
-    weight: "250g",
-    dimensions: "18cm x 4cm x 2cm",
-    condition: "Good - Minor rust on blade",
-  },
-  currentLocation: {
-    type: "FSL",
-    name: "Regional Forensic Science Laboratory",
-    address: "Madiwala, Bangalore",
-    receivedDate: "2024-01-16",
-    expectedReturn: "2024-02-15",
-  },
-  forensicRequest: {
-    type: "FINGERPRINT",
-    requestDate: "2024-01-16",
-    status: "IN_PROGRESS",
-    priority: "HIGH",
-    requestedBy: "SI Ramesh Kumar",
-  },
-  chainOfCustody: [
-    {
-      id: 1,
-      action: "COLLECTED",
-      from: null,
-      to: "HC Mohan Singh",
-      location: "Crime Scene",
-      timestamp: "2024-01-15 14:30",
-      remarks: "Collected from kitchen floor",
-      verified: true,
-    },
-    {
-      id: 2,
-      action: "DEPOSITED",
-      from: "HC Mohan Singh",
-      to: "Station Malkhana",
-      location: "Koramangala PS",
-      timestamp: "2024-01-15 16:45",
-      remarks: "Sealed and logged",
-      verified: true,
-    },
-    {
-      id: 3,
-      action: "TRANSFERRED",
-      from: "Station Malkhana",
-      to: "FSL",
-      location: "Regional FSL, Madiwala",
-      timestamp: "2024-01-16 10:30",
-      remarks: "For fingerprint analysis",
-      verified: true,
-    },
-  ],
-  photos: [
-    { id: 1, name: "evidence_front.jpg", size: "2.4 MB" },
-    { id: 2, name: "evidence_back.jpg", size: "2.1 MB" },
-    { id: 3, name: "evidence_detail.jpg", size: "1.8 MB" },
-  ],
-};
 
 function getStatusBadge(status: string) {
   switch (status) {
-    case "AT_MALKHANA":
-      return <Badge variant="info">At Malkhana</Badge>;
-    case "AT_FSL":
-      return <Badge variant="warning">At FSL</Badge>;
-    case "AT_COURT":
-      return <Badge variant="secondary">At Court</Badge>;
-    case "RETURNED":
-      return <Badge variant="success">Returned</Badge>;
-    case "DISPOSED":
-      return <Badge variant="error">Disposed</Badge>;
+    case "COLLECTED":
+      return <Badge variant="info">Collected</Badge>;
+    case "UNDER_ANALYSIS":
+      return <Badge variant="warning">Under Analysis</Badge>;
+    case "PRESERVED":
+      return <Badge variant="success">Preserved</Badge>;
+    case "SUBMITTED":
+      return <Badge variant="secondary">Submitted</Badge>;
+    case "DESTROYED":
+      return <Badge variant="closed">Destroyed</Badge>;
     default:
-      return <Badge variant="secondary">{status}</Badge>;
+      return <Badge variant="secondary">{status.replace(/_/g, " ")}</Badge>;
   }
 }
 
@@ -128,8 +54,45 @@ export default function EvidenceDetailPage() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState("details");
 
+  const evidenceId = params.id as string;
+  const { data: evidence, isLoading, error } = useEvidenceItem(evidenceId);
+  const updateEvidenceMutation = useUpdateEvidence();
+  const transferEvidenceMutation = useTransferEvidence();
+
   const canEdit = user && hasMinimumRole(user.role, "SI");
   const canTransfer = user && hasMinimumRole(user.role, "HEAD_CONSTABLE");
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-accent mx-auto mb-4" />
+            <p className="text-foreground-muted">Loading evidence details...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error || !evidence) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <AlertTriangle className="h-12 w-12 text-error mx-auto mb-4" />
+            <p className="text-error mb-4">
+              {error ? `Error: ${error.message}` : "Evidence not found"}
+            </p>
+            <Button onClick={() => router.push("/evidence")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Evidence List
+            </Button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -143,12 +106,13 @@ export default function EvidenceDetailPage() {
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-bold text-foreground font-mono">
-                  {mockEvidence.evidenceNumber}
+                  {evidence.evidenceNumber}
                 </h1>
-                {getStatusBadge(mockEvidence.status)}
+                {getStatusBadge(evidence.status)}
               </div>
               <p className="text-foreground-muted">
-                Linked to FIR: {mockEvidence.linkedFIR}
+                Case ID: {evidence.caseId}
+                {evidence.firId && ` | FIR: ${evidence.firId}`}
               </p>
             </div>
           </div>
@@ -204,126 +168,97 @@ export default function EvidenceDetailPage() {
                 <CardContent className="space-y-4">
                   <div className="flex justify-between py-2 border-b border-border">
                     <span className="text-foreground-muted">Evidence Number</span>
-                    <span className="font-mono text-accent">{mockEvidence.evidenceNumber}</span>
+                    <span className="font-mono text-accent">{evidence.evidenceNumber}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-border">
                     <span className="text-foreground-muted">Type</span>
-                    <Badge variant="info">{mockEvidence.type}</Badge>
+                    <Badge variant="info">{evidence.type}</Badge>
                   </div>
                   <div className="flex justify-between py-2 border-b border-border">
-                    <span className="text-foreground-muted">Linked FIR</span>
-                    <span className="font-mono text-accent">{mockEvidence.linkedFIR}</span>
+                    <span className="text-foreground-muted">Case ID</span>
+                    <span className="font-mono text-accent">{evidence.caseId}</span>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-border">
-                    <span className="text-foreground-muted">Case Number</span>
-                    <span className="font-mono">{mockEvidence.caseNumber}</span>
-                  </div>
+                  {evidence.firId && (
+                    <div className="flex justify-between py-2 border-b border-border">
+                      <span className="text-foreground-muted">Linked FIR</span>
+                      <span className="font-mono">{evidence.firId}</span>
+                    </div>
+                  )}
                   <div className="py-2">
                     <span className="text-foreground-muted block mb-2">Description</span>
-                    <p className="text-foreground">{mockEvidence.description}</p>
+                    <p className="text-foreground">{evidence.description}</p>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Physical Details */}
+              {/* Collection & Storage */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Physical Details</CardTitle>
+                  <CardTitle>Collection & Storage</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex justify-between py-2 border-b border-border">
-                    <span className="text-foreground-muted">Container</span>
-                    <span className="text-foreground">{mockEvidence.physicalDetails.containerType}</span>
+                    <span className="text-foreground-muted">Collected By</span>
+                    <span className="text-foreground">{evidence.collectedBy}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-border">
-                    <span className="text-foreground-muted">Seal Number</span>
-                    <span className="font-mono text-foreground">{mockEvidence.physicalDetails.sealNumber}</span>
+                    <span className="text-foreground-muted">Collected From</span>
+                    <span className="text-foreground">{evidence.collectedFrom}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-border">
-                    <span className="text-foreground-muted">Weight</span>
-                    <span className="text-foreground">{mockEvidence.physicalDetails.weight}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-border">
-                    <span className="text-foreground-muted">Dimensions</span>
-                    <span className="text-foreground">{mockEvidence.physicalDetails.dimensions}</span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-foreground-muted">Condition</span>
-                    <span className="text-foreground">{mockEvidence.physicalDetails.condition}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Collection Details */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Collection Details
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="py-2 border-b border-border">
-                    <span className="text-foreground-muted block mb-1">Location</span>
-                    <p className="text-foreground">{mockEvidence.collectionDetails.location}</p>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-border">
-                    <span className="text-foreground-muted">Date & Time</span>
+                    <span className="text-foreground-muted">Collection Date</span>
                     <span className="text-foreground">
-                      {mockEvidence.collectionDetails.date} at {mockEvidence.collectionDetails.time}
+                      {new Date(evidence.collectedDate).toLocaleString("en-IN")}
                     </span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-border">
-                    <span className="text-foreground-muted">Collected By</span>
-                    <span className="text-foreground">{mockEvidence.collectionDetails.collectedBy}</span>
+                    <span className="text-foreground-muted">Current Location</span>
+                    <span className="text-foreground">{evidence.location}</span>
                   </div>
-                  <div className="py-2">
-                    <span className="text-foreground-muted block mb-2">Witnesses</span>
-                    <div className="space-y-1">
-                      {mockEvidence.collectionDetails.witnesses.map((witness, index) => (
-                        <div key={index} className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-foreground-muted" />
-                          <span className="text-foreground">{witness}</span>
-                        </div>
-                      ))}
+                  {evidence.hasPhoto && (
+                    <div className="flex justify-between py-2">
+                      <span className="text-foreground-muted">Photos</span>
+                      <Badge variant="success">Available</Badge>
                     </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Chain of Custody */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Chain of Custody
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="p-4 rounded-lg bg-background-tertiary">
+                    <p className="text-sm text-foreground whitespace-pre-wrap">
+                      {evidence.chainOfCustody}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Current Location */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Current Location
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="p-4 rounded-lg bg-warning/10 border border-warning/20">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertTriangle className="h-4 w-4 text-warning" />
-                      <span className="font-medium text-warning">
-                        {mockEvidence.currentLocation.type}
-                      </span>
+              {/* Analysis Report */}
+              {evidence.analysisReport && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Microscope className="h-5 w-5" />
+                      Analysis Report
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="p-4 rounded-lg bg-info/10 border border-info/20">
+                      <p className="text-foreground whitespace-pre-wrap">
+                        {evidence.analysisReport}
+                      </p>
                     </div>
-                    <p className="text-foreground font-medium">
-                      {mockEvidence.currentLocation.name}
-                    </p>
-                    <p className="text-sm text-foreground-muted">
-                      {mockEvidence.currentLocation.address}
-                    </p>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-border">
-                    <span className="text-foreground-muted">Received Date</span>
-                    <span className="text-foreground">{mockEvidence.currentLocation.receivedDate}</span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-foreground-muted">Expected Return</span>
-                    <span className="text-foreground">{mockEvidence.currentLocation.expectedReturn}</span>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </TabsContent>
 
@@ -333,64 +268,14 @@ export default function EvidenceDetailPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="h-5 w-5" />
-                  Chain of Custody Timeline
+                  Chain of Custody
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="relative">
-                  {mockEvidence.chainOfCustody.map((entry, index) => (
-                    <div key={entry.id} className="flex gap-4 pb-8 last:pb-0">
-                      {/* Timeline line */}
-                      <div className="flex flex-col items-center">
-                        <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                          entry.verified ? "bg-success/20" : "bg-warning/20"
-                        }`}>
-                          {entry.verified ? (
-                            <Check className="h-5 w-5 text-success" />
-                          ) : (
-                            <Clock className="h-5 w-5 text-warning" />
-                          )}
-                        </div>
-                        {index < mockEvidence.chainOfCustody.length - 1 && (
-                          <div className="w-0.5 flex-1 bg-border mt-2" />
-                        )}
-                      </div>
-
-                      {/* Content */}
-                      <div className="flex-1 pb-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <Badge variant={entry.action === "COLLECTED" ? "success" : "info"}>
-                            {entry.action}
-                          </Badge>
-                          <span className="text-sm text-foreground-muted">
-                            {entry.timestamp}
-                          </span>
-                        </div>
-                        <div className="p-4 rounded-lg bg-background-tertiary">
-                          <div className="flex items-center gap-2 text-sm">
-                            {entry.from && (
-                              <>
-                                <span className="text-foreground-muted">From:</span>
-                                <span className="text-foreground">{entry.from}</span>
-                                <ArrowRight className="h-4 w-4 text-foreground-muted" />
-                              </>
-                            )}
-                            <span className="text-foreground-muted">To:</span>
-                            <span className="text-foreground">{entry.to}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm mt-2">
-                            <MapPin className="h-4 w-4 text-foreground-muted" />
-                            <span className="text-foreground-muted">{entry.location}</span>
-                          </div>
-                          {entry.remarks && (
-                            <p className="text-sm text-foreground-muted mt-2 italic">
-                              &quot;{entry.remarks}&quot;
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="p-4 rounded-lg bg-background-tertiary">
+                  <p className="text-foreground whitespace-pre-wrap">
+                    {evidence.chainOfCustody}
+                  </p>
                 </div>
 
                 {canTransfer && (
@@ -411,47 +296,33 @@ export default function EvidenceDetailPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Microscope className="h-5 w-5" />
-                  Forensic Analysis Request
+                  Forensic Analysis
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {mockEvidence.forensicRequest ? (
+                {evidence.analysisReport ? (
                   <div className="space-y-4">
                     <div className="p-4 rounded-lg bg-info/10 border border-info/20">
-                      <div className="flex items-center justify-between mb-4">
-                        <Badge variant="warning">{mockEvidence.forensicRequest.status}</Badge>
-                        <Badge variant="error">Priority: {mockEvidence.forensicRequest.priority}</Badge>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <span className="text-foreground-muted text-sm">Analysis Type</span>
-                          <p className="text-foreground font-medium">{mockEvidence.forensicRequest.type}</p>
-                        </div>
-                        <div>
-                          <span className="text-foreground-muted text-sm">Request Date</span>
-                          <p className="text-foreground">{mockEvidence.forensicRequest.requestDate}</p>
-                        </div>
-                        <div>
-                          <span className="text-foreground-muted text-sm">Requested By</span>
-                          <p className="text-foreground">{mockEvidence.forensicRequest.requestedBy}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-4 rounded-lg bg-background-tertiary">
-                      <h4 className="font-medium text-foreground mb-2">Analysis Progress</h4>
-                      <div className="h-2 bg-background-secondary rounded-full overflow-hidden">
-                        <div className="h-full bg-warning w-1/2" />
-                      </div>
-                      <p className="text-sm text-foreground-muted mt-2">
-                        Fingerprint extraction in progress. Expected completion: 2024-02-10
+                      <h4 className="font-medium text-foreground mb-2">Analysis Report</h4>
+                      <p className="text-foreground whitespace-pre-wrap">
+                        {evidence.analysisReport}
                       </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="secondary" onClick={() => toast.success("Download", "Downloading analysis report...")}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Report
+                      </Button>
+                      <Button variant="secondary" onClick={() => window.print()}>
+                        <Printer className="h-4 w-4 mr-2" />
+                        Print Report
+                      </Button>
                     </div>
                   </div>
                 ) : (
                   <div className="text-center py-8">
                     <Microscope className="h-12 w-12 text-foreground-muted mx-auto mb-4" />
-                    <p className="text-foreground-muted">No forensic analysis requested</p>
+                    <p className="text-foreground-muted">No forensic analysis report available</p>
                     <Button className="mt-4" onClick={() => toast.info("Request Analysis", "Opening forensic analysis request form...")}>Request Analysis</Button>
                   </div>
                 )}
@@ -469,28 +340,38 @@ export default function EvidenceDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {mockEvidence.photos.map((photo) => (
-                    <div
-                      key={photo.id}
-                      className="aspect-square rounded-lg bg-background-tertiary flex flex-col items-center justify-center border border-border hover:border-accent transition-colors cursor-pointer"
-                    >
-                      <Camera className="h-8 w-8 text-foreground-muted mb-2" />
-                      <p className="text-sm text-foreground">{photo.name}</p>
-                      <p className="text-xs text-foreground-muted">{photo.size}</p>
+                {evidence.hasPhoto && evidence.photoUrl ? (
+                  <div className="space-y-4">
+                    <div className="aspect-video rounded-lg bg-background-tertiary border border-border overflow-hidden">
+                      <img
+                        src={evidence.photoUrl}
+                        alt="Evidence photo"
+                        className="w-full h-full object-contain"
+                      />
                     </div>
-                  ))}
-                  <div className="aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center hover:border-accent transition-colors cursor-pointer">
-                    <Camera className="h-8 w-8 text-foreground-muted mb-2" />
-                    <p className="text-sm text-foreground-muted">Add Photo</p>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="secondary" onClick={() => toast.success("Download", "Downloading photo...")}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Photo
+                      </Button>
+                      <Button variant="secondary" onClick={() => window.open(evidence.photoUrl, "_blank")}>
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Full Size
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-4 flex justify-end">
-                  <Button variant="secondary" onClick={() => toast.success("Download Started", "Downloading all evidence photos...")}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Download All
-                  </Button>
-                </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Camera className="h-12 w-12 text-foreground-muted mx-auto mb-4" />
+                    <p className="text-foreground-muted mb-4">No photos available for this evidence</p>
+                    {canEdit && (
+                      <div className="aspect-square w-32 mx-auto rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center hover:border-accent transition-colors cursor-pointer">
+                        <Camera className="h-8 w-8 text-foreground-muted mb-2" />
+                        <p className="text-sm text-foreground-muted">Add Photo</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
