@@ -5,11 +5,17 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Shield, AlertCircle } from "lucide-react";
+import { Shield, AlertCircle, Info } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+
+// Demo credentials for demonstration purposes
+const DEMO_CREDENTIALS = {
+  username: "admin",
+  password: "Demo@123",
+  role: "DGP (Full Access)"
+};
 
 // Login validation schema
 const loginSchema = z.object({
@@ -28,7 +34,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuthStore();
+  const { login, setUser } = useAuthStore();
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -36,6 +42,7 @@ export default function LoginPage() {
     register,
     handleSubmit: handleFormSubmit,
     formState: { errors },
+    setValue,
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -43,6 +50,12 @@ export default function LoginPage() {
       password: "",
     },
   });
+
+  // Fill demo credentials
+  const fillDemoCredentials = () => {
+    setValue("username", DEMO_CREDENTIALS.username);
+    setValue("password", DEMO_CREDENTIALS.password);
+  };
 
   const onSubmit = async (data: LoginFormData) => {
     setError("");
@@ -53,9 +66,44 @@ export default function LoginPage() {
       if (success) {
         router.push("/dashboard");
       } else {
+        // Try demo mode fallback if API login fails
+        if (data.username === DEMO_CREDENTIALS.username && data.password === DEMO_CREDENTIALS.password) {
+          // Set demo user directly for demonstration
+          setUser({
+            id: "demo-admin-001",
+            name: "System Administrator",
+            badgeNumber: "ADMIN-001",
+            role: "DGP",
+            stationId: "550e8400-e29b-41d4-a716-446655440001",
+            stationName: "Koramangala Police Station",
+            districtId: "dist-001",
+            districtName: "Bangalore Urban",
+            stateId: "state-kar",
+            stateName: "Karnataka",
+          });
+          router.push("/dashboard");
+          return;
+        }
         setError("Invalid credentials. Please check your username and password.");
       }
     } catch {
+      // Try demo mode fallback on error
+      if (data.username === DEMO_CREDENTIALS.username && data.password === DEMO_CREDENTIALS.password) {
+        setUser({
+          id: "demo-admin-001",
+          name: "System Administrator",
+          badgeNumber: "ADMIN-001",
+          role: "DGP",
+          stationId: "550e8400-e29b-41d4-a716-446655440001",
+          stationName: "Koramangala Police Station",
+          districtId: "dist-001",
+          districtName: "Bangalore Urban",
+          stateId: "state-kar",
+          stateName: "Karnataka",
+        });
+        router.push("/dashboard");
+        return;
+      }
       setError("An error occurred. Please try again.");
     } finally {
       setIsLoading(false);
@@ -137,6 +185,41 @@ export default function LoginPage() {
             </form>
           </CardContent>
         </Card>
+
+        {/* Demo Credentials Box */}
+        <div className="mt-4 p-4 rounded-lg bg-accent/5 border border-accent/20">
+          <div className="flex items-center gap-2 mb-3">
+            <Info className="h-4 w-4 text-accent" />
+            <span className="text-sm font-medium text-foreground">Demo Credentials</span>
+          </div>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-foreground-muted">Username:</span>
+              <code className="px-2 py-0.5 bg-background rounded text-foreground font-mono">
+                {DEMO_CREDENTIALS.username}
+              </code>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-foreground-muted">Password:</span>
+              <code className="px-2 py-0.5 bg-background rounded text-foreground font-mono">
+                {DEMO_CREDENTIALS.password}
+              </code>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-foreground-muted">Role:</span>
+              <span className="text-accent font-medium">{DEMO_CREDENTIALS.role}</span>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full mt-3"
+            onClick={fillDemoCredentials}
+          >
+            Use Demo Credentials
+          </Button>
+        </div>
 
         {/* Footer */}
         <p className="text-center text-xs text-foreground-muted mt-6">

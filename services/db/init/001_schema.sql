@@ -391,32 +391,35 @@ INSERT INTO stations (id, name, code, address, district, phone, latitude, longit
      '80 Feet Road, Koramangala, Bangalore', 'Bangalore Urban', '080-25520100',
      12.9352, 77.6245);
 
--- Insert demo users (password: demo123)
--- Password hash for 'demo123' using bcrypt
+-- Insert demo users (password: Demo@123)
+-- Password hash for 'Demo@123' using bcrypt
 INSERT INTO users (id, username, email, password_hash, name, role, badge_number, station_id, is_active) VALUES
+    ('550e8400-e29b-41d4-a716-446655440009', 'admin', 'admin@npdms.gov.in',
+     '$2b$10$yG1J9RcteL35i6x41ZCQUexMQx5eAEXjryaczK/cAc/fipIeEL0Ci',
+     'System Administrator', 'DGP', 'ADMIN-001', '550e8400-e29b-41d4-a716-446655440001', true),
     ('550e8400-e29b-41d4-a716-446655440010', 'constable', 'constable@karpolice.gov.in',
-     '$2a$10$rQEY7xQxKqL8qKVxK1234OxZ1234567890abcdefghijklmnopqrs',
+     '$2b$10$yG1J9RcteL35i6x41ZCQUexMQx5eAEXjryaczK/cAc/fipIeEL0Ci',
      'Ramesh Kumar', 'CONSTABLE', 'KAR-PC-1001', '550e8400-e29b-41d4-a716-446655440001', true),
     ('550e8400-e29b-41d4-a716-446655440011', 'hc', 'hc@karpolice.gov.in',
-     '$2a$10$rQEY7xQxKqL8qKVxK1234OxZ1234567890abcdefghijklmnopqrs',
+     '$2b$10$yG1J9RcteL35i6x41ZCQUexMQx5eAEXjryaczK/cAc/fipIeEL0Ci',
      'Suresh Patil', 'HEAD_CONSTABLE', 'KAR-HC-2001', '550e8400-e29b-41d4-a716-446655440001', true),
     ('550e8400-e29b-41d4-a716-446655440012', 'asi', 'asi@karpolice.gov.in',
-     '$2a$10$rQEY7xQxKqL8qKVxK1234OxZ1234567890abcdefghijklmnopqrs',
+     '$2b$10$yG1J9RcteL35i6x41ZCQUexMQx5eAEXjryaczK/cAc/fipIeEL0Ci',
      'Venkatesh Reddy', 'ASI', 'KAR-ASI-3001', '550e8400-e29b-41d4-a716-446655440001', true),
     ('550e8400-e29b-41d4-a716-446655440013', 'si', 'si@karpolice.gov.in',
-     '$2a$10$rQEY7xQxKqL8qKVxK1234OxZ1234567890abcdefghijklmnopqrs',
+     '$2b$10$yG1J9RcteL35i6x41ZCQUexMQx5eAEXjryaczK/cAc/fipIeEL0Ci',
      'Priya Sharma', 'SI', 'KAR-SI-4001', '550e8400-e29b-41d4-a716-446655440001', true),
     ('550e8400-e29b-41d4-a716-446655440014', 'inspector', 'inspector@karpolice.gov.in',
-     '$2a$10$rQEY7xQxKqL8qKVxK1234OxZ1234567890abcdefghijklmnopqrs',
+     '$2b$10$yG1J9RcteL35i6x41ZCQUexMQx5eAEXjryaczK/cAc/fipIeEL0Ci',
      'Rajendra Singh', 'INSPECTOR', 'KAR-INS-5001', '550e8400-e29b-41d4-a716-446655440001', true),
     ('550e8400-e29b-41d4-a716-446655440015', 'sho', 'sho@karpolice.gov.in',
-     '$2a$10$rQEY7xQxKqL8qKVxK1234OxZ1234567890abcdefghijklmnopqrs',
+     '$2b$10$yG1J9RcteL35i6x41ZCQUexMQx5eAEXjryaczK/cAc/fipIeEL0Ci',
      'Vikram Desai', 'SHO', 'KAR-SHO-6001', '550e8400-e29b-41d4-a716-446655440001', true),
     ('550e8400-e29b-41d4-a716-446655440016', 'dsp', 'dsp@karpolice.gov.in',
-     '$2a$10$rQEY7xQxKqL8qKVxK1234OxZ1234567890abcdefghijklmnopqrs',
+     '$2b$10$yG1J9RcteL35i6x41ZCQUexMQx5eAEXjryaczK/cAc/fipIeEL0Ci',
      'Anjali Menon', 'DSP', 'KAR-DSP-7001', '550e8400-e29b-41d4-a716-446655440001', true),
     ('550e8400-e29b-41d4-a716-446655440017', 'sp', 'sp@karpolice.gov.in',
-     '$2a$10$rQEY7xQxKqL8qKVxK1234OxZ1234567890abcdefghijklmnopqrs',
+     '$2b$10$yG1J9RcteL35i6x41ZCQUexMQx5eAEXjryaczK/cAc/fipIeEL0Ci',
      'Arun Kumar IPS', 'SP', 'KAR-SP-8001', '550e8400-e29b-41d4-a716-446655440001', true);
 
 -- Insert sample FIRs
