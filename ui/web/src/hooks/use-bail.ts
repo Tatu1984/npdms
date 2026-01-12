@@ -12,6 +12,81 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
+// Demo data for when API and IndexedDB are empty
+const DEMO_BAIL: Bail[] = [
+  {
+    id: 'demo-bail-001',
+    applicationNumber: 'BAIL/2024/00089',
+    caseId: 'demo-case-001',
+    accusedId: 'demo-accused-001',
+    accusedName: 'Ravi Shankar',
+    type: 'REGULAR',
+    status: 'PENDING',
+    applicationDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    lawyerName: 'Adv. Suresh Menon',
+    courtName: 'Sessions Court, Bangalore',
+    hearingDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+    bailAmount: 200000,
+    suretyAmount: 100000,
+    conditions: ['Report to police station weekly', 'Do not leave city without permission'],
+    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-bail-002',
+    applicationNumber: 'BAIL/2024/00090',
+    caseId: 'demo-case-002',
+    accusedId: 'demo-accused-002',
+    accusedName: 'Amit Verma',
+    type: 'ANTICIPATORY',
+    status: 'APPROVED',
+    applicationDate: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
+    lawyerName: 'Adv. Priya Nair',
+    courtName: 'High Court, Karnataka',
+    approvedDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+    approvedBy: 'Hon. Justice Priya Sharma',
+    bailAmount: 500000,
+    suretyAmount: 250000,
+    conditions: ['Cooperate with investigation', 'Surrender passport'],
+    createdAt: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-bail-003',
+    applicationNumber: 'BAIL/2024/00091',
+    caseId: 'demo-case-003',
+    accusedId: 'demo-accused-003',
+    accusedName: 'Vikram Singh',
+    type: 'REGULAR',
+    status: 'APPROVED',
+    applicationDate: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(),
+    lawyerName: 'Adv. Rajan Iyer',
+    courtName: 'Magistrate Court, Bangalore',
+    approvedDate: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+    approvedBy: 'Hon. Magistrate Vijay Kumar',
+    bailAmount: 50000,
+    suretyAmount: 25000,
+    conditions: ['Appear for all court hearings'],
+    createdAt: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-bail-004',
+    applicationNumber: 'BAIL/2024/00092',
+    caseId: 'demo-case-005',
+    accusedId: 'demo-accused-004',
+    accusedName: 'Sunil Kumar',
+    type: 'REGULAR',
+    status: 'REJECTED',
+    applicationDate: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
+    lawyerName: 'Adv. Kamal Hassan',
+    courtName: 'Sessions Court, Bangalore',
+    rejectedReason: 'NDPS case - serious charges, risk of tampering evidence',
+    createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+];
+
 interface ListResponse<T> {
   data: T[];
   total: number;
@@ -140,7 +215,11 @@ export function useBail(filters: BailFilters = {}) {
         }
       }
 
-      const results = await db.bail.orderBy('applicationDate').reverse().toArray();
+      let results = await db.bail.orderBy('applicationDate').reverse().toArray();
+      // If no data in IndexedDB, use demo data
+      if (results.length === 0) {
+        results = DEMO_BAIL;
+      }
       let filtered = results.filter(b => !b._localOnly || b._pending);
 
       if (filters.type) filtered = filtered.filter(b => b.type === filters.type);

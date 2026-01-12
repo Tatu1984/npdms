@@ -12,6 +12,110 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
+// Demo data for when API and IndexedDB are empty
+const DEMO_WARRANTS: Warrant[] = [
+  {
+    id: 'demo-warrant-001',
+    warrantNumber: 'WRN/2024/00045',
+    type: 'ARREST',
+    status: 'ACTIVE',
+    caseId: 'demo-case-001',
+    accusedId: 'demo-accused-001',
+    issuedFor: 'Ravi Shankar - Armed Robbery Suspect',
+    issuedBy: 'Hon. Justice Ramakrishna',
+    issuedByDesignation: 'Sessions Judge',
+    issuedDate: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
+    priority: 'HIGH',
+    courtName: 'Sessions Court, Bangalore',
+    executionAddress: '34, Wilson Garden, Bangalore',
+    judgeOrder: 'Non-bailable arrest warrant issued',
+    validUntil: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-warrant-002',
+    warrantNumber: 'WRN/2024/00046',
+    type: 'SEARCH',
+    status: 'EXECUTED',
+    caseId: 'demo-case-002',
+    issuedFor: 'Search of premises for cyber fraud investigation',
+    issuedBy: 'Hon. Magistrate Vijay Kumar',
+    issuedByDesignation: 'Magistrate',
+    issuedDate: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
+    priority: 'MEDIUM',
+    courtName: 'Magistrate Court, Bangalore',
+    executionAddress: '567, Brigade Road, Bangalore',
+    validUntil: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    executedAt: new Date(Date.now() - 38 * 24 * 60 * 60 * 1000).toISOString(),
+    executedBy: 'SI Priya Sharma',
+    executionRemarks: 'Search completed, computers and documents seized',
+    createdAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 38 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-warrant-003',
+    warrantNumber: 'WRN/2024/00047',
+    type: 'ARREST',
+    status: 'EXECUTED',
+    caseId: 'demo-case-005',
+    accusedId: 'demo-accused-004',
+    issuedFor: 'Sunil Kumar - NDPS Act Drug Trafficking',
+    issuedBy: 'Hon. Justice Suresh Reddy',
+    issuedByDesignation: 'Sessions Judge',
+    issuedDate: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
+    priority: 'HIGH',
+    courtName: 'Sessions Court, Bangalore',
+    executionAddress: '89, Whitefield, Bangalore',
+    validUntil: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
+    executedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    executedBy: 'Inspector Anil Desai',
+    executionRemarks: 'Accused arrested from residence',
+    createdAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-warrant-004',
+    warrantNumber: 'WRN/2024/00048',
+    type: 'SUMMONS',
+    status: 'EXECUTED',
+    caseId: 'demo-case-003',
+    accusedId: 'demo-accused-003',
+    issuedFor: 'Vikram Singh - Assault Case Witness Appearance',
+    issuedBy: 'Hon. Magistrate Vijay Kumar',
+    issuedByDesignation: 'Magistrate',
+    issuedDate: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000).toISOString(),
+    priority: 'LOW',
+    courtName: 'Magistrate Court, Bangalore',
+    executionAddress: '23, Jayanagar, Bangalore',
+    validUntil: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
+    executedAt: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(),
+    executedBy: 'ASI Vijay Reddy',
+    executionRemarks: 'Summons served, accused appeared in court',
+    createdAt: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-warrant-005',
+    warrantNumber: 'WRN/2024/00049',
+    type: 'NBW',
+    status: 'ACTIVE',
+    caseId: 'demo-case-001',
+    accusedId: 'demo-accused-001',
+    issuedFor: 'Ravi Shankar - Court Appearance for Robbery Case',
+    issuedBy: 'Hon. Justice Ramakrishna',
+    issuedByDesignation: 'Sessions Judge',
+    issuedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    priority: 'MEDIUM',
+    courtName: 'Sessions Court, Bangalore',
+    executionAddress: '34, Wilson Garden, Bangalore',
+    judgeOrder: 'Non-bailable warrant for failure to appear',
+    validUntil: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
 interface ListResponse<T> { data: T[]; total: number; page: number; pageSize: number; }
 interface WarrantFilters { status?: WarrantStatus; type?: WarrantType; priority?: FIRPriority; caseId?: string; search?: string; page?: number; pageSize?: number; }
 
@@ -81,7 +185,11 @@ export function useWarrants(filters: WarrantFilters = {}) {
           return response;
         } catch (error) { console.error('[useWarrants] Network error:', error); }
       }
-      const results = await db.warrants.orderBy('issuedDate').reverse().toArray();
+      let results = await db.warrants.orderBy('issuedDate').reverse().toArray();
+      // If no data in IndexedDB, use demo data
+      if (results.length === 0) {
+        results = DEMO_WARRANTS;
+      }
       const filtered = results.filter((w) => {
         if (filters.status && w.status !== filters.status) return false;
         if (filters.type && w.type !== filters.type) return false;

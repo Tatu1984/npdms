@@ -12,6 +12,92 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
+// Demo data for when API and IndexedDB are empty
+const DEMO_ALERTS: Alert[] = [
+  {
+    id: 'demo-alert-001',
+    type: 'BOLO',
+    scope: 'STATE',
+    title: 'Armed Robbery Suspect - Ravi Shankar',
+    description: 'Suspect in armed robbery case at ABC Jewellers. Last seen wearing blue shirt, jeans. Height: 5\'10", Age: 32, Scar on left cheek.',
+    issuedAt: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString(),
+    expiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+    issuedBy: 'SI Rajesh Kumar',
+    priority: 1,
+    acknowledged: false,
+    hasImage: true,
+    imageUrl: '',
+    createdAt: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-alert-002',
+    type: 'URGENT',
+    scope: 'DISTRICT',
+    title: 'Missing Child - Priya Sharma (12 years)',
+    description: 'Missing from Indiranagar area since yesterday evening. Last seen wearing school uniform. Height: 4\'5", slim build.',
+    issuedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    issuedBy: 'Inspector Anil Desai',
+    priority: 1,
+    acknowledged: false,
+    hasImage: true,
+    imageUrl: '',
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-alert-003',
+    type: 'NOTICE',
+    scope: 'DISTRICT',
+    title: 'Stolen Vehicle - Honda City (KA-01-MN-4567)',
+    description: 'White Honda City sedan stolen from JP Nagar residential parking. Vehicle has custom alloy wheels.',
+    issuedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    issuedBy: 'SI Priya Sharma',
+    priority: 2,
+    acknowledged: true,
+    acknowledgedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    acknowledgedBy: 'Traffic Control Room',
+    hasImage: false,
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-alert-004',
+    type: 'BOLO',
+    scope: 'NATIONAL',
+    title: 'Inter-State Drug Trafficking Network',
+    description: 'Be on lookout for members of drug trafficking network operating between Karnataka and Tamil Nadu. Key suspect: Sunil Kumar.',
+    issuedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+    issuedBy: 'DCP Narcotics',
+    priority: 1,
+    acknowledged: true,
+    acknowledgedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+    acknowledgedBy: 'All Station Heads',
+    hasImage: true,
+    imageUrl: '',
+    createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-alert-005',
+    type: 'FLASH',
+    scope: 'STATION',
+    title: 'VIP Movement - CM Visit to Koramangala',
+    description: 'Chief Minister visiting Koramangala area tomorrow for inauguration. Enhanced security deployment required.',
+    issuedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    expiresAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+    issuedBy: 'ACP Traffic',
+    priority: 1,
+    acknowledged: false,
+    hasImage: false,
+    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
 interface ListResponse<T> { data: T[]; total: number; page: number; pageSize: number; }
 interface AlertFilters { type?: AlertType; scope?: AlertScope; acknowledged?: boolean; active?: boolean; page?: number; pageSize?: number; }
 
@@ -72,7 +158,11 @@ export function useAlerts(filters: AlertFilters = {}) {
           return response;
         } catch (error) { console.error('[useAlerts] Network error:', error); }
       }
-      const results = await db.alerts.orderBy('issuedAt').reverse().toArray();
+      let results = await db.alerts.orderBy('issuedAt').reverse().toArray();
+      // If no data in IndexedDB, use demo data
+      if (results.length === 0) {
+        results = DEMO_ALERTS;
+      }
       const now = new Date().toISOString();
       const filtered = results.filter((a) => {
         if (filters.type && a.type !== filters.type) return false;

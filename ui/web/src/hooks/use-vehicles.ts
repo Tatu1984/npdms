@@ -17,6 +17,110 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
+// Demo data for when API and IndexedDB are empty
+const DEMO_VEHICLES: Vehicle[] = [
+  {
+    id: 'demo-vehicle-001',
+    vehicleNumber: 'KA-01-P-1234',
+    type: 'PATROL_CAR',
+    make: 'Mahindra',
+    model: 'Scorpio',
+    year: 2022,
+    stationId: 'station-001',
+    status: 'AVAILABLE',
+    fuelType: 'DIESEL',
+    lastServiceDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+    nextServiceDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+    currentMileage: 45000,
+    gpsEnabled: true,
+    latitude: 12.9352,
+    longitude: 77.6245,
+    lastLocationUpdate: new Date().toISOString(),
+    createdAt: new Date('2022-01-15').toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-vehicle-002',
+    vehicleNumber: 'KA-01-P-5678',
+    type: 'PATROL_CAR',
+    make: 'Toyota',
+    model: 'Innova',
+    year: 2021,
+    stationId: 'station-001',
+    status: 'ALLOCATED',
+    allocatedTo: 'demo-personnel-001',
+    allocatedToName: 'SI Rajesh Kumar',
+    allocatedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    fuelType: 'DIESEL',
+    lastServiceDate: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+    nextServiceDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
+    currentMileage: 62000,
+    gpsEnabled: true,
+    latitude: 12.9278,
+    longitude: 77.6271,
+    lastLocationUpdate: new Date().toISOString(),
+    createdAt: new Date('2021-06-20').toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-vehicle-003',
+    vehicleNumber: 'KA-01-P-9012',
+    type: 'MOTORCYCLE',
+    make: 'Royal Enfield',
+    model: 'Classic 350',
+    year: 2023,
+    stationId: 'station-001',
+    status: 'AVAILABLE',
+    fuelType: 'PETROL',
+    lastServiceDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    nextServiceDate: new Date(Date.now() + 75 * 24 * 60 * 60 * 1000).toISOString(),
+    currentMileage: 12000,
+    gpsEnabled: false,
+    createdAt: new Date('2023-03-10').toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-vehicle-004',
+    vehicleNumber: 'KA-01-P-3456',
+    type: 'PATROL_CAR',
+    make: 'Maruti',
+    model: 'Gypsy',
+    year: 2019,
+    stationId: 'station-001',
+    status: 'MAINTENANCE',
+    fuelType: 'PETROL',
+    lastServiceDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    nextServiceDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    currentMileage: 85000,
+    gpsEnabled: true,
+    createdAt: new Date('2019-08-25').toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-vehicle-005',
+    vehicleNumber: 'KA-01-P-7890',
+    type: 'VAN',
+    make: 'Force',
+    model: 'Traveller',
+    year: 2020,
+    stationId: 'station-001',
+    status: 'ALLOCATED',
+    allocatedTo: 'demo-personnel-003',
+    allocatedToName: 'Inspector Anil Desai',
+    allocatedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    fuelType: 'DIESEL',
+    lastServiceDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+    nextServiceDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    currentMileage: 55000,
+    gpsEnabled: true,
+    latitude: 12.9341,
+    longitude: 77.6130,
+    lastLocationUpdate: new Date().toISOString(),
+    createdAt: new Date('2020-11-15').toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
 interface ListResponse<T> {
   data: T[];
   total: number;
@@ -186,7 +290,11 @@ export function useVehicles(filters: VehicleFilters = {}) {
       }
 
       let query = db.vehicles.orderBy('vehicleNumber');
-      const results = await query.toArray();
+      let results = await query.toArray();
+      // If no data in IndexedDB, use demo data
+      if (results.length === 0) {
+        results = DEMO_VEHICLES;
+      }
       const filtered = results.filter((vehicle) => {
         if (filters.type && vehicle.type !== filters.type) return false;
         if (filters.status && vehicle.status !== filters.status) return false;

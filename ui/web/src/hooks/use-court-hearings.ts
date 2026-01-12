@@ -16,6 +16,101 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
+// Demo data for when API and IndexedDB are empty
+const DEMO_COURT_HEARINGS: CourtHearing[] = [
+  {
+    id: 'demo-hearing-001',
+    caseId: 'demo-case-001',
+    caseNumber: 'CASE-2024-00156',
+    type: 'BAIL',
+    status: 'SCHEDULED',
+    courtName: 'Sessions Court, Bangalore',
+    judgeType: 'Sessions Judge',
+    judgeName: 'Hon. Justice Ramakrishna',
+    hearingDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+    priority: 'HIGH',
+    agenda: 'Bail hearing for accused Ravi Shankar in armed robbery case',
+    prosecutorName: 'Public Prosecutor Anand Kumar',
+    defenseLawyer: 'Adv. Suresh Menon',
+    remarks: 'Accused has no prior criminal record. Defense likely to argue for bail.',
+    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-hearing-002',
+    caseId: 'demo-case-003',
+    caseNumber: 'CASE-2024-00158',
+    type: 'ARGUMENT',
+    status: 'COMPLETED',
+    courtName: 'Magistrate Court, Bangalore',
+    judgeType: 'Magistrate',
+    judgeName: 'Hon. Magistrate Vijay Kumar',
+    hearingDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    priority: 'MEDIUM',
+    agenda: 'Final arguments in assault case',
+    prosecutorName: 'Public Prosecutor Meera Nair',
+    defenseLawyer: 'Adv. Rajan Iyer',
+    outcome: 'Arguments completed. Judgement reserved for next hearing.',
+    nextHearingDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-hearing-003',
+    caseId: 'demo-case-002',
+    caseNumber: 'CASE-2024-00157',
+    type: 'EVIDENCE',
+    status: 'SCHEDULED',
+    courtName: 'High Court, Karnataka',
+    judgeType: 'High Court Judge',
+    judgeName: 'Hon. Justice Priya Sharma',
+    hearingDate: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString(),
+    priority: 'HIGH',
+    agenda: 'Evidence examination for cyber fraud case - bank documents and digital evidence',
+    prosecutorName: 'Special Public Prosecutor Raghav Iyer',
+    defenseLawyer: 'Adv. Priya Nair',
+    remarks: 'FSL reports to be submitted. Witness examination may follow.',
+    createdAt: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-hearing-004',
+    caseId: 'demo-case-005',
+    caseNumber: 'CASE-2024-00160',
+    type: 'BAIL',
+    status: 'COMPLETED',
+    courtName: 'Sessions Court, Bangalore',
+    judgeType: 'Sessions Judge',
+    judgeName: 'Hon. Justice Suresh Reddy',
+    hearingDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    priority: 'HIGH',
+    agenda: 'Bail application for NDPS case accused',
+    prosecutorName: 'Public Prosecutor Anil Kumar',
+    defenseLawyer: 'Adv. Kamal Hassan',
+    outcome: 'Bail rejected due to severity of charges and risk of evidence tampering.',
+    createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-hearing-005',
+    caseId: 'demo-case-003',
+    caseNumber: 'CASE-2024-00158',
+    type: 'JUDGMENT',
+    status: 'SCHEDULED',
+    courtName: 'Magistrate Court, Bangalore',
+    judgeType: 'Magistrate',
+    judgeName: 'Hon. Magistrate Vijay Kumar',
+    hearingDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+    priority: 'MEDIUM',
+    agenda: 'Pronouncement of judgement in assault case',
+    prosecutorName: 'Public Prosecutor Meera Nair',
+    defenseLawyer: 'Adv. Rajan Iyer',
+    remarks: 'Final judgement to be delivered.',
+    createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
 interface ListResponse<T> {
   data: T[];
   total: number;
@@ -140,7 +235,11 @@ export function useCourtHearings(filters: CourtHearingFilters = {}) {
       }
 
       let query = db.courtHearings.orderBy('hearingDate').reverse();
-      const results = await query.toArray();
+      let results = await query.toArray();
+      // If no data in IndexedDB, use demo data
+      if (results.length === 0) {
+        results = DEMO_COURT_HEARINGS;
+      }
       const filtered = results.filter((hearing) => {
         if (filters.type && hearing.type !== filters.type) return false;
         if (filters.status && hearing.status !== filters.status) return false;

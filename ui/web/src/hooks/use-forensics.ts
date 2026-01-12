@@ -17,6 +17,83 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
+// Demo data for when API and IndexedDB are empty
+const DEMO_FORENSICS: Forensic[] = [
+  {
+    id: 'demo-forensic-001',
+    requestNumber: 'FSL/2024/00234',
+    caseId: 'demo-case-001',
+    evidenceId: 'demo-evidence-002',
+    type: 'DIGITAL_FORENSICS',
+    status: 'IN_PROGRESS',
+    requestedDate: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+    requestedBy: 'SI Rajesh Kumar',
+    priority: 'HIGH',
+    description: 'Digital forensic analysis of CCTV footage to identify robbery suspects',
+    labName: 'FSL Bangalore - Digital Division',
+    labRefNumber: 'FSL-DIG-2024-00234',
+    expectedDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+    notes: 'Assigned to Dr. Ramesh Iyer',
+    createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-forensic-002',
+    requestNumber: 'FSL/2024/00235',
+    caseId: 'demo-case-005',
+    evidenceId: 'demo-evidence-004',
+    type: 'TOXICOLOGY',
+    status: 'COMPLETED',
+    requestedDate: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
+    requestedBy: 'Inspector Anil Desai',
+    priority: 'HIGH',
+    description: 'Chemical analysis of seized narcotic substance for NDPS case',
+    labName: 'FSL Bangalore - Narcotics Division',
+    labRefNumber: 'FSL-TOX-2024-00235',
+    completedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    findings: 'Sample confirmed as Cannabis (Marijuana). Purity: 78%. Weight: 50 grams.',
+    reportFile: '/reports/fsl-234-narcotics.pdf',
+    notes: 'Analyzed by Dr. Priya Nair',
+    createdAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-forensic-003',
+    requestNumber: 'FSL/2024/00236',
+    caseId: 'demo-case-003',
+    evidenceId: 'demo-evidence-005',
+    type: 'FINGERPRINT',
+    status: 'REPORTED',
+    requestedDate: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000).toISOString(),
+    requestedBy: 'ASI Vijay Reddy',
+    priority: 'MEDIUM',
+    description: 'Fingerprint analysis from beer bottle used as weapon in assault case',
+    labName: 'FSL Bangalore - Fingerprint Bureau',
+    labRefNumber: 'FSL-FP-2024-00236',
+    completedDate: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
+    findings: '3 distinct fingerprint patterns identified. Match found with accused Vikram Singh (90% confidence).',
+    reportFile: '/reports/fsl-236-fingerprint.pdf',
+    notes: 'Analyzed by Mr. Suresh Kumar',
+    createdAt: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-forensic-004',
+    requestNumber: 'FSL/2024/00237',
+    caseId: 'demo-case-002',
+    type: 'HANDWRITING',
+    status: 'REQUESTED',
+    requestedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    requestedBy: 'SI Priya Sharma',
+    priority: 'MEDIUM',
+    description: 'Document examination for fraudulent bank documents in cyber fraud case',
+    labName: 'FSL Bangalore - Document Division',
+    expectedDate: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
 interface ListResponse<T> {
   data: T[];
   total: number;
@@ -172,7 +249,11 @@ export function useForensics(filters: ForensicFilters = {}) {
       }
 
       let query = db.forensics.orderBy('requestedDate').reverse();
-      const results = await query.toArray();
+      let results = await query.toArray();
+      // If no data in IndexedDB, use demo data
+      if (results.length === 0) {
+        results = DEMO_FORENSICS;
+      }
       const filtered = results.filter((forensic) => {
         if (filters.type && forensic.type !== filters.type) return false;
         if (filters.status && forensic.status !== filters.status) return false;

@@ -12,6 +12,99 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
+// Demo data for when API and IndexedDB are empty
+const DEMO_EVIDENCE: Evidence[] = [
+  {
+    id: 'demo-evidence-001',
+    evidenceNumber: 'EVD/2024/00145',
+    firId: 'demo-fir-001',
+    caseId: 'demo-case-001',
+    type: 'PHYSICAL',
+    description: 'Gold jewellery recovered from suspect - 250 grams gold chain and 2 rings',
+    collectedDate: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString(),
+    collectedBy: 'SI Rajesh Kumar',
+    collectedFrom: 'Koramangala, 5th Block',
+    status: 'PRESERVED',
+    location: 'Koramangala PS Evidence Room - Locker B-12',
+    chainOfCustody: 'Collected by SI Rajesh Kumar on scene. Stored in evidence locker.',
+    hasPhoto: true,
+    photoUrl: '',
+    createdAt: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-evidence-002',
+    evidenceNumber: 'EVD/2024/00146',
+    firId: 'demo-fir-001',
+    caseId: 'demo-case-001',
+    type: 'DIGITAL',
+    description: 'CCTV footage from ABC Jewellers showing robbery in progress',
+    collectedDate: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString(),
+    collectedBy: 'ASI Vijay Reddy',
+    collectedFrom: 'ABC Jewellers, 100ft Road',
+    status: 'UNDER_ANALYSIS',
+    location: 'FSL Bangalore - Digital Division',
+    chainOfCustody: 'Retrieved by ASI Vijay Reddy. Sent to FSL for analysis.',
+    hasPhoto: false,
+    createdAt: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-evidence-003',
+    evidenceNumber: 'EVD/2024/00147',
+    firId: 'demo-fir-002',
+    caseId: 'demo-case-002',
+    type: 'DOCUMENTARY',
+    description: 'Bank statements showing fraudulent transactions - 12 pages',
+    collectedDate: new Date(Date.now() - 43 * 24 * 60 * 60 * 1000).toISOString(),
+    collectedBy: 'SI Priya Sharma',
+    collectedFrom: 'ICICI Bank, HSR Layout',
+    status: 'PRESERVED',
+    location: 'Koramangala PS Evidence Room - Document Safe D-05',
+    chainOfCustody: 'Obtained from bank with proper authorization. Stored in document safe.',
+    hasPhoto: true,
+    photoUrl: '',
+    createdAt: new Date(Date.now() - 43 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-evidence-004',
+    evidenceNumber: 'EVD/2024/00148',
+    firId: 'demo-fir-005',
+    caseId: 'demo-case-005',
+    type: 'FORENSIC',
+    description: 'Cannabis sample - 50 grams seized from accused',
+    collectedDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    collectedBy: 'Inspector Anil Desai',
+    collectedFrom: 'Near Forum Mall, Koramangala',
+    status: 'UNDER_ANALYSIS',
+    location: 'FSL Bangalore - Narcotics Division',
+    chainOfCustody: 'Seized during arrest. Sent to FSL for chemical analysis.',
+    hasPhoto: true,
+    photoUrl: '',
+    createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-evidence-005',
+    evidenceNumber: 'EVD/2024/00149',
+    firId: 'demo-fir-003',
+    caseId: 'demo-case-003',
+    type: 'PHYSICAL',
+    description: 'Broken beer bottle used as weapon - fingerprints collected',
+    collectedDate: new Date(Date.now() - 58 * 24 * 60 * 60 * 1000).toISOString(),
+    collectedBy: 'ASI Vijay Reddy',
+    collectedFrom: 'Blue Moon Bar, Indiranagar',
+    status: 'SUBMITTED',
+    location: 'Court of Sessions - Exhibit Box C-234',
+    chainOfCustody: 'Collected from scene. FSL analysis completed. Submitted to court.',
+    hasPhoto: true,
+    photoUrl: '',
+    createdAt: new Date(Date.now() - 58 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+];
+
 interface ListResponse<T> { data: T[]; total: number; page: number; pageSize: number; }
 interface EvidenceFilters { status?: EvidenceStatus; type?: EvidenceType; caseId?: string; firId?: string; search?: string; page?: number; pageSize?: number; }
 
@@ -96,7 +189,11 @@ export function useEvidence(filters: EvidenceFilters = {}) {
           return response;
         } catch (error) { console.error('[useEvidence] Network error:', error); }
       }
-      const results = await db.evidence.orderBy('collectedDate').reverse().toArray();
+      let results = await db.evidence.orderBy('collectedDate').reverse().toArray();
+      // If no data in IndexedDB, use demo data
+      if (results.length === 0) {
+        results = DEMO_EVIDENCE;
+      }
       const filtered = results.filter((e) => {
         if (filters.status && e.status !== filters.status) return false;
         if (filters.type && e.type !== filters.type) return false;
