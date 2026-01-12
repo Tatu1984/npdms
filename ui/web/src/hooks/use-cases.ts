@@ -36,7 +36,7 @@ const caseApi = {
     const response = await fetch(`${API_BASE}/cases?${params}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -47,7 +47,7 @@ const caseApi = {
     const response = await fetch(`${API_BASE}/cases/${id}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -59,7 +59,7 @@ const caseApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -72,7 +72,7 @@ const caseApi = {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -85,7 +85,7 @@ const caseApi = {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -201,6 +201,9 @@ export function useCreateCase(options?: QueueOptions) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: caseKeys.lists() });
     },
+    onError: (error: Error) => {
+      console.error('[useCreateCase] Mutation error:', error.message);
+    },
   });
 }
 
@@ -232,6 +235,9 @@ export function useUpdateCase(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: caseKeys.lists() });
       queryClient.invalidateQueries({ queryKey: caseKeys.detail(variables.id) });
     },
+    onError: (error: Error) => {
+      console.error('[useUpdateCase] Mutation error:', error.message);
+    },
   });
 }
 
@@ -258,6 +264,9 @@ export function useDeleteCase(options?: QueueOptions) {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: caseKeys.lists() });
       queryClient.removeQueries({ queryKey: caseKeys.detail(id) });
+    },
+    onError: (error: Error) => {
+      console.error('[useDeleteCase] Mutation error:', error.message);
     },
   });
 }

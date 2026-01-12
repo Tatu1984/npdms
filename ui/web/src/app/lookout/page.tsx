@@ -21,15 +21,15 @@ import {
   Flag,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Badge } from "@/components/ui/Badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
-import { Textarea } from "@/components/ui/Textarea";
+import { Textarea } from "@/components/ui/textarea";
 import type { MapMarker } from "@/components/ui/Map";
 
 // Dynamic import for map to avoid SSR issues

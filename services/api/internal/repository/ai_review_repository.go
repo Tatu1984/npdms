@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"npdms/internal/models"
+	"github.com/npdms/api/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"

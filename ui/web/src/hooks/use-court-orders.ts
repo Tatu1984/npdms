@@ -46,7 +46,7 @@ const courtOrderApi = {
     const response = await fetch(`${API_BASE}/court/orders?${params}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -61,7 +61,7 @@ const courtOrderApi = {
     const response = await fetch(`${API_BASE}/court/orders/${id}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -77,7 +77,7 @@ const courtOrderApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -225,6 +225,9 @@ export function useCreateCourtOrder(options?: QueueOptions) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: courtOrderKeys.lists() });
+    },
+    onError: (error: Error) => {
+      console.error('[useCreateCourtOrder] Mutation error:', error.message);
     },
   });
 }

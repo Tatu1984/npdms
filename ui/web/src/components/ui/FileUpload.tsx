@@ -2,8 +2,9 @@
 
 import { useState, useRef, ChangeEvent } from "react";
 import { Upload, X, File, Image, Video, Mic, FileText, Loader2 } from "lucide-react";
-import { Button } from "./Button";
+import { Button } from "./button";
 import { cn } from "@/lib/utils";
+import { toast } from "@/stores/toastStore";
 
 export type FileType = 'image' | 'video' | 'audio' | 'document' | 'any';
 
@@ -59,11 +60,11 @@ export function FileUpload({
 
   const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
-    
+
     // Validate file sizes
     const oversizedFiles = selectedFiles.filter(f => f.size > maxSize * 1024 * 1024);
     if (oversizedFiles.length > 0) {
-      alert(`Some files exceed ${maxSize}MB limit`);
+      toast.warning("File Size Limit", `Some files exceed ${maxSize}MB limit`);
       return;
     }
 
@@ -92,7 +93,7 @@ export function FileUpload({
         await onUpload(selectedFiles);
       } catch (error) {
         console.error('Upload error:', error);
-        alert('Upload failed. Please try again.');
+        toast.error("Upload Failed", "Upload failed. Please try again.");
       } finally {
         setUploading(false);
       }

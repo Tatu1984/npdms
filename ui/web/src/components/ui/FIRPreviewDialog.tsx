@@ -2,7 +2,7 @@
 
 import { FileText, Download, Printer } from "lucide-react";
 import { Modal, ModalFooter } from "./Modal";
-import { Button } from "./Button";
+import { Button } from "./button";
 import { printFIR, downloadFIRPDF, FIRPDFData } from "@/lib/pdf";
 
 export interface FIRPreviewDialogProps {

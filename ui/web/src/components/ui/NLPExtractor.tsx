@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Sparkles, Loader2, CheckCircle, AlertCircle, Copy, Info } from "lucide-react";
-import { Button } from "./Button";
-import { Badge } from "./Badge";
+import { Button } from "./button";
+import { Badge } from "./badge";
 
 interface PersonEntity {
   name: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   User,
@@ -22,13 +22,13 @@ import {
   Save,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
-import { Input } from "@/components/ui/Input";
-import { Textarea } from "@/components/ui/Textarea";
-import { Select } from "@/components/ui/Select";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { LegacySelect as Select } from "@/components/ui/select";
 import { useAuthStore, hasMinimumRole, getRoleDisplayName } from "@/stores/authStore";
 import { usePersonnelStore } from "@/stores/personnelStore";
 import { useToastStore } from "@/stores/toastStore";
@@ -323,18 +323,25 @@ export default function OfficerDetailPage() {
   const { addToast } = useToastStore();
   const [activeTab, setActiveTab] = useState("overview");
   const [isEditMode, setIsEditMode] = useState(false);
+
+  // Get officer data using useMemo to avoid setState in useEffect
+  const officerData = useMemo(() => {
+    const officerId = params.id as string;
+    return getOfficerById(officerId);
+  }, [params.id]);
+
   const [officer, setOfficer] = useState<any>(null);
   const [editedData, setEditedData] = useState<any>(null);
 
   const canEdit = user && hasMinimumRole(user.role, "SHO");
 
-  // Load officer data based on ID from params
+  // Sync officer data when it changes
   useEffect(() => {
-    const officerId = params.id as string;
-    const officerData = getOfficerById(officerId);
-    setOfficer(officerData);
-    setEditedData(officerData);
-  }, [params.id]);
+    if (officerData && officer !== officerData) {
+      setOfficer(officerData);
+      setEditedData(officerData);
+    }
+  }, [officerData, officer]);
 
   const handleEditToggle = () => {
     if (isEditMode) {

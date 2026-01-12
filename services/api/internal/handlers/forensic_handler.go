@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"npdms/internal/models"
-	"npdms/internal/repository"
-	"npdms/internal/services"
+	"github.com/npdms/api/internal/models"
+	"github.com/npdms/api/internal/repository"
+	"github.com/npdms/api/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"npdms/internal/config"
+	"github.com/npdms/api/internal/config"
 )
 
 // SecretsService provides centralized secrets management

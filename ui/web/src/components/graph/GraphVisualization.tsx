@@ -39,6 +39,8 @@ interface GraphEdge {
   id: string;
   source: string;
   target: string;
+  fromNodeId?: string;
+  toNodeId?: string;
   relationType: string;
   weight: number;
   confidence: number;
@@ -132,7 +134,7 @@ export default function GraphVisualization({
 
       const response = await fetch(endpoint, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
       });
 
@@ -374,7 +376,7 @@ export default function GraphVisualization({
         `/api/v1/graph/nodes?keyword=${encodeURIComponent(searchQuery)}${filterType ? `&type=${filterType}` : ''}`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
           },
         }
       );

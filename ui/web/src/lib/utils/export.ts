@@ -1,12 +1,14 @@
 // Export utilities for CSV/Excel export
 
+import { toast } from "@/stores/toastStore";
+
 export function exportToCSV<T>(
   data: T[],
   filename: string,
   columns: { key: keyof T; header: string }[]
 ): void {
   if (data.length === 0) {
-    alert("No data to export");
+    toast.warning("No Data", "No data available to export");
     return;
   }
 

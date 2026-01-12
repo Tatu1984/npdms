@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -17,13 +17,13 @@ import {
   Shield,
   Radio,
   Volume2,
-  Image,
+  Image as ImageIcon,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { Textarea } from "@/components/ui/Textarea";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 
 // Mock alerts data
@@ -121,7 +121,6 @@ function getAlertIcon(type: string) {
 
 export default function AlertDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const { user } = useAuthStore();
   const [acknowledgeNote, setAcknowledgeNote] = useState("");
 
@@ -223,7 +222,7 @@ export default function AlertDetailPage() {
                 {alert.image && (
                   <div className="mt-4 p-4 rounded-lg bg-background-tertiary flex items-center gap-4">
                     <div className="h-24 w-24 bg-background rounded-lg flex items-center justify-center">
-                      <Image className="h-8 w-8 text-foreground-muted" />
+                      <ImageIcon className="h-8 w-8 text-foreground-muted" />
                     </div>
                     <div>
                       <p className="font-medium text-foreground">Suspect Photo Attached</p>

@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/npdms/api/internal/models"
 )
 
 // SyncRepository handles database operations for federated sync

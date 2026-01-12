@@ -23,10 +23,10 @@ import {
   Eye,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useEvidenceItem, useUpdateEvidence, useTransferEvidence } from "@/hooks/use-evidence";
 import { toast } from "@/stores/toastStore";

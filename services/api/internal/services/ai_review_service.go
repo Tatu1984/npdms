@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"npdms/internal/models"
-	"npdms/internal/repository"
+	"github.com/npdms/api/internal/models"
+	"github.com/npdms/api/internal/repository"
 )
 
 // AIReviewService handles AI decision review operations

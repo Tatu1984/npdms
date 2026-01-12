@@ -39,7 +39,7 @@ const bailApi = {
     const response = await fetch(`${API_BASE}/bail?${params}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -54,7 +54,7 @@ const bailApi = {
     const response = await fetch(`${API_BASE}/bail/${id}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -70,7 +70,7 @@ const bailApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -87,7 +87,7 @@ const bailApi = {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -104,7 +104,7 @@ const bailApi = {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -227,6 +227,9 @@ export function useCreateBail(options?: QueueOptions) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: bailKeys.lists() });
     },
+    onError: (error: Error) => {
+      console.error('[useCreateBail] Mutation error:', error.message);
+    },
   });
 }
 
@@ -271,6 +274,9 @@ export function useUpdateBail(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: bailKeys.lists() });
       queryClient.invalidateQueries({ queryKey: bailKeys.detail(id) });
     },
+    onError: (error: Error) => {
+      console.error('[useUpdateBail] Mutation error:', error.message);
+    },
   });
 }
 
@@ -307,6 +313,9 @@ export function useDeleteBail(options?: QueueOptions) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: bailKeys.lists() });
+    },
+    onError: (error: Error) => {
+      console.error('[useDeleteBail] Mutation error:', error.message);
     },
   });
 }

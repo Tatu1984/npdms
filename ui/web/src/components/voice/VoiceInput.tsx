@@ -29,12 +29,59 @@ export default function VoiceInput({
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationRef = useRef<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isRecordingRef = useRef(isRecording);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
+  // Helper to stop recording - defined before useEffect
+  const handleStopRecording = useCallback(() => {
+    setIsRecording(false);
+    setIsProcessing(true);
+
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+
+    setAudioLevel(0);
+  }, []);
+
+  // Use a ref-based approach for recursive animation frame
+  const updateAudioLevelRef = useRef<(() => void) | undefined>(undefined);
+  updateAudioLevelRef.current = () => {
+    if (analyserRef.current) {
+      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+      analyserRef.current.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+      setAudioLevel(average / 255);
+    }
+    animationRef.current = requestAnimationFrame(() => updateAudioLevelRef.current?.());
+  };
+
+  const updateAudioLevel = useCallback(() => {
+    updateAudioLevelRef.current?.();
+  }, []);
 
   // Initialize speech recognition
   useEffect(() => {
@@ -46,7 +93,7 @@ export default function VoiceInput({
         recognition.interimResults = true;
         recognition.lang = language;
 
-        recognition.onresult = (event) => {
+        recognition.onresult = (event: any) => {
           let interim = '';
           let final = '';
 
@@ -61,23 +108,23 @@ export default function VoiceInput({
 
           if (final) {
             setTranscription((prev) => prev + final);
-            onTranscription(transcription + final);
+            onTranscription(final.trim());
           }
           setInterimTranscript(interim);
         };
 
-        recognition.onerror = (event) => {
+        recognition.onerror = (event: any) => {
           console.error('Speech recognition error:', event.error);
           if (event.error === 'not-allowed') {
             setError('Microphone access denied. Please allow microphone access.');
           } else {
             setError(`Recognition error: ${event.error}`);
           }
-          stopRecording();
+          handleStopRecording();
         };
 
         recognition.onend = () => {
-          if (isRecording) {
+          if (isRecordingRef.current) {
             // Restart if still recording
             recognition.start();
           }
@@ -100,17 +147,7 @@ export default function VoiceInput({
         clearInterval(timerRef.current);
       }
     };
-  }, [language]);
-
-  const updateAudioLevel = useCallback(() => {
-    if (analyserRef.current) {
-      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-      analyserRef.current.getByteFrequencyData(dataArray);
-      const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-      setAudioLevel(average / 255);
-    }
-    animationRef.current = requestAnimationFrame(updateAudioLevel);
-  }, []);
+  }, [language, handleStopRecording, onTranscription]);
 
   const startRecording = async () => {
     setError(null);
@@ -167,33 +204,10 @@ export default function VoiceInput({
   };
 
   const stopRecording = () => {
-    setIsRecording(false);
-    setIsProcessing(true);
-
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-    }
-
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-
-    setAudioLevel(0);
+    handleStopRecording();
 
     // Finalize transcription
     setTimeout(() => {
-      const finalText = transcription + interimTranscript;
-      if (finalText.trim()) {
-        onTranscription(finalText.trim());
-      }
       setIsProcessing(false);
     }, 500);
   };
@@ -265,7 +279,7 @@ export default function VoiceInput({
                   key={i}
                   className="w-1 bg-blue-500 rounded-full transition-all duration-100"
                   style={{
-                    height: `${Math.random() * audioLevel * 100 + 10}%`,
+                    height: `${(((i * 7 + 3) % 13) / 13) * audioLevel * 100 + 10}%`,
                     opacity: 0.5 + audioLevel * 0.5,
                   }}
                 />
@@ -320,7 +334,9 @@ export default function VoiceInput({
 // Type declarations for Web Speech API
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    SpeechRecognition: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    webkitSpeechRecognition: any;
   }
 }

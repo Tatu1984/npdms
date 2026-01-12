@@ -5,8 +5,8 @@ import Dexie, { Table } from 'dexie';
 // ============================================================================
 
 // FIR Types
-export type FIRStatus = 'REGISTERED' | 'UNDER_INVESTIGATION' | 'PENDING' | 'CLOSED' | 'TRANSFERRED';
-export type FIRPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type FIRStatus = 'REGISTERED' | 'UNDER_INVESTIGATION' | 'PENDING' | 'CLOSED' | 'TRANSFERRED' | 'CHARGESHEET_FILED' | 'COURT_PENDING';
+export type FIRPriority = 'LOW' | 'MEDIUM' | 'NORMAL' | 'HIGH' | 'CRITICAL';
 export type CrimeCategory = 'VIOLENT' | 'PROPERTY' | 'CYBER' | 'ECONOMIC' | 'NARCOTICS' | 'SEXUAL' | 'ORGANIZED' | 'OTHER';
 
 export interface FIR {
@@ -23,11 +23,22 @@ export interface FIR {
   incidentLocation: string;
   latitude?: number;
   longitude?: number;
+  // Complainant info
   reportedBy: string;
   reporterContact: string;
   reporterAddress: string;
+  complainantName?: string;
+  complainantPhone?: string;
+  complainantAddress?: string;
+  // Station & Officer
   stationId: string;
+  stationName?: string;
+  offenceType?: string;
+  offenceCategory?: string;
   investigatingOfficer?: string;
+  investigatingOfficerName?: string;
+  linkedCases?: string[];
+  registeredBy?: string;
   registeredAt: string;
   createdAt: string;
   updatedAt: string;
@@ -161,6 +172,8 @@ export interface Forensic {
   completedDate?: string;
   findings?: string;
   reportFile?: string;
+  notes?: string;
+  description?: string;
   priority: FIRPriority;
   createdAt: string;
   updatedAt: string;
@@ -180,10 +193,13 @@ export interface Personnel {
   rank: PersonnelRank;
   designation: string;
   stationId: string;
+  stationName?: string;
   phone: string;
   email: string;
+  status?: string;  // For display
   dutyStatus: DutyStatus;
   currentAssignment?: string;
+  currentDuty?: string;
   joiningDate: string;
   experience: number;
   specializations: string[];

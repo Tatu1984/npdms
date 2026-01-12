@@ -46,7 +46,7 @@ const courtHearingApi = {
     const response = await fetch(`${API_BASE}/court/hearings?${params}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -61,7 +61,7 @@ const courtHearingApi = {
     const response = await fetch(`${API_BASE}/court/hearings/${id}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -77,7 +77,7 @@ const courtHearingApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -94,7 +94,7 @@ const courtHearingApi = {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -243,6 +243,9 @@ export function useCreateCourtHearing(options?: QueueOptions) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: courtHearingKeys.lists() });
     },
+    onError: (error: Error) => {
+      console.error('[useCreateCourtHearing] Mutation error:', error.message);
+    },
   });
 }
 
@@ -292,6 +295,9 @@ export function useUpdateCourtHearing(options?: QueueOptions) {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: courtHearingKeys.lists() });
       queryClient.invalidateQueries({ queryKey: courtHearingKeys.detail(variables.id) });
+    },
+    onError: (error: Error) => {
+      console.error('[useUpdateCourtHearing] Mutation error:', error.message);
     },
   });
 }

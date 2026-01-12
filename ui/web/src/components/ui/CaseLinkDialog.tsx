@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react";
 import { Link as LinkIcon, Search, X } from "lucide-react";
 import { Modal, ModalFooter } from "./Modal";
-import { Input } from "./Input";
-import { Button } from "./Button";
-import { Badge } from "./Badge";
+import { Input } from "./input";
+import { Button } from "./button";
+import { Badge } from "./badge";
 import { useCases } from "@/hooks/use-cases";
 
 export interface CaseLinkDialogProps {
@@ -55,7 +55,8 @@ export function CaseLinkDialog({
 
   useEffect(() => {
     if (isOpen) {
-      setSelectedCases(existingLinks);
+      const timer = setTimeout(() => setSelectedCases(existingLinks), 0);
+      return () => clearTimeout(timer);
     }
   }, [isOpen, existingLinks]);
 
@@ -70,7 +71,7 @@ export function CaseLinkDialog({
         <Input
           label="Search Cases"
           value={searchQuery}
-          onChange={(value) => setSearchQuery(value)}
+          onChange={(value: string) => setSearchQuery(value)}
           placeholder="Search by case number, title..."
           icon={<Search className="h-4 w-4" />}
         />

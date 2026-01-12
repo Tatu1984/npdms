@@ -16,7 +16,7 @@ interface VoiceRecorderProps {
 
 interface TranscriptionResult {
   text: string;
-  confidence: float;
+  confidence: number;
   language: string;
   entities?: {
     type: string;

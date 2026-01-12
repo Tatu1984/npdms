@@ -55,7 +55,7 @@ const firApi = {
       headers: {
         'Content-Type': 'application/json',
         // Add auth token from localStorage/cookies
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -70,7 +70,7 @@ const firApi = {
     const response = await fetch(`${API_BASE}/firs/${id}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -86,7 +86,7 @@ const firApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -103,7 +103,7 @@ const firApi = {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -120,7 +120,7 @@ const firApi = {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -134,7 +134,7 @@ const firApi = {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify({ status }),
     });
@@ -150,7 +150,7 @@ const firApi = {
     const response = await fetch(`${API_BASE}/firs/stats`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -389,6 +389,9 @@ export function useCreateFIR(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: firKeys.lists() });
       queryClient.invalidateQueries({ queryKey: firKeys.stats() });
     },
+    onError: (error: Error) => {
+      console.error('[useCreateFIR] Mutation error:', error.message);
+    },
   });
 }
 
@@ -450,6 +453,9 @@ export function useUpdateFIR(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: firKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: firKeys.stats() });
     },
+    onError: (error: Error) => {
+      console.error('[useUpdateFIR] Mutation error:', error.message);
+    },
   });
 }
 
@@ -508,6 +514,9 @@ export function useUpdateFIRStatus(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: firKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: firKeys.stats() });
     },
+    onError: (error: Error) => {
+      console.error('[useUpdateFIRStatus] Mutation error:', error.message);
+    },
   });
 }
 
@@ -550,6 +559,9 @@ export function useDeleteFIR(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: firKeys.lists() });
       queryClient.removeQueries({ queryKey: firKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: firKeys.stats() });
+    },
+    onError: (error: Error) => {
+      console.error('[useDeleteFIR] Mutation error:', error.message);
     },
   });
 }

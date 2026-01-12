@@ -16,11 +16,11 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { AdvancedFilters } from "@/components/ui/AdvancedFilters";
@@ -28,7 +28,8 @@ import { useFIRs, useDeleteFIR } from "@/hooks/use-firs";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 import { toast } from "@/stores/toastStore";
-import type { FIR, FIRStatus, FIRPriority } from "@/types";
+import type { FIR } from "@/lib/db/schema";
+import type { FIRStatus, FIRPriority } from "@/types";
 
 const statusOptions = [
   { value: "", label: "All Statuses" },
@@ -52,6 +53,7 @@ function getStatusBadgeVariant(status: FIRStatus) {
   const variants: Record<FIRStatus, string> = {
     REGISTERED: "registered",
     UNDER_INVESTIGATION: "investigating",
+    PENDING: "warning",
     CHARGESHEET_FILED: "chargesheet",
     COURT_PENDING: "warning",
     CLOSED: "closed",
@@ -63,6 +65,7 @@ function getStatusBadgeVariant(status: FIRStatus) {
 function getPriorityBadgeVariant(priority: FIRPriority) {
   const variants: Record<FIRPriority, string> = {
     LOW: "low",
+    MEDIUM: "normal",
     NORMAL: "normal",
     HIGH: "high",
     CRITICAL: "critical",

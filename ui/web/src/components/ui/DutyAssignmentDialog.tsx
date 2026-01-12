@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Shield, Clock, MapPin } from "lucide-react";
-import { Button } from "./Button";
-import { Select } from "./Select";
+import { Button } from "./button";
+import { LegacySelect as Select } from "./select";
 
 interface DutyAssignmentDialogProps {
   isOpen: boolean;

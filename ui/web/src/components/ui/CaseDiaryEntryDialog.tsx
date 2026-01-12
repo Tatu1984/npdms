@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { MessageSquare, X } from "lucide-react";
-import { Button } from "./Button";
-import { Input } from "./Input";
-import { Textarea } from "./Textarea";
+import { Button } from "./button";
+import { Input } from "./input";
+import { Textarea } from "./textarea";
 
 interface CaseDiaryEntryDialogProps {
   isOpen: boolean;

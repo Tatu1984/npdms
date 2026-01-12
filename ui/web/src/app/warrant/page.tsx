@@ -19,13 +19,13 @@ import {
   Printer,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
-import { Select } from "@/components/ui/Select";
-import { Textarea } from "@/components/ui/Textarea";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
 import { useWarrantStore, Warrant } from "@/stores/warrantStore";

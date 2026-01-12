@@ -6,8 +6,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
-import { Button } from '../ui/Button';
+import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
+import { Button } from '../ui/button';
 import { Upload, FileText, Loader2, CheckCircle, XCircle } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';

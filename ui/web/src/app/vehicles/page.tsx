@@ -20,13 +20,13 @@ import {
   Trash2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";

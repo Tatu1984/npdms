@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   Briefcase,
@@ -16,16 +16,16 @@ import {
   Scale,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { AdvancedFilters } from "@/components/ui/AdvancedFilters";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
-import { useCases, useDeleteCase, type Case as StoreCase } from "@/hooks/use-cases";
+import { useCases, useDeleteCase } from "@/hooks/use-cases";
 import { type Case, type CaseStatus } from "@/lib/db/schema";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 import { toast } from "@/stores/toastStore";
@@ -106,7 +106,7 @@ export default function CasesPage() {
       toast.success("Case deleted", `Case ${caseToDelete.caseNumber} has been deleted`);
       setDeleteDialogOpen(false);
       setCaseToDelete(null);
-    } catch (error) {
+    } catch (_error) {
       toast.error("Error", "Failed to delete case");
     }
   };

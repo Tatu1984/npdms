@@ -19,13 +19,13 @@ import {
   Eye,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Badge } from "@/components/ui/Badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
-import { Select } from "@/components/ui/Select";
+import { LegacySelect as Select } from "@/components/ui/select";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
 import { PatrolMap } from "@/components/map";
@@ -379,7 +379,7 @@ export default function GISPage() {
                     <Button variant="ghost" size="sm" onClick={() => addToast({ type: "info", title: "Zoom", message: "Use map controls to zoom out" })}>
                       <ZoomOut className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => addToast({ type: "info", title: "Navigation", message: "GPS navigation mode coming soon" })}>
+                    <Button variant="ghost" size="sm" disabled title="GPS navigation feature under development">
                       <Navigation className="h-4 w-4" />
                     </Button>
                   </div>

@@ -14,8 +14,12 @@ from faker import Faker
 
 fake = Faker('en_IN')  # Indian locale for realistic names/addresses
 
-# Database connection
-DB_URL = os.getenv('DATABASE_URL', 'postgres://npdms:npdms_secret_2024@localhost:5432/npdms?sslmode=disable')
+# Database connection - must be set via environment variable
+DB_URL = os.getenv('DATABASE_URL')
+if not DB_URL:
+    print("ERROR: DATABASE_URL environment variable is required")
+    print("Example: DATABASE_URL='postgres://user:****@localhost:5432/npdms' python seed-demo-data.py")
+    exit(1)
 
 # Sample data constants
 CRIME_CATEGORIES = [

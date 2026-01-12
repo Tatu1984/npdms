@@ -45,7 +45,7 @@ const vehicleApi = {
     const response = await fetch(`${API_BASE}/vehicles?${params}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -60,7 +60,7 @@ const vehicleApi = {
     const response = await fetch(`${API_BASE}/vehicles/${id}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -76,7 +76,7 @@ const vehicleApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -93,7 +93,7 @@ const vehicleApi = {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -110,7 +110,7 @@ const vehicleApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify({ personnelId }),
     });
@@ -127,7 +127,7 @@ const vehicleApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -143,7 +143,7 @@ const vehicleApi = {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -294,6 +294,9 @@ export function useCreateVehicle(options?: QueueOptions) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: vehicleKeys.lists() });
     },
+    onError: (error: Error) => {
+      console.error('[useCreateVehicle] Mutation error:', error.message);
+    },
   });
 }
 
@@ -343,6 +346,9 @@ export function useUpdateVehicle(options?: QueueOptions) {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: vehicleKeys.lists() });
       queryClient.invalidateQueries({ queryKey: vehicleKeys.detail(variables.id) });
+    },
+    onError: (error: Error) => {
+      console.error('[useUpdateVehicle] Mutation error:', error.message);
     },
   });
 }
@@ -395,6 +401,9 @@ export function useAllocateVehicle(options?: QueueOptions) {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: vehicleKeys.lists() });
       queryClient.invalidateQueries({ queryKey: vehicleKeys.detail(variables.id) });
+    },
+    onError: (error: Error) => {
+      console.error('[useAllocateVehicle] Mutation error:', error.message);
     },
   });
 }
@@ -449,6 +458,9 @@ export function useReturnVehicle(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: vehicleKeys.lists() });
       queryClient.invalidateQueries({ queryKey: vehicleKeys.detail(id) });
     },
+    onError: (error: Error) => {
+      console.error('[useReturnVehicle] Mutation error:', error.message);
+    },
   });
 }
 
@@ -486,6 +498,9 @@ export function useDeleteVehicle(options?: QueueOptions) {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: vehicleKeys.lists() });
       queryClient.removeQueries({ queryKey: vehicleKeys.detail(id) });
+    },
+    onError: (error: Error) => {
+      console.error('[useDeleteVehicle] Mutation error:', error.message);
     },
   });
 }

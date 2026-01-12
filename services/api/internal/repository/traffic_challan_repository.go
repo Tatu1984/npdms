@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"npdms/internal/models"
+	"github.com/npdms/api/internal/models"
 )
 
 type TrafficChallanRepository struct {

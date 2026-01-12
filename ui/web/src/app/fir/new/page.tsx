@@ -21,17 +21,17 @@ import {
   Plus,
   X,
 } from "lucide-react";
+import { toast } from "@/stores/toastStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Textarea } from "@/components/ui/Textarea";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { useCreateFIR } from "@/hooks/use-firs";
 import { useAuthStore } from "@/stores/authStore";
 import { sanitizeString } from "@/lib/validations";
-import { toast } from "@/stores/toastStore";
 import { FileUpload } from "@/components/ui/FileUpload";
 import { FIRPreviewDialog } from "@/components/ui/FIRPreviewDialog";
 import { VoiceInput } from "@/components/ui/VoiceInput";
@@ -293,7 +293,7 @@ export default function NewFIRPage() {
 
   const onSubmit = async (data: FIRFormData) => {
     if (!verificationChecked) {
-      alert("Please verify the information accuracy before submitting.");
+      toast.warning("Verification Required", "Please verify the information accuracy before submitting.");
       return;
     }
 
@@ -392,14 +392,12 @@ export default function NewFIRPage() {
               </Button>
               <Button
                 type="button"
-                variant={inputMode === "upload" ? "default" : "secondary"}
-                onClick={() => {
-                  setInputMode("upload");
-                  toast.info("Document Upload", "Document upload and parsing coming soon");
-                }}
+                variant="secondary"
+                disabled
+                title="Document upload feature is under development"
               >
                 <Upload className="h-4 w-4 mr-2" />
-                Upload Document
+                Upload Document (Coming Soon)
               </Button>
             </div>
           </CardContent>
@@ -416,11 +414,11 @@ export default function NewFIRPage() {
             </CardHeader>
             <CardContent>
               <DocumentScanner
-                onTextExtracted={(text, results) => {
+                onTextExtracted={(result) => {
                   // Append extracted text to description
                   const currentDesc = watch("description") || "";
-                  setValue("description", currentDesc ? `${currentDesc}\n\n--- OCR Extracted Text ---\n${text}` : text);
-                  toast.success("Text Extracted", `Successfully extracted ${results.length} text blocks from document`);
+                  setValue("description", currentDesc ? `${currentDesc}\n\n--- OCR Extracted Text ---\n${result.text}` : result.text);
+                  toast.success("Text Extracted", `Successfully extracted text from document (${Math.round(result.confidence * 100)}% confidence)`);
                 }}
                 onError={(error) => {
                   toast.error("OCR Error", error);

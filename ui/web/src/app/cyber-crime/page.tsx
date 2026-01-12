@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import DashboardLayout from '@/components/layout/DashboardLayout';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -206,7 +206,7 @@ export default function CyberCrimePage() {
                   <Input
                     placeholder="Search by case number or complainant..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(value: string) => setSearchQuery(value)}
                     className="pl-9"
                   />
                 </div>

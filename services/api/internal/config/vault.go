@@ -466,9 +466,4 @@ func (vc *VaultClient) Close() {
 	vc.client.ClearToken()
 }
 
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
+// getEnv is defined in config.go

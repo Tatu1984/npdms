@@ -20,14 +20,14 @@ const alertApi = {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => { if (value !== undefined) params.append(key, String(value)); });
     const response = await fetch(`${API_BASE}/alerts?${params}`, {
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
   },
   get: async (id: string): Promise<Alert> => {
     const response = await fetch(`${API_BASE}/alerts/${id}`, {
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
@@ -35,7 +35,7 @@ const alertApi = {
   create: async (data: Partial<Alert>): Promise<Alert> => {
     const response = await fetch(`${API_BASE}/alerts`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -44,7 +44,7 @@ const alertApi = {
   acknowledge: async (id: string): Promise<Alert> => {
     const response = await fetch(`${API_BASE}/alerts/${id}/acknowledge`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
@@ -132,6 +132,9 @@ export function useCreateAlert(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: alertKeys.lists() });
       queryClient.invalidateQueries({ queryKey: alertKeys.active() });
     },
+    onError: (error: Error) => {
+      console.error('[useCreateAlert] Mutation error:', error.message);
+    },
   });
 }
 
@@ -158,6 +161,9 @@ export function useAcknowledgeAlert(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: alertKeys.lists() });
       queryClient.invalidateQueries({ queryKey: alertKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: alertKeys.active() });
+    },
+    onError: (error: Error) => {
+      console.error('[useAcknowledgeAlert] Mutation error:', error.message);
     },
   });
 }

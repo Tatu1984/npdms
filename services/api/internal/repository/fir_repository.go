@@ -256,7 +256,9 @@ func (r *FIRRepository) GetStats(ctx context.Context, stationID *uuid.UUID) (map
 
 	// Total FIRs
 	query := fmt.Sprintf("SELECT COUNT(*) FROM firs %s", baseWhere)
-	r.db.QueryRow(ctx, query, args...).Scan(&stats["total"])
+	var total int64
+	r.db.QueryRow(ctx, query, args...).Scan(&total)
+	stats["total"] = total
 
 	// By status
 	for _, status := range []models.FIRStatus{

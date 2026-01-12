@@ -2,9 +2,9 @@
 
 import { useState, useRef, useCallback } from "react";
 import { Camera, Upload, Loader2, FileText, X, CheckCircle, AlertCircle, Languages, Tag, Zap } from "lucide-react";
-import { Button } from "./Button";
-import { Card, CardHeader, CardTitle, CardContent } from "./Card";
-import { Badge } from "./Badge";
+import { Button } from "./button";
+import { Card, CardHeader, CardTitle, CardContent } from "./card";
+import { Badge } from "./badge";
 
 export interface ExtractedEntity {
   type: string;

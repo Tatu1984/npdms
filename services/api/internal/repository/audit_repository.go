@@ -16,7 +16,7 @@ func NewAuditRepository(db *pgxpool.Pool) *AuditRepository {
 	return &AuditRepository{db: db}
 }
 
-func (r *AuditRepository) Create(ctx context.Context, log *models.AuditLog) error {
+func (r *AuditRepository) Create(ctx context.Context, log *models.SimpleAuditLog) error {
 	log.ID = uuid.New()
 
 	query := `
@@ -34,7 +34,7 @@ func (r *AuditRepository) Create(ctx context.Context, log *models.AuditLog) erro
 	return err
 }
 
-func (r *AuditRepository) List(ctx context.Context, page, pageSize int) ([]models.AuditLog, int64, error) {
+func (r *AuditRepository) List(ctx context.Context, page, pageSize int) ([]models.SimpleAuditLog, int64, error) {
 	var total int64
 	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM audit_logs").Scan(&total)
 	if err != nil {
@@ -66,9 +66,9 @@ func (r *AuditRepository) List(ctx context.Context, page, pageSize int) ([]model
 	}
 	defer rows.Close()
 
-	var logs []models.AuditLog
+	var logs []models.SimpleAuditLog
 	for rows.Next() {
-		var log models.AuditLog
+		var log models.SimpleAuditLog
 		err := rows.Scan(
 			&log.ID, &log.UserID, &log.Action, &log.ResourceType, &log.ResourceID,
 			&log.Description, &log.IPAddress, &log.UserAgent, &log.Success,

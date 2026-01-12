@@ -22,7 +22,7 @@ NEXT_PUBLIC_USE_REAL_API=true
 # AUTHENTICATION - NextAuth.js
 # ========================================
 NEXTAUTH_URL=https://npdms.infinititechpartners.com
-NEXTAUTH_SECRET=DPdAGNwYhpaQLBvRAZS6Zjrko+PzFR+Mj4STRnePET4=
+NEXTAUTH_SECRET=<generate-with-openssl-rand-base64-32>
 
 # ========================================
 # MICROSOFT ENTRA ID (Azure AD) - Optional

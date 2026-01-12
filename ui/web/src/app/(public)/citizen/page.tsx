@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,20 +12,50 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  FileText,
   Search,
-  AlertTriangle,
-  Users,
   Phone,
-  Mail,
   MapPin,
   Calendar,
   CheckCircle,
-  Clock,
   Shield,
   ArrowRight,
   Upload
 } from 'lucide-react';
+
+// Complaint form validation schema
+const complaintSchema = z.object({
+  category: z.string().min(1, 'Please select a category'),
+  subject: z
+    .string()
+    .min(10, 'Subject must be at least 10 characters')
+    .max(200, 'Subject must be less than 200 characters'),
+  description: z
+    .string()
+    .min(50, 'Description must be at least 50 characters')
+    .max(5000, 'Description must be less than 5000 characters'),
+  incidentDate: z.string().min(1, 'Incident date is required'),
+  incidentLocation: z.string().max(500, 'Location must be less than 500 characters').optional(),
+  name: z.string().max(100).optional(),
+  phone: z
+    .string()
+    .regex(/^[6-9]\d{9}$/, 'Invalid phone number (10 digits starting with 6-9)')
+    .optional()
+    .or(z.literal('')),
+  email: z
+    .string()
+    .email('Invalid email address')
+    .optional()
+    .or(z.literal('')),
+  isAnonymous: z.boolean(),
+}).refine(
+  (data) => data.isAnonymous || (data.name && data.name.length >= 2),
+  { message: 'Name is required for non-anonymous complaints', path: ['name'] }
+).refine(
+  (data) => data.isAnonymous || (data.phone && data.phone.length === 10),
+  { message: 'Phone number is required for non-anonymous complaints', path: ['phone'] }
+);
+
+type ComplaintFormData = z.infer<typeof complaintSchema>;
 
 export default function CitizenPortalPage() {
   const [trackingNumber, setTrackingNumber] = useState('');
@@ -33,18 +66,29 @@ export default function CitizenPortalPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  // Mock complaint form state
-  const [complaint, setComplaint] = useState({
-    category: '',
-    subject: '',
-    description: '',
-    incidentDate: '',
-    incidentLocation: '',
-    name: '',
-    phone: '',
-    email: '',
-    isAnonymous: false,
+  // React Hook Form for complaint
+  const {
+    setValue,
+    watch,
+    handleSubmit: handleFormSubmit,
+    formState: { errors },
+    reset,
+  } = useForm<ComplaintFormData>({
+    resolver: zodResolver(complaintSchema),
+    defaultValues: {
+      category: '',
+      subject: '',
+      description: '',
+      incidentDate: '',
+      incidentLocation: '',
+      name: '',
+      phone: '',
+      email: '',
+      isAnonymous: false,
+    },
   });
+
+  const complaint = watch();
 
   const handleTrackComplaint = async () => {
     // Mock tracking
@@ -77,14 +121,14 @@ export default function CitizenPortalPage() {
     });
   };
 
-  const handleSubmitComplaint = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmitComplaint = async (_data: ComplaintFormData) => {
     setIsSubmitting(true);
 
     // Mock submission
     setTimeout(() => {
       setIsSubmitting(false);
       setSubmitted(true);
+      reset();
     }, 1500);
   };
 
@@ -175,13 +219,13 @@ export default function CitizenPortalPage() {
                     <Button onClick={() => setSubmitted(false)}>File Another Complaint</Button>
                   </div>
                 ) : (
-                  <form onSubmit={handleSubmitComplaint} className="space-y-6">
+                  <form onSubmit={handleFormSubmit(onSubmitComplaint)} className="space-y-6">
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
                         <label className="block text-sm font-medium mb-2">Complaint Category *</label>
                         <Select
                           value={complaint.category}
-                          onValueChange={(v) => setComplaint({ ...complaint, category: v })}
+                          onValueChange={(v) => setValue('category', v)}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select category" />
@@ -196,6 +240,9 @@ export default function CitizenPortalPage() {
                             <SelectItem value="OTHER">Other</SelectItem>
                           </SelectContent>
                         </Select>
+                        {errors.category && (
+                          <p className="text-xs text-red-600 mt-1">{errors.category.message}</p>
+                        )}
                       </div>
 
                       <div>
@@ -203,9 +250,11 @@ export default function CitizenPortalPage() {
                         <Input
                           type="date"
                           value={complaint.incidentDate}
-                          onChange={(e) => setComplaint({ ...complaint, incidentDate: e.target.value })}
-                          required
+                          onChange={(value: string) => setValue('incidentDate', value)}
                         />
+                        {errors.incidentDate && (
+                          <p className="text-xs text-red-600 mt-1">{errors.incidentDate.message}</p>
+                        )}
                       </div>
                     </div>
 
@@ -214,17 +263,19 @@ export default function CitizenPortalPage() {
                       <Input
                         placeholder="Brief subject of your complaint"
                         value={complaint.subject}
-                        onChange={(e) => setComplaint({ ...complaint, subject: e.target.value })}
-                        required
+                        onChange={(value: string) => setValue('subject', value)}
                       />
+                      {errors.subject && (
+                        <p className="text-xs text-red-600 mt-1">{errors.subject.message}</p>
+                      )}
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium mb-2">Incident Location</label>
                       <Input
                         placeholder="Where did the incident occur?"
-                        value={complaint.incidentLocation}
-                        onChange={(e) => setComplaint({ ...complaint, incidentLocation: e.target.value })}
+                        value={complaint.incidentLocation || ''}
+                        onChange={(value: string) => setValue('incidentLocation', value)}
                       />
                     </div>
 
@@ -234,9 +285,11 @@ export default function CitizenPortalPage() {
                         placeholder="Describe the incident in detail..."
                         rows={5}
                         value={complaint.description}
-                        onChange={(e) => setComplaint({ ...complaint, description: e.target.value })}
-                        required
+                        onChange={(value: string) => setValue('description', value)}
                       />
+                      {errors.description && (
+                        <p className="text-xs text-red-600 mt-1">{errors.description.message}</p>
+                      )}
                     </div>
 
                     <div className="border-t pt-6">
@@ -246,7 +299,7 @@ export default function CitizenPortalPage() {
                           type="checkbox"
                           id="anonymous"
                           checked={complaint.isAnonymous}
-                          onChange={(e) => setComplaint({ ...complaint, isAnonymous: e.target.checked })}
+                          onChange={(e) => setValue('isAnonymous', e.target.checked)}
                         />
                         <label htmlFor="anonymous" className="text-sm">File anonymously</label>
                       </div>
@@ -257,26 +310,35 @@ export default function CitizenPortalPage() {
                             <label className="block text-sm font-medium mb-2">Full Name *</label>
                             <Input
                               placeholder="Your name"
-                              value={complaint.name}
-                              onChange={(e) => setComplaint({ ...complaint, name: e.target.value })}
+                              value={complaint.name || ''}
+                              onChange={(value: string) => setValue('name', value)}
                             />
+                            {errors.name && (
+                              <p className="text-xs text-red-600 mt-1">{errors.name.message}</p>
+                            )}
                           </div>
                           <div>
                             <label className="block text-sm font-medium mb-2">Phone Number *</label>
                             <Input
-                              placeholder="+91 98765 43210"
-                              value={complaint.phone}
-                              onChange={(e) => setComplaint({ ...complaint, phone: e.target.value })}
+                              placeholder="9876543210"
+                              value={complaint.phone || ''}
+                              onChange={(value: string) => setValue('phone', value)}
                             />
+                            {errors.phone && (
+                              <p className="text-xs text-red-600 mt-1">{errors.phone.message}</p>
+                            )}
                           </div>
                           <div>
                             <label className="block text-sm font-medium mb-2">Email</label>
                             <Input
                               type="email"
                               placeholder="your@email.com"
-                              value={complaint.email}
-                              onChange={(e) => setComplaint({ ...complaint, email: e.target.value })}
+                              value={complaint.email || ''}
+                              onChange={(value: string) => setValue('email', value)}
                             />
+                            {errors.email && (
+                              <p className="text-xs text-red-600 mt-1">{errors.email.message}</p>
+                            )}
                           </div>
                         </div>
                       )}
@@ -313,7 +375,7 @@ export default function CitizenPortalPage() {
                   <Input
                     placeholder="Enter tracking number (e.g., CMP/2024/001234)"
                     value={trackingNumber}
-                    onChange={(e) => setTrackingNumber(e.target.value)}
+                    onChange={(value: string) => setTrackingNumber(value)}
                     className="flex-1"
                   />
                   <Button onClick={handleTrackComplaint}>
@@ -392,12 +454,12 @@ export default function CitizenPortalPage() {
                   <Input
                     placeholder="FIR Number (e.g., KOR/2024/00001)"
                     value={firNumber}
-                    onChange={(e) => setFirNumber(e.target.value)}
+                    onChange={(value: string) => setFirNumber(value)}
                   />
                   <Input
                     placeholder="Registered Phone Number"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(value: string) => setPhone(value)}
                   />
                   <Button onClick={handleTrackFIR}>
                     <Search className="mr-2 h-4 w-4" />
@@ -488,7 +550,7 @@ export default function CitizenPortalPage() {
                           <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Input placeholder="Height (e.g., 5'8\")" />
+                      <Input placeholder={'Height (e.g., 5\'8")'} />
                       <Input placeholder="Weight (e.g., 65 kg)" />
                       <Input placeholder="Complexion" />
                     </div>

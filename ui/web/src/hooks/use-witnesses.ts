@@ -46,7 +46,7 @@ const witnessApi = {
     const response = await fetch(`${API_BASE}/cases/${caseId}/witnesses?${params}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -61,7 +61,7 @@ const witnessApi = {
     const response = await fetch(`${API_BASE}/cases/${caseId}/witnesses/${id}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -77,7 +77,7 @@ const witnessApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -94,7 +94,7 @@ const witnessApi = {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -111,7 +111,7 @@ const witnessApi = {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -265,6 +265,9 @@ export function useCreateWitness(caseId: string, options?: QueueOptions) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: witnessKeys.lists() });
     },
+    onError: (error: Error) => {
+      console.error('[useCreateWitness] Mutation error:', error.message);
+    },
   });
 }
 
@@ -315,6 +318,9 @@ export function useUpdateWitness(caseId: string, options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: witnessKeys.lists() });
       queryClient.invalidateQueries({ queryKey: witnessKeys.detail(caseId, variables.id) });
     },
+    onError: (error: Error) => {
+      console.error('[useUpdateWitness] Mutation error:', error.message);
+    },
   });
 }
 
@@ -352,6 +358,9 @@ export function useDeleteWitness(caseId: string, options?: QueueOptions) {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: witnessKeys.lists() });
       queryClient.removeQueries({ queryKey: witnessKeys.detail(caseId, id) });
+    },
+    onError: (error: Error) => {
+      console.error('[useDeleteWitness] Mutation error:', error.message);
     },
   });
 }

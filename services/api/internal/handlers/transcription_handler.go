@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"npdms/internal/models"
-	"npdms/internal/repository"
+	"github.com/npdms/api/internal/models"
+	"github.com/npdms/api/internal/repository"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

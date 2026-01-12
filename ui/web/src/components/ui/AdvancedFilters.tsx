@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { Filter, X } from "lucide-react";
 import { Modal, ModalFooter } from "./Modal";
-import { Input } from "./Input";
-import { Select } from "./Select";
+import { Input } from "./input";
+import { LegacySelect as Select } from "./select";
 import { DatePicker } from "./DatePicker";
-import { Button } from "./Button";
+import { Button } from "./button";
 
 export interface AdvancedFilterOptions {
   dateFrom?: string;
@@ -99,7 +99,7 @@ export function AdvancedFilters({
             label="Priority"
             options={priorityOptions}
             value={filters.priority || ""}
-            onChange={(value) => setFilters({ ...filters, priority: value })}
+            onChange={(value: string) => setFilters({ ...filters, priority: value })}
           />
         )}
 
@@ -109,7 +109,7 @@ export function AdvancedFilters({
             label="Crime Category"
             options={categoryOptions}
             value={filters.category || ""}
-            onChange={(value) => setFilters({ ...filters, category: value })}
+            onChange={(value: string) => setFilters({ ...filters, category: value })}
           />
         )}
 
@@ -118,7 +118,7 @@ export function AdvancedFilters({
           <Input
             label="Investigating Officer"
             value={filters.investigatingOfficer || ""}
-            onChange={(value) => setFilters({ ...filters, investigatingOfficer: value })}
+            onChange={(value: string) => setFilters({ ...filters, investigatingOfficer: value })}
             placeholder="Enter officer name or ID"
           />
         )}
@@ -127,7 +127,7 @@ export function AdvancedFilters({
         <Input
           label="Station ID"
           value={filters.stationId || ""}
-          onChange={(value) => setFilters({ ...filters, stationId: value })}
+          onChange={(value: string) => setFilters({ ...filters, stationId: value })}
           placeholder="Enter station ID"
         />
 

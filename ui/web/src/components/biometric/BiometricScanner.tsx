@@ -12,9 +12,9 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export type BiometricType = "FINGERPRINT" | "FACE" | "IRIS" | "AADHAAR";
 
@@ -470,7 +470,7 @@ export function BiometricScanner({
           {!autoVerify && capturedData && status === "idle" && (
             <Button
               onClick={() => verifyBiometric(capturedData)}
-              variant="primary"
+              variant="default"
               className="w-full"
             >
               Verify Captured Data

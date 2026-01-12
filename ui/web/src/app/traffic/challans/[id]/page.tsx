@@ -21,11 +21,11 @@ import {
   Camera,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
-import { Textarea } from "@/components/ui/Textarea";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/stores/toastStore";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 

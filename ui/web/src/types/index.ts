@@ -31,12 +31,13 @@ export interface User {
 export type FIRStatus =
   | "REGISTERED"
   | "UNDER_INVESTIGATION"
+  | "PENDING"
   | "CHARGESHEET_FILED"
   | "COURT_PENDING"
   | "CLOSED"
   | "TRANSFERRED";
 
-export type FIRPriority = "LOW" | "NORMAL" | "HIGH" | "CRITICAL";
+export type FIRPriority = "LOW" | "MEDIUM" | "NORMAL" | "HIGH" | "CRITICAL";
 
 export interface FIR {
   id: string;

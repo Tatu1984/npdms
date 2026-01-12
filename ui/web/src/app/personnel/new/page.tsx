@@ -17,11 +17,11 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Textarea } from "@/components/ui/Textarea";
-import { Select } from "@/components/ui/Select";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { LegacySelect as Select } from "@/components/ui/select";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
 import { usePersonnelStore } from "@/stores/personnelStore";

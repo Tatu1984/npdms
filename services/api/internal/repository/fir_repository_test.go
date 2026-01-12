@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"npdms/internal/models"
-	"npdms/testutil"
+	"github.com/npdms/api/internal/models"
+	"github.com/npdms/api/testutil"
 )
 
 func TestFIRRepository_Create(t *testing.T) {

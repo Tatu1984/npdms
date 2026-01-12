@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import DashboardLayout from '@/components/layout/DashboardLayout';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -232,7 +232,7 @@ export default function RTIPage() {
                       <Input
                         placeholder="Search by request number, applicant, or subject..."
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={(value: string) => setSearchQuery(value)}
                         className="pl-9"
                       />
                     </div>

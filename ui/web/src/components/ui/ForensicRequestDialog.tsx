@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { FlaskConical, FileText, Calendar } from "lucide-react";
 import { Modal, ModalFooter } from "./Modal";
-import { Input } from "./Input";
-import { Select } from "./Select";
-import { Textarea } from "./Textarea";
-import { Button } from "./Button";
+import { Input } from "./input";
+import { LegacySelect as Select } from "./select";
+import { Textarea } from "./textarea";
+import { Button } from "./button";
 import { DatePicker } from "./DatePicker";
 import { useCreateForensic } from "@/hooks/use-forensics";
+import { toast } from "@/stores/toastStore";
+import { useAuthStore } from "@/stores/authStore";
 
 export interface ForensicRequestDialogProps {
   caseId?: string;
@@ -34,10 +36,11 @@ export function ForensicRequestDialog({
   const [description, setDescription] = useState("");
 
   const createMutation = useCreateForensic();
+  const { user } = useAuthStore();
 
   const handleSubmit = async () => {
     if (!type || !labName || !caseId) {
-      alert("Please fill in all required fields");
+      toast.warning("Required Fields", "Please fill in all required fields");
       return;
     }
 
@@ -51,11 +54,11 @@ export function ForensicRequestDialog({
         requestedDate,
         expectedDate,
         priority: priority as any,
-        requestedBy: "Current User", // TODO: Get from auth store
+        requestedBy: user?.name || "Unknown Officer",
         status: "REQUESTED",
         description,
       });
-      
+
       // Reset form
       setType("");
       setLabName("");
@@ -64,12 +67,13 @@ export function ForensicRequestDialog({
       setExpectedDate("");
       setPriority("MEDIUM");
       setDescription("");
-      
+
+      toast.success("Request Created", "Forensic request has been submitted");
       onSuccess?.();
       onClose();
     } catch (error) {
       console.error("Request failed:", error);
-      alert("Failed to create forensic request. Please try again.");
+      toast.error("Request Failed", "Failed to create forensic request. Please try again.");
     }
   };
 
@@ -102,13 +106,13 @@ export function ForensicRequestDialog({
           label="Test Type *"
           options={forensicTypeOptions}
           value={type}
-          onChange={(value) => setType(value)}
+          onChange={(value: string) => setType(value)}
         />
 
         <Input
           label="Lab Name *"
           value={labName}
-          onChange={(value) => setLabName(value)}
+          onChange={(value: string) => setLabName(value)}
           placeholder="e.g., FSL Bangalore, CFSL Delhi"
           icon={<FlaskConical className="h-4 w-4" />}
         />
@@ -116,7 +120,7 @@ export function ForensicRequestDialog({
         <Input
           label="Lab Reference Number"
           value={labRefNumber}
-          onChange={(value) => setLabRefNumber(value)}
+          onChange={(value: string) => setLabRefNumber(value)}
           placeholder="Optional - will be assigned by lab"
         />
 
@@ -140,13 +144,13 @@ export function ForensicRequestDialog({
           label="Priority *"
           options={priorityOptions}
           value={priority}
-          onChange={(value) => setPriority(value)}
+          onChange={(value: string) => setPriority(value)}
         />
 
         <Textarea
           label="Description / Instructions"
           value={description}
-          onChange={(value) => setDescription(value)}
+          onChange={(value: string) => setDescription(value)}
           placeholder="Describe what needs to be analyzed or any specific instructions..."
           rows={4}
         />

@@ -4,31 +4,29 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"npdms/internal/models"
+	"github.com/npdms/api/internal/models"
 )
 
 // CreateTestFIR creates a test FIR with default values
 func CreateTestFIR() *models.FIR {
 	now := time.Now()
+	phone := "+91-9876543210"
+	address := "123 Test Street, Bangalore"
 	return &models.FIR{
-		ID:                uuid.New().String(),
-		FIRNumber:         "FIR/001/2026/0001",
-		CrimeCategory:     "THEFT",
-		IPCSections:       "379, 380",
-		Title:             "Test FIR - Theft of Mobile Phone",
-		Description:       "A mobile phone was stolen from the complainant's pocket in a crowded market.",
-		IncidentDate:      now.Add(-24 * time.Hour),
-		IncidentLocation:  "Koramangala Market, Bangalore",
-		Coordinates:       `{"lat": 12.9352, "lng": 77.6245}`,
-		ComplainantName:   "John Doe",
-		ComplainantContact: "+91-9876543210",
-		ComplainantAddress: "123 Test Street, Bangalore",
-		Priority:          "MEDIUM",
-		Status:            "REGISTERED",
-		StationID:         "STATION-001",
-		District:          "Bangalore",
-		RegisteredAt:      now,
-		Remarks:           "Test FIR for unit testing",
+		ID:                  uuid.New(),
+		FIRNumber:           "FIR/001/2026/0001",
+		StationID:           uuid.New(),
+		ComplainantName:     "John Doe",
+		ComplainantPhone:    &phone,
+		ComplainantAddress:  &address,
+		IncidentDate:        now.Add(-24 * time.Hour),
+		IncidentLocation:    "Koramangala Market, Bangalore",
+		IncidentDescription: "A mobile phone was stolen from the complainant's pocket in a crowded market. Test FIR - Theft of Mobile Phone",
+		IPCSections:         []string{"379", "380"},
+		Status:              models.FIRStatusRegistered,
+		Priority:            models.PriorityMedium,
+		CreatedAt:           now,
+		UpdatedAt:           now,
 	}
 }
 

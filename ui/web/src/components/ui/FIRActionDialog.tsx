@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { ArrowRightLeft, FileCheck, XCircle, X } from "lucide-react";
-import { Button } from "./Button";
-import { Input } from "./Input";
-import { Textarea } from "./Textarea";
-import { Select } from "./Select";
+import { Button } from "./button";
+import { Input } from "./input";
+import { Textarea } from "./textarea";
+import { LegacySelect as Select } from "./select";
 
 type ActionType = "transfer" | "close" | "chargesheet";
 
@@ -109,7 +109,7 @@ export function FIRActionDialog({
     }
   };
 
-  const Icon = getIcon();
+  const Icon = useMemo(() => getIcon(), [actionType]);
 
   const canSubmit = () => {
     switch (actionType) {

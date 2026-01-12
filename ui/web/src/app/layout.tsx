@@ -1,9 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { SyncStatus, OfflineBanner } from "@/components/sync-status";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,11 +16,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  themeColor: "#3b82f6",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+};
+
 export const metadata: Metadata = {
   title: "NPDMS - National Police Data Management System",
   description: "Offline-capable police management system for field operations",
   manifest: "/manifest.json",
-  themeColor: "#3b82f6",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -41,12 +48,14 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <QueryProvider>
-          <OfflineBanner />
-          {children}
-          <SyncStatus />
-          <ServiceWorkerRegister />
-        </QueryProvider>
+        <ErrorBoundary>
+          <QueryProvider>
+            <OfflineBanner />
+            {children}
+            <SyncStatus />
+            <ServiceWorkerRegister />
+          </QueryProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

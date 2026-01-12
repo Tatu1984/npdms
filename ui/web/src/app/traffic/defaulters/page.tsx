@@ -15,10 +15,10 @@ import {
   Phone,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/stores/toastStore";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 
@@ -49,7 +49,8 @@ export default function DefaultersPage() {
 
   useEffect(() => {
     // Simulated data - in production, fetch from API
-    setDefaulters([
+    const loadData = () => {
+      setDefaulters([
       {
         id: "1",
         vehicleNumber: "KA-01-AB-1234",
@@ -106,9 +107,12 @@ export default function DefaultersPage() {
         noticeDate: "2023-09-15",
         courtNoticeSent: true,
       },
-    ]);
-    setTotalPages(3);
-    setIsLoading(false);
+      ]);
+      setTotalPages(3);
+      setIsLoading(false);
+    };
+    const timer = setTimeout(loadData, 0);
+    return () => clearTimeout(timer);
   }, [page]);
 
   const filteredDefaulters = defaulters.filter((d) =>

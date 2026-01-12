@@ -11,6 +11,8 @@ import {
   FieldError,
   Controller,
   ControllerProps,
+  ControllerRenderProps,
+  ControllerFieldState,
 } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ZodSchema } from 'zod';
@@ -38,7 +40,8 @@ export function useForm<TFieldValues extends FieldValues>(
 ) {
   return useReactHookForm<TFieldValues>({
     ...options,
-    resolver: zodResolver(schema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(schema as any) as any,
   });
 }
 
@@ -58,7 +61,7 @@ export function Form<TFieldValues extends FieldValues>({
   ...props
 }: FormProps<TFieldValues>) {
   return (
-    <FormContext.Provider value={{ form }}>
+    <FormContext.Provider value={{ form: form as any }}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
         className={className}
@@ -102,8 +105,8 @@ function useFormField() {
 interface FormFieldProps<TFieldValues extends FieldValues>
   extends Omit<ControllerProps<TFieldValues>, 'render'> {
   children: (props: {
-    field: ReturnType<ControllerProps<TFieldValues>['render']>['field'];
-    fieldState: ReturnType<ControllerProps<TFieldValues>['render']>['fieldState'];
+    field: ControllerRenderProps<TFieldValues, Path<TFieldValues>>;
+    fieldState: ControllerFieldState;
   }) => React.ReactNode;
 }
 
@@ -120,7 +123,7 @@ export function FormField<TFieldValues extends FieldValues>({
         name={name}
         control={form.control}
         {...props}
-        render={({ field, fieldState }) => children({ field, fieldState })}
+        render={({ field, fieldState }) => children({ field, fieldState }) as React.ReactElement}
       />
     </FormFieldContext.Provider>
   );
@@ -134,7 +137,7 @@ type FormItemContextValue = {
 const FormItemContext = createContext<FormItemContextValue | null>(null);
 
 // Form Item
-interface FormItemProps extends React.HTMLAttributes<HTMLDivElement> {}
+type FormItemProps = React.HTMLAttributes<HTMLDivElement>
 
 export function FormItem({ className, ...props }: FormItemProps) {
   const id = useId();
@@ -171,7 +174,7 @@ export function FormLabel({ className, required, children, ...props }: FormLabel
 }
 
 // Form Control
-interface FormControlProps extends React.HTMLAttributes<HTMLDivElement> {}
+type FormControlProps = React.HTMLAttributes<HTMLDivElement>
 
 export function FormControl({ ...props }: FormControlProps) {
   const { error, id } = useFormField();
@@ -187,7 +190,7 @@ export function FormControl({ ...props }: FormControlProps) {
 }
 
 // Form Description
-interface FormDescriptionProps extends React.HTMLAttributes<HTMLParagraphElement> {}
+type FormDescriptionProps = React.HTMLAttributes<HTMLParagraphElement>
 
 export function FormDescription({ className, ...props }: FormDescriptionProps) {
   return (
@@ -199,7 +202,7 @@ export function FormDescription({ className, ...props }: FormDescriptionProps) {
 }
 
 // Form Message (Error display)
-interface FormMessageProps extends React.HTMLAttributes<HTMLParagraphElement> {}
+type FormMessageProps = React.HTMLAttributes<HTMLParagraphElement>
 
 export function FormMessage({ className, children, ...props }: FormMessageProps) {
   const { error, id } = useFormField();
@@ -219,7 +222,7 @@ export function FormMessage({ className, children, ...props }: FormMessageProps)
 }
 
 // Input component with form integration
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+type InputProps = React.InputHTMLAttributes<HTMLInputElement>
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type, ...props }, ref) => {
@@ -239,7 +242,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
 Input.displayName = 'Input';
 
 // Textarea component
-interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
+type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>
 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, ...props }, ref) => {

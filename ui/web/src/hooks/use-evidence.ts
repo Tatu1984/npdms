@@ -20,14 +20,14 @@ const evidenceApi = {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => { if (value !== undefined) params.append(key, String(value)); });
     const response = await fetch(`${API_BASE}/evidence?${params}`, {
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
   },
   get: async (id: string): Promise<Evidence> => {
     const response = await fetch(`${API_BASE}/evidence/${id}`, {
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
@@ -35,7 +35,7 @@ const evidenceApi = {
   create: async (data: Partial<Evidence>): Promise<Evidence> => {
     const response = await fetch(`${API_BASE}/evidence`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -44,7 +44,7 @@ const evidenceApi = {
   update: async (id: string, data: Partial<Evidence>): Promise<Evidence> => {
     const response = await fetch(`${API_BASE}/evidence/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -53,7 +53,7 @@ const evidenceApi = {
   delete: async (id: string): Promise<void> => {
     const response = await fetch(`${API_BASE}/evidence/${id}`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
   },
@@ -68,7 +68,7 @@ const evidenceApi = {
   }): Promise<any> => {
     const response = await fetch(`${API_BASE}/evidence/${id}/transfer`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -153,6 +153,9 @@ export function useCreateEvidence(options?: QueueOptions) {
       return temp;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: evidenceKeys.lists() }); },
+    onError: (error: Error) => {
+      console.error('[useCreateEvidence] Mutation error:', error.message);
+    },
   });
 }
 
@@ -179,6 +182,9 @@ export function useUpdateEvidence(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: evidenceKeys.lists() });
       queryClient.invalidateQueries({ queryKey: evidenceKeys.detail(variables.id) });
     },
+    onError: (error: Error) => {
+      console.error('[useUpdateEvidence] Mutation error:', error.message);
+    },
   });
 }
 
@@ -201,6 +207,9 @@ export function useDeleteEvidence(options?: QueueOptions) {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: evidenceKeys.lists() });
       queryClient.removeQueries({ queryKey: evidenceKeys.detail(id) });
+    },
+    onError: (error: Error) => {
+      console.error('[useDeleteEvidence] Mutation error:', error.message);
     },
   });
 }
@@ -227,6 +236,9 @@ export function useTransferEvidence(options?: QueueOptions) {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: evidenceKeys.lists() });
       queryClient.invalidateQueries({ queryKey: evidenceKeys.detail(variables.evidenceId) });
+    },
+    onError: (error: Error) => {
+      console.error('[useTransferEvidence] Mutation error:', error.message);
     },
   });
 }

@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"npdms/internal/models"
-	"npdms/internal/repository"
+	"github.com/npdms/api/internal/models"
+	"github.com/npdms/api/internal/repository"
 )
 
 type TrafficChallanService struct {

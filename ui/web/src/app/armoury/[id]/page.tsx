@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -9,7 +9,6 @@ import {
   Crosshair,
   User,
   Calendar,
-  Clock,
   AlertTriangle,
   CheckCircle,
   History,
@@ -19,10 +18,10 @@ import {
   Edit,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 
@@ -217,7 +216,6 @@ function getConditionBadgeVariant(condition: string) {
 
 export default function WeaponDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState("overview");
 

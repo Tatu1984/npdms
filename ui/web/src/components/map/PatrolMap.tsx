@@ -151,7 +151,8 @@ export function PatrolMap({
   const center: [number, number] = [stationLocation.lat, stationLocation.lng];
 
   useEffect(() => {
-    setIsMounted(true);
+    const timer = setTimeout(() => setIsMounted(true), 0);
+    return () => clearTimeout(timer);
   }, []);
 
   if (!isMounted) {

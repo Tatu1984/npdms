@@ -18,9 +18,9 @@ import {
   Map,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 
 interface ChallanStats {
@@ -54,7 +54,8 @@ export default function TrafficDashboardPage() {
 
   useEffect(() => {
     // Simulated data - in production, fetch from API
-    setStats({
+    const loadData = () => {
+      setStats({
       totalChallans: 15847,
       totalAmount: 47541000,
       collectedAmount: 35890000,
@@ -92,9 +93,12 @@ export default function TrafficDashboardPage() {
       { id: "2", challanNumber: "TRF-2024-00155", vehicleNumber: "KA-05-CD-5678", violationType: "Signal Violation", amount: 1000, status: "PAID", date: "2024-01-08" },
       { id: "3", challanNumber: "TRF-2024-00154", vehicleNumber: "KA-03-EF-9012", violationType: "No Helmet", amount: 500, status: "PENDING", date: "2024-01-08" },
       { id: "4", challanNumber: "TRF-2024-00153", vehicleNumber: "KA-02-GH-3456", violationType: "Drunk Driving", amount: 10000, status: "DISPUTED", date: "2024-01-07" },
-    ]);
+      ]);
 
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+    const timer = setTimeout(loadData, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const formatCurrency = (amount: number) => {

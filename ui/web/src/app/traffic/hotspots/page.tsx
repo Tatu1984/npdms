@@ -12,9 +12,9 @@ import {
   BarChart3,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 
 interface Hotspot {
@@ -44,7 +44,8 @@ export default function HotspotsPage() {
 
   useEffect(() => {
     // Simulated data - in production, fetch from API
-    setHotspots([
+    const loadData = () => {
+      setHotspots([
       {
         id: "1",
         locationName: "MG Road Junction",
@@ -141,8 +142,11 @@ export default function HotspotsPage() {
         recommendationNotes: "Railway crossing with frequent signal jumping. Boom barrier maintenance needed.",
         updatedAt: "2024-01-08T10:00:00Z",
       },
-    ]);
-    setIsLoading(false);
+      ]);
+      setIsLoading(false);
+    };
+    const timer = setTimeout(loadData, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const getSeverityColor = (challans30Days: number) => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import DashboardLayout from '@/components/layout/DashboardLayout';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -297,7 +297,7 @@ export default function InterAgencyPage() {
                 <Input
                   placeholder="Search agencies..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(value: string) => setSearchQuery(value)}
                   className="pl-8"
                 />
               </div>

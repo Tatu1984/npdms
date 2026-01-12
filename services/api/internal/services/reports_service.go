@@ -12,7 +12,7 @@ import (
 	"github.com/jung-kurt/gofpdf"
 	"github.com/xuri/excelize/v2"
 
-	"npdms/internal/repository"
+	"github.com/npdms/api/internal/repository"
 )
 
 type ReportsService struct {

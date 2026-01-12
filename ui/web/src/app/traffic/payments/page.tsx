@@ -16,10 +16,10 @@ import {
   Eye,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 interface Payment {
   id: string;
@@ -64,7 +64,8 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     // Simulated data - in production, fetch from API
-    setPayments([
+    const loadData = () => {
+      setPayments([
       {
         id: "1",
         transactionId: "TXN-2024-00456",
@@ -145,8 +146,11 @@ export default function PaymentsPage() {
         completedAt: "2024-01-07T11:00:00Z",
         receiptNumber: "RCP-2024-00452",
       },
-    ]);
-    setIsLoading(false);
+      ]);
+      setIsLoading(false);
+    };
+    const timer = setTimeout(loadData, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const filteredPayments = payments.filter((payment) => {

@@ -18,10 +18,10 @@ import {
   Download,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
 
@@ -71,7 +71,9 @@ export default function ChallansPage() {
 
   useEffect(() => {
     // Simulated data - in production, fetch from API
-    setChallans([
+    // Use setTimeout to avoid synchronous setState warning
+    const loadData = () => {
+      setChallans([
       {
         id: "1",
         challanNumber: "TRF-2024-00156",
@@ -152,9 +154,12 @@ export default function ChallansPage() {
         paymentDate: null,
         createdAt: "2024-01-07T17:00:00Z",
       },
-    ]);
-    setTotalPages(5);
-    setIsLoading(false);
+      ]);
+      setTotalPages(5);
+      setIsLoading(false);
+    };
+    const timer = setTimeout(loadData, 0);
+    return () => clearTimeout(timer);
   }, [page, filterStatus, searchQuery]);
 
   const filteredChallans = challans.filter((challan) => {

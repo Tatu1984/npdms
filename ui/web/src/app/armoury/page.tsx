@@ -5,12 +5,10 @@ import Link from "next/link";
 import {
   Shield,
   Search,
-  Filter,
   Plus,
   Eye,
   AlertTriangle,
   CheckCircle,
-  Clock,
   Package,
   Crosshair,
   FileText,
@@ -18,13 +16,13 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
@@ -197,16 +195,11 @@ export default function ArmouryPage() {
             {canAudit && (
               <Button
                 variant="secondary"
-                onClick={() => {
-                  addToast({
-                    type: "info",
-                    title: "Audit Report",
-                    message: "Audit report generation coming soon",
-                  });
-                }}
+                disabled
+                title="Feature under development"
               >
                 <FileText className="h-4 w-4 mr-2" />
-                Audit Report
+                Audit Report (Coming Soon)
               </Button>
             )}
           </div>
@@ -420,16 +413,11 @@ export default function ArmouryPage() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => {
-                      addToast({
-                        type: "info",
-                        title: "Add Stock",
-                        message: "Add ammunition stock feature coming soon",
-                      });
-                    }}
+                    disabled
+                    title="Feature under development"
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Stock
+                    Add Stock (Coming Soon)
                   </Button>
                 )}
               </CardHeader>
@@ -477,8 +465,8 @@ export default function ArmouryPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           {canIssue && (
-                            <Button variant="ghost" size="sm" onClick={() => addToast({ type: "info", title: "Issue Ammunition", message: `Ammunition issuance form for ${ammo.type} coming soon` })}>
-                              Issue
+                            <Button variant="ghost" size="sm" disabled title="Feature under development">
+                              Issue (Soon)
                             </Button>
                           )}
                         </TableCell>

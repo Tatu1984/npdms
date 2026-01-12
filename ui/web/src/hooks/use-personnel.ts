@@ -45,7 +45,7 @@ const personnelApi = {
     const response = await fetch(`${API_BASE}/personnel?${params}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -60,7 +60,7 @@ const personnelApi = {
     const response = await fetch(`${API_BASE}/personnel/${id}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -76,7 +76,7 @@ const personnelApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -93,7 +93,7 @@ const personnelApi = {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -110,7 +110,7 @@ const personnelApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify({ assignment }),
     });
@@ -127,7 +127,7 @@ const personnelApi = {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -280,6 +280,9 @@ export function useCreatePersonnel(options?: QueueOptions) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: personnelKeys.lists() });
     },
+    onError: (error: Error) => {
+      console.error('[useCreatePersonnel] Mutation error:', error.message);
+    },
   });
 }
 
@@ -329,6 +332,9 @@ export function useUpdatePersonnel(options?: QueueOptions) {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: personnelKeys.lists() });
       queryClient.invalidateQueries({ queryKey: personnelKeys.detail(variables.id) });
+    },
+    onError: (error: Error) => {
+      console.error('[useUpdatePersonnel] Mutation error:', error.message);
     },
   });
 }
@@ -380,6 +386,9 @@ export function useAssignDuty(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: personnelKeys.lists() });
       queryClient.invalidateQueries({ queryKey: personnelKeys.detail(variables.id) });
     },
+    onError: (error: Error) => {
+      console.error('[useAssignDuty] Mutation error:', error.message);
+    },
   });
 }
 
@@ -417,6 +426,9 @@ export function useDeletePersonnel(options?: QueueOptions) {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: personnelKeys.lists() });
       queryClient.removeQueries({ queryKey: personnelKeys.detail(id) });
+    },
+    onError: (error: Error) => {
+      console.error('[useDeletePersonnel] Mutation error:', error.message);
     },
   });
 }

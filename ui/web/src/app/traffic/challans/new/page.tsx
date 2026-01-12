@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Car,
   User,
@@ -13,13 +16,56 @@ import {
   IndianRupee,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Textarea } from "@/components/ui/Textarea";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/stores/toastStore";
 import { useAuthStore } from "@/stores/authStore";
+
+// Challan form validation schema
+const challanFormSchema = z.object({
+  violationTypeId: z.string().min(1, "Please select a violation type"),
+  violationDate: z.string().min(1, "Violation date is required"),
+  violationLocation: z
+    .string()
+    .min(5, "Location must be at least 5 characters")
+    .max(200, "Location must be less than 200 characters"),
+  violationDescription: z.string().max(1000, "Description must be less than 1000 characters").optional(),
+  vehicleNumber: z
+    .string()
+    .min(1, "Vehicle number is required")
+    .regex(
+      /^[A-Z]{2}[-\s]?\d{1,2}[-\s]?[A-Z]{1,3}[-\s]?\d{1,4}$/,
+      "Invalid vehicle number format (e.g., KA-01-AB-1234)"
+    ),
+  vehicleType: z.string().min(1, "Vehicle type is required"),
+  vehicleMake: z.string().max(50).optional(),
+  vehicleModel: z.string().max(50).optional(),
+  vehicleColor: z.string().max(30).optional(),
+  ownerName: z.string().max(100).optional(),
+  ownerPhone: z
+    .string()
+    .regex(/^[6-9]\d{9}$/, "Invalid phone number")
+    .optional()
+    .or(z.literal("")),
+  driverName: z.string().max(100).optional(),
+  driverLicenseNumber: z
+    .string()
+    .regex(/^[A-Z]{2}[-\s]?\d{2}[-\s]?\d{11}$/, "Invalid license format")
+    .optional()
+    .or(z.literal("")),
+  driverPhone: z
+    .string()
+    .regex(/^[6-9]\d{9}$/, "Invalid phone number")
+    .optional()
+    .or(z.literal("")),
+  speedReading: z.string().optional(),
+  breathAnalyzerReading: z.string().optional(),
+});
+
+type ChallanFormData = z.infer<typeof challanFormSchema>;
 
 interface ViolationType {
   id: string;
@@ -51,26 +97,34 @@ export default function NewChallanPage() {
   const [violationTypes, setViolationTypes] = useState<ViolationType[]>([]);
   const [selectedViolation, setSelectedViolation] = useState<ViolationType | null>(null);
 
-  const [formData, setFormData] = useState({
-    violationTypeId: "",
-    violationDate: new Date().toISOString().slice(0, 16),
-    violationLocation: "",
-    violationLatitude: "",
-    violationLongitude: "",
-    violationDescription: "",
-    vehicleNumber: "",
-    vehicleType: "FOUR_WHEELER",
-    vehicleMake: "",
-    vehicleModel: "",
-    vehicleColor: "",
-    ownerName: "",
-    ownerPhone: "",
-    driverName: "",
-    driverLicenseNumber: "",
-    driverPhone: "",
-    speedReading: "",
-    breathAnalyzerReading: "",
+  const {
+    setValue,
+    watch,
+    handleSubmit: handleFormSubmit,
+    formState: { errors },
+  } = useForm<ChallanFormData>({
+    resolver: zodResolver(challanFormSchema),
+    defaultValues: {
+      violationTypeId: "",
+      violationDate: new Date().toISOString().slice(0, 16),
+      violationLocation: "",
+      violationDescription: "",
+      vehicleNumber: "",
+      vehicleType: "FOUR_WHEELER",
+      vehicleMake: "",
+      vehicleModel: "",
+      vehicleColor: "",
+      ownerName: "",
+      ownerPhone: "",
+      driverName: "",
+      driverLicenseNumber: "",
+      driverPhone: "",
+      speedReading: "",
+      breathAnalyzerReading: "",
+    },
   });
+
+  const formData = watch();
 
   useEffect(() => {
     // Simulated violation types - in production, fetch from API
@@ -89,17 +143,12 @@ export default function NewChallanPage() {
   }, []);
 
   const handleViolationChange = (violationId: string) => {
-    setFormData({ ...formData, violationTypeId: violationId });
+    setValue("violationTypeId", violationId);
     const violation = violationTypes.find((v) => v.id === violationId);
     setSelectedViolation(violation || null);
   };
 
-  const handleSubmit = async () => {
-    if (!formData.violationTypeId || !formData.vehicleNumber || !formData.violationLocation) {
-      toast.error("Validation Error", "Please fill in all required fields");
-      return;
-    }
-
+  const onSubmit = async (data: ChallanFormData) => {
     setIsSubmitting(true);
     try {
       // In production, send to API
@@ -138,15 +187,20 @@ export default function NewChallanPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Select
-              label="Violation Type *"
-              value={formData.violationTypeId}
-              onChange={(v: string) => handleViolationChange(v)}
-              options={violationTypes.map((vt) => ({
-                value: vt.id,
-                label: `${vt.name} - Rs. ${formatAmount(vt.fineAmount)}`,
-              }))}
-            />
+            <div>
+              <Select
+                label="Violation Type *"
+                value={formData.violationTypeId}
+                onChange={(v: string) => handleViolationChange(v)}
+                options={violationTypes.map((vt) => ({
+                  value: vt.id,
+                  label: `${vt.name} - Rs. ${formatAmount(vt.fineAmount)}`,
+                }))}
+              />
+              {errors.violationTypeId && (
+                <p className="text-xs text-error mt-1">{errors.violationTypeId.message}</p>
+              )}
+            </div>
 
             {selectedViolation && (
               <div className="p-4 rounded-lg bg-background-tertiary space-y-2">
@@ -190,26 +244,36 @@ export default function NewChallanPage() {
             )}
 
             <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Violation Date & Time *"
-                type="datetime-local"
-                value={formData.violationDate}
-                onChange={(v: string) => setFormData({ ...formData, violationDate: v })}
-              />
-              <Input
-                label="Location *"
-                placeholder="MG Road Junction, Bengaluru"
-                value={formData.violationLocation}
-                onChange={(v: string) => setFormData({ ...formData, violationLocation: v })}
-                icon={<MapPin className="h-4 w-4" />}
-              />
+              <div>
+                <Input
+                  label="Violation Date & Time *"
+                  type="datetime-local"
+                  value={formData.violationDate}
+                  onChange={(v: string) => setValue("violationDate", v)}
+                />
+                {errors.violationDate && (
+                  <p className="text-xs text-error mt-1">{errors.violationDate.message}</p>
+                )}
+              </div>
+              <div>
+                <Input
+                  label="Location *"
+                  placeholder="MG Road Junction, Bengaluru"
+                  value={formData.violationLocation}
+                  onChange={(v: string) => setValue("violationLocation", v)}
+                  icon={<MapPin className="h-4 w-4" />}
+                />
+                {errors.violationLocation && (
+                  <p className="text-xs text-error mt-1">{errors.violationLocation.message}</p>
+                )}
+              </div>
             </div>
 
             <Textarea
               label="Description"
               placeholder="Additional details about the violation..."
-              value={formData.violationDescription}
-              onChange={(v: string) => setFormData({ ...formData, violationDescription: v })}
+              value={formData.violationDescription || ""}
+              onChange={(v: string) => setValue("violationDescription", v)}
               rows={2}
             />
 
@@ -218,8 +282,8 @@ export default function NewChallanPage() {
                 label="Speed Reading (km/h)"
                 type="number"
                 placeholder="85"
-                value={formData.speedReading}
-                onChange={(v: string) => setFormData({ ...formData, speedReading: v })}
+                value={formData.speedReading || ""}
+                onChange={(v: string) => setValue("speedReading", v)}
               />
             )}
 
@@ -228,8 +292,8 @@ export default function NewChallanPage() {
                 label="Breath Analyzer Reading (mg/100ml)"
                 type="number"
                 placeholder="0.08"
-                value={formData.breathAnalyzerReading}
-                onChange={(v: string) => setFormData({ ...formData, breathAnalyzerReading: v })}
+                value={formData.breathAnalyzerReading || ""}
+                onChange={(v: string) => setValue("breathAnalyzerReading", v)}
               />
             )}
           </CardContent>
@@ -245,16 +309,21 @@ export default function NewChallanPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Vehicle Number *"
-                placeholder="KA-01-AB-1234"
-                value={formData.vehicleNumber}
-                onChange={(v: string) => setFormData({ ...formData, vehicleNumber: v.toUpperCase() })}
-              />
+              <div>
+                <Input
+                  label="Vehicle Number *"
+                  placeholder="KA-01-AB-1234"
+                  value={formData.vehicleNumber}
+                  onChange={(v: string) => setValue("vehicleNumber", v.toUpperCase())}
+                />
+                {errors.vehicleNumber && (
+                  <p className="text-xs text-error mt-1">{errors.vehicleNumber.message}</p>
+                )}
+              </div>
               <Select
                 label="Vehicle Type *"
                 value={formData.vehicleType}
-                onChange={(v: string) => setFormData({ ...formData, vehicleType: v })}
+                onChange={(v: string) => setValue("vehicleType", v)}
                 options={vehicleTypeOptions}
               />
             </div>
@@ -263,20 +332,20 @@ export default function NewChallanPage() {
               <Input
                 label="Make"
                 placeholder="Honda"
-                value={formData.vehicleMake}
-                onChange={(v: string) => setFormData({ ...formData, vehicleMake: v })}
+                value={formData.vehicleMake || ""}
+                onChange={(v: string) => setValue("vehicleMake", v)}
               />
               <Input
                 label="Model"
                 placeholder="City"
-                value={formData.vehicleModel}
-                onChange={(v: string) => setFormData({ ...formData, vehicleModel: v })}
+                value={formData.vehicleModel || ""}
+                onChange={(v: string) => setValue("vehicleModel", v)}
               />
               <Input
                 label="Color"
                 placeholder="White"
-                value={formData.vehicleColor}
-                onChange={(v: string) => setFormData({ ...formData, vehicleColor: v })}
+                value={formData.vehicleColor || ""}
+                onChange={(v: string) => setValue("vehicleColor", v)}
               />
             </div>
           </CardContent>
@@ -295,36 +364,51 @@ export default function NewChallanPage() {
               <Input
                 label="Owner Name"
                 placeholder="John Doe"
-                value={formData.ownerName}
-                onChange={(v: string) => setFormData({ ...formData, ownerName: v })}
+                value={formData.ownerName || ""}
+                onChange={(v: string) => setValue("ownerName", v)}
               />
-              <Input
-                label="Owner Phone"
-                placeholder="9876543210"
-                value={formData.ownerPhone}
-                onChange={(v: string) => setFormData({ ...formData, ownerPhone: v })}
-              />
+              <div>
+                <Input
+                  label="Owner Phone"
+                  placeholder="9876543210"
+                  value={formData.ownerPhone || ""}
+                  onChange={(v: string) => setValue("ownerPhone", v)}
+                />
+                {errors.ownerPhone && (
+                  <p className="text-xs text-error mt-1">{errors.ownerPhone.message}</p>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <Input
                 label="Driver Name"
                 placeholder="John Doe"
-                value={formData.driverName}
-                onChange={(v: string) => setFormData({ ...formData, driverName: v })}
+                value={formData.driverName || ""}
+                onChange={(v: string) => setValue("driverName", v)}
               />
-              <Input
-                label="Driver License Number"
-                placeholder="KA-0120210012345"
-                value={formData.driverLicenseNumber}
-                onChange={(v: string) => setFormData({ ...formData, driverLicenseNumber: v.toUpperCase() })}
-              />
-              <Input
-                label="Driver Phone"
-                placeholder="9876543210"
-                value={formData.driverPhone}
-                onChange={(v: string) => setFormData({ ...formData, driverPhone: v })}
-              />
+              <div>
+                <Input
+                  label="Driver License Number"
+                  placeholder="KA-0120210012345"
+                  value={formData.driverLicenseNumber || ""}
+                  onChange={(v: string) => setValue("driverLicenseNumber", v.toUpperCase())}
+                />
+                {errors.driverLicenseNumber && (
+                  <p className="text-xs text-error mt-1">{errors.driverLicenseNumber.message}</p>
+                )}
+              </div>
+              <div>
+                <Input
+                  label="Driver Phone"
+                  placeholder="9876543210"
+                  value={formData.driverPhone || ""}
+                  onChange={(v: string) => setValue("driverPhone", v)}
+                />
+                {errors.driverPhone && (
+                  <p className="text-xs text-error mt-1">{errors.driverPhone.message}</p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -348,7 +432,7 @@ export default function NewChallanPage() {
                   <Button variant="secondary" onClick={() => router.back()}>
                     Cancel
                   </Button>
-                  <Button onClick={handleSubmit} disabled={isSubmitting}>
+                  <Button onClick={handleFormSubmit(onSubmit)} disabled={isSubmitting}>
                     {isSubmitting ? "Issuing..." : "Issue Challan"}
                   </Button>
                 </div>

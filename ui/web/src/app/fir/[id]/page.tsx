@@ -24,10 +24,10 @@ import {
   Link as LinkIcon,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CaseDiaryEntryDialog } from "@/components/ui/CaseDiaryEntryDialog";
 import { AddPersonDialog } from "@/components/ui/AddPersonDialog";
 import { FIRActionDialog } from "@/components/ui/FIRActionDialog";
@@ -41,6 +41,7 @@ function getStatusBadgeVariant(status: FIRStatus) {
   const variants: Record<FIRStatus, string> = {
     REGISTERED: "registered",
     UNDER_INVESTIGATION: "investigating",
+    PENDING: "warning",
     CHARGESHEET_FILED: "chargesheet",
     COURT_PENDING: "warning",
     CLOSED: "closed",
@@ -52,6 +53,7 @@ function getStatusBadgeVariant(status: FIRStatus) {
 function getPriorityBadgeVariant(priority: FIRPriority) {
   const variants: Record<FIRPriority, string> = {
     LOW: "low",
+    MEDIUM: "normal",
     NORMAL: "normal",
     HIGH: "high",
     CRITICAL: "critical",

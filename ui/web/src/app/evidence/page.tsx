@@ -19,19 +19,19 @@ import {
   Shield,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EvidenceTransferDialog } from "@/components/ui/EvidenceTransferDialog";
 import { ForensicRequestDialog } from "@/components/ui/ForensicRequestDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useEvidence, useDeleteEvidence, useTransferEvidence } from "@/hooks/use-evidence";
-import type { Evidence } from "@/lib/db/schema";
+import type { Evidence, EvidenceStatus, EvidenceType } from "@/lib/db/schema";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 import { toast } from "@/stores/toastStore";
 
@@ -160,8 +160,8 @@ export default function EvidencePage() {
 
   // Build filters for React Query
   const filters = {
-    type: typeFilter || undefined,
-    status: statusFilter || undefined,
+    type: (typeFilter || undefined) as EvidenceType | undefined,
+    status: (statusFilter || undefined) as EvidenceStatus | undefined,
     search: searchQuery || undefined,
   };
 
@@ -457,7 +457,7 @@ export default function EvidencePage() {
                       { value: "", label: "Select evidence to view chain" },
                       ...evidence.map((e) => ({
                         value: e.id,
-                        label: `${e.evidenceNumber} - ${e.category}`,
+                        label: `${e.evidenceNumber} - ${e.type}`,
                       })),
                     ]}
                     value={evidence[0]?.id || ""}
@@ -580,7 +580,7 @@ export default function EvidencePage() {
                           {new Date(request.eta).toLocaleDateString("en-IN")}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" onClick={() => toast.info("View Request", "Request details view coming soon")}>
+                          <Button variant="ghost" size="sm" disabled title="Feature under development">
                             <Eye className="h-4 w-4" />
                           </Button>
                         </TableCell>

@@ -46,7 +46,7 @@ const accusedApi = {
     const response = await fetch(`${API_BASE}/cases/${caseId}/accused?${params}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -61,7 +61,7 @@ const accusedApi = {
     const response = await fetch(`${API_BASE}/cases/${caseId}/accused/${id}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -77,7 +77,7 @@ const accusedApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -94,7 +94,7 @@ const accusedApi = {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -111,7 +111,7 @@ const accusedApi = {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -265,6 +265,9 @@ export function useCreateAccused(caseId: string, options?: QueueOptions) {
     onSuccess: (_, __, context) => {
       queryClient.invalidateQueries({ queryKey: accusedKeys.lists() });
     },
+    onError: (error: Error) => {
+      console.error('[useCreateAccused] Mutation error:', error.message);
+    },
   });
 }
 
@@ -315,6 +318,9 @@ export function useUpdateAccused(caseId: string, options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: accusedKeys.lists() });
       queryClient.invalidateQueries({ queryKey: accusedKeys.detail(caseId, variables.id) });
     },
+    onError: (error: Error) => {
+      console.error('[useUpdateAccused] Mutation error:', error.message);
+    },
   });
 }
 
@@ -352,6 +358,9 @@ export function useDeleteAccused(caseId: string, options?: QueueOptions) {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: accusedKeys.lists() });
       queryClient.removeQueries({ queryKey: accusedKeys.detail(caseId, id) });
+    },
+    onError: (error: Error) => {
+      console.error('[useDeleteAccused] Mutation error:', error.message);
     },
   });
 }

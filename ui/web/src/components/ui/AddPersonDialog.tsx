@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { User, X } from "lucide-react";
-import { Button } from "./Button";
-import { Input } from "./Input";
-import { Textarea } from "./Textarea";
-import { Select } from "./Select";
+import { Button } from "./button";
+import { Input } from "./input";
+import { Textarea } from "./textarea";
+import { LegacySelect as Select } from "./select";
 
 interface AddPersonDialogProps {
   isOpen: boolean;

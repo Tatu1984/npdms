@@ -3,15 +3,12 @@
 import { useState, useEffect } from 'react';
 import {
   Brain,
-  TrendingUp,
   Clock,
   CheckCircle,
-  XCircle,
   AlertTriangle,
   Settings,
   BarChart3,
   RefreshCw,
-  Download,
   Users,
   Activity,
   Target,
@@ -56,7 +53,7 @@ export default function AIReviewPage() {
   const [activeTab, setActiveTab] = useState<'queue' | 'stats' | 'models'>('queue');
   const [stats, setStats] = useState<AIStats | null>(null);
   const [modelConfigs, setModelConfigs] = useState<ModelConfig[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [editingModel, setEditingModel] = useState<ModelConfig | null>(null);
   const [dateRange, setDateRange] = useState({
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -74,7 +71,7 @@ export default function AIReviewPage() {
         `/api/v1/ai-review/stats?start_date=${dateRange.start}&end_date=${dateRange.end}`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
           },
         }
       );
@@ -94,7 +91,7 @@ export default function AIReviewPage() {
     try {
       const response = await fetch('/api/v1/ai-review/models', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
       });
 
@@ -113,7 +110,7 @@ export default function AIReviewPage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
         body: JSON.stringify({
           confidenceThreshold: config.confidenceThreshold,

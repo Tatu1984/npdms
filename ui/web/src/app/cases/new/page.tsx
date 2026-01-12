@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Briefcase,
-  FileText,
   Users,
   Scale,
   MapPin,
-  Calendar,
   AlertTriangle,
   Check,
   X,
@@ -16,15 +17,43 @@ import {
   Trash2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Textarea } from "@/components/ui/Textarea";
-import { Select } from "@/components/ui/Select";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { LegacySelect as Select } from "@/components/ui/select";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
 import { useCreateCase } from "@/hooks/use-cases";
 import { type CaseStatus } from "@/lib/db/schema";
+import { sanitizeString } from "@/lib/validations";
+
+// Case form validation schema
+const caseFormSchema = z.object({
+  linkedFIR: z
+    .string()
+    .min(1, "FIR number is required")
+    .regex(/^[A-Z]{2,4}\/\d{4}\/\d{5}$/, "FIR number format: XXX/YYYY/NNNNN (e.g., KOR/2024/00123)"),
+  title: z
+    .string()
+    .min(10, "Title must be at least 10 characters")
+    .max(200, "Title must be less than 200 characters")
+    .transform(sanitizeString),
+  category: z.string().min(1, "Please select a case category"),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]),
+  synopsis: z
+    .string()
+    .min(50, "Synopsis must be at least 50 characters")
+    .max(5000, "Synopsis must be less than 5000 characters")
+    .transform(sanitizeString),
+  incidentLocation: z
+    .string()
+    .min(10, "Location must be at least 10 characters")
+    .max(500, "Location must be less than 500 characters")
+    .transform(sanitizeString),
+  incidentDate: z.string().min(1, "Incident date is required"),
+  incidentTime: z.string().optional(),
+});
 
 const caseCategories = [
   { value: "MURDER", label: "Murder" },
@@ -63,6 +92,8 @@ const commonIPCSections = [
   { value: "Arms Act 25", label: "Arms Act Section 25" },
 ];
 
+type CaseFormData = z.infer<typeof caseFormSchema>;
+
 export default function NewCasePage() {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -72,17 +103,26 @@ export default function NewCasePage() {
 
   const canCreate = user && hasMinimumRole(user.role, "SI");
 
-  const [formData, setFormData] = useState({
-    linkedFIR: "",
-    title: "",
-    category: "",
-    priority: "MEDIUM",
-    synopsis: "",
-    incidentLocation: "",
-    incidentDate: "",
-    incidentTime: "",
-    assignedOfficer: user?.name || "",
+  const {
+    setValue,
+    watch,
+    handleSubmit: handleFormSubmit,
+    formState: { errors },
+  } = useForm<CaseFormData>({
+    resolver: zodResolver(caseFormSchema),
+    defaultValues: {
+      linkedFIR: "",
+      title: "",
+      category: "",
+      priority: "MEDIUM",
+      synopsis: "",
+      incidentLocation: "",
+      incidentDate: "",
+      incidentTime: "",
+    },
   });
+
+  const formData = watch();
 
   const [accused, setAccused] = useState([
     { name: "", description: "", status: "ABSCONDING" },
@@ -110,14 +150,12 @@ export default function NewCasePage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const onSubmit = async (data: CaseFormData) => {
     try {
       const newCase = await createCaseMutation.mutateAsync({
-        firId: formData.linkedFIR,
-        title: formData.title,
-        description: formData.synopsis,
+        firId: data.linkedFIR,
+        title: data.title,
+        description: data.synopsis,
         status: "INVESTIGATION" as CaseStatus,
         stationId: user?.stationId || "default-station",
         investigatingOfficer: user?.id,
@@ -132,7 +170,7 @@ export default function NewCasePage() {
         message: `Case ${newCase.caseNumber} has been registered successfully`,
       });
       router.push("/cases");
-    } catch (error) {
+    } catch (_error) {
       addToast({
         type: "error",
         title: "Error",
@@ -174,7 +212,7 @@ export default function NewCasePage() {
           </Button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleFormSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Main Form */}
             <div className="lg:col-span-2 space-y-6">
@@ -188,56 +226,61 @@ export default function NewCasePage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <Input
-                      label="Linked FIR Number *"
-                      placeholder="e.g., KOR/2024/00123"
-                      value={formData.linkedFIR}
-                      onChange={(v: string) =>
-                        setFormData({ ...formData, linkedFIR: v })
-                      }
-                      required
-                    />
-                    <Select
-                      label="Case Category *"
-                      value={formData.category}
-                      onChange={(v: string) =>
-                        setFormData({ ...formData, category: v })
-                      }
-                      options={caseCategories}
-                      required
-                    />
+                    <div>
+                      <Input
+                        label="Linked FIR Number *"
+                        placeholder="e.g., KOR/2024/00123"
+                        value={formData.linkedFIR}
+                        onChange={(v: string) => setValue("linkedFIR", v)}
+                      />
+                      {errors.linkedFIR && (
+                        <p className="text-xs text-error mt-1">{errors.linkedFIR.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Select
+                        label="Case Category *"
+                        value={formData.category}
+                        onChange={(v: string) => setValue("category", v)}
+                        options={caseCategories}
+                      />
+                      {errors.category && (
+                        <p className="text-xs text-error mt-1">{errors.category.message}</p>
+                      )}
+                    </div>
                   </div>
 
-                  <Input
-                    label="Case Title *"
-                    placeholder="Brief descriptive title of the case"
-                    value={formData.title}
-                    onChange={(v: string) =>
-                      setFormData({ ...formData, title: v })
-                    }
-                    required
-                  />
+                  <div>
+                    <Input
+                      label="Case Title *"
+                      placeholder="Brief descriptive title of the case"
+                      value={formData.title}
+                      onChange={(v: string) => setValue("title", v)}
+                    />
+                    {errors.title && (
+                      <p className="text-xs text-error mt-1">{errors.title.message}</p>
+                    )}
+                  </div>
 
                   <Select
                     label="Priority *"
                     value={formData.priority}
-                    onChange={(v: string) =>
-                      setFormData({ ...formData, priority: v })
-                    }
+                    onChange={(v: string) => setValue("priority", v as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL")}
                     options={priorities}
-                    required
                   />
 
-                  <Textarea
-                    label="Case Synopsis *"
-                    placeholder="Detailed description of the incident and case background..."
-                    value={formData.synopsis}
-                    onChange={(v: string) =>
-                      setFormData({ ...formData, synopsis: v })
-                    }
-                    rows={6}
-                    required
-                  />
+                  <div>
+                    <Textarea
+                      label="Case Synopsis *"
+                      placeholder="Detailed description of the incident and case background..."
+                      value={formData.synopsis}
+                      onChange={(v: string) => setValue("synopsis", v)}
+                      rows={6}
+                    />
+                    {errors.synopsis && (
+                      <p className="text-xs text-error mt-1">{errors.synopsis.message}</p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -250,34 +293,36 @@ export default function NewCasePage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Input
-                    label="Incident Location *"
-                    placeholder="Address where the incident occurred"
-                    value={formData.incidentLocation}
-                    onChange={(v: string) =>
-                      setFormData({ ...formData, incidentLocation: v })
-                    }
-                    icon={<MapPin className="h-4 w-4" />}
-                    required
-                  />
+                  <div>
+                    <Input
+                      label="Incident Location *"
+                      placeholder="Address where the incident occurred"
+                      value={formData.incidentLocation}
+                      onChange={(v: string) => setValue("incidentLocation", v)}
+                      icon={<MapPin className="h-4 w-4" />}
+                    />
+                    {errors.incidentLocation && (
+                      <p className="text-xs text-error mt-1">{errors.incidentLocation.message}</p>
+                    )}
+                  </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <Input
-                      label="Incident Date *"
-                      type="date"
-                      value={formData.incidentDate}
-                      onChange={(v: string) =>
-                        setFormData({ ...formData, incidentDate: v })
-                      }
-                      required
-                    />
+                    <div>
+                      <Input
+                        label="Incident Date *"
+                        type="date"
+                        value={formData.incidentDate}
+                        onChange={(v: string) => setValue("incidentDate", v)}
+                      />
+                      {errors.incidentDate && (
+                        <p className="text-xs text-error mt-1">{errors.incidentDate.message}</p>
+                      )}
+                    </div>
                     <Input
                       label="Incident Time"
                       type="time"
-                      value={formData.incidentTime}
-                      onChange={(v: string) =>
-                        setFormData({ ...formData, incidentTime: v })
-                      }
+                      value={formData.incidentTime || ""}
+                      onChange={(v: string) => setValue("incidentTime", v)}
                     />
                   </div>
                 </CardContent>
@@ -406,7 +451,7 @@ export default function NewCasePage() {
                 <CardContent className="space-y-4">
                   <Input
                     label="Lead Investigator"
-                    value={formData.assignedOfficer}
+                    value={user?.name || ""}
                     disabled
                   />
                   <div className="p-3 rounded bg-info/10">

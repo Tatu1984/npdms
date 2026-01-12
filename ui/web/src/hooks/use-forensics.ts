@@ -45,7 +45,7 @@ const forensicApi = {
     const response = await fetch(`${API_BASE}/forensics?${params}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -60,7 +60,7 @@ const forensicApi = {
     const response = await fetch(`${API_BASE}/forensics/${id}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -76,7 +76,7 @@ const forensicApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -93,7 +93,7 @@ const forensicApi = {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify(data),
     });
@@ -110,7 +110,7 @@ const forensicApi = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
       body: JSON.stringify({ findings }),
     });
@@ -126,7 +126,7 @@ const forensicApi = {
     const response = await fetch(`${API_BASE}/forensics/stats`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -309,6 +309,9 @@ export function useCreateForensic(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: forensicKeys.lists() });
       queryClient.invalidateQueries({ queryKey: forensicKeys.stats() });
     },
+    onError: (error: Error) => {
+      console.error('[useCreateForensic] Mutation error:', error.message);
+    },
   });
 }
 
@@ -359,6 +362,9 @@ export function useUpdateForensic(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: forensicKeys.lists() });
       queryClient.invalidateQueries({ queryKey: forensicKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: forensicKeys.stats() });
+    },
+    onError: (error: Error) => {
+      console.error('[useUpdateForensic] Mutation error:', error.message);
     },
   });
 }
@@ -412,6 +418,9 @@ export function useCompleteForensic(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: forensicKeys.lists() });
       queryClient.invalidateQueries({ queryKey: forensicKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: forensicKeys.stats() });
+    },
+    onError: (error: Error) => {
+      console.error('[useCompleteForensic] Mutation error:', error.message);
     },
   });
 }

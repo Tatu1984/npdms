@@ -21,9 +21,9 @@ import {
   Share2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useLookoutStore } from "@/stores/lookoutStore";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";

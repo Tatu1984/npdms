@@ -482,8 +482,8 @@ class FederatedSyncManager {
         // Notify listeners
         this.listeners.forEach(listener => listener(result));
 
-        console.log(
-          `[FederatedSync] ${resourceType}: pushed=${result.pushed}, pulled=${result.pulled}, conflicts=${result.conflicts}`
+        log.info(
+          `${resourceType}: pushed=${result.pushed}, pulled=${result.pulled}, conflicts=${result.conflicts}`
         );
       } catch (error) {
         log.error(` Failed to sync ${resourceType}:`, error);

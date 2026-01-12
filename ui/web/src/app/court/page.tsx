@@ -13,18 +13,16 @@ import {
   ChevronRight,
   Bell,
   MapPin,
-  Briefcase,
   Plus,
-  X,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
-import { useCourtStore, CourtHearing } from "@/stores/courtStore";
+import { useCourtStore } from "@/stores/courtStore";
 import { format, parseISO } from "date-fns";
 
 
@@ -47,7 +45,7 @@ const hearingTypes = {
 type FilterType = "all" | "today" | "week" | "date";
 
 export default function CourtPage() {
-  const { user } = useAuthStore();
+  const { user: _user } = useAuthStore(); // Reserved for role-based access control
   const {
     hearings,
     orders,

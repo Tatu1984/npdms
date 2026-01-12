@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"npdms/internal/models"
-	"npdms/internal/repository"
+	"github.com/npdms/api/internal/models"
+	"github.com/npdms/api/internal/repository"
 
 	"github.com/google/uuid"
 )

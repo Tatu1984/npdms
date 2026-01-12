@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
@@ -105,7 +106,7 @@ func CSRFProtection(config CSRFConfig) gin.HandlerFunc {
 }
 
 // generateCSRFToken generates a new CSRF token
-func generateCSRFToken(ctx gin.Context, redisClient *redis.Client) (string, error) {
+func generateCSRFToken(ctx context.Context, redisClient *redis.Client) (string, error) {
 	// Generate random bytes
 	bytes := make([]byte, CSRFTokenLength)
 	if _, err := rand.Read(bytes); err != nil {
@@ -128,7 +129,7 @@ func generateCSRFToken(ctx gin.Context, redisClient *redis.Client) (string, erro
 }
 
 // validateCSRFToken validates a CSRF token
-func validateCSRFToken(ctx gin.Context, redisClient *redis.Client, headerToken, cookieToken string) (bool, error) {
+func validateCSRFToken(ctx context.Context, redisClient *redis.Client, headerToken, cookieToken string) (bool, error) {
 	// Tokens must match
 	if subtle.ConstantTimeCompare([]byte(headerToken), []byte(cookieToken)) != 1 {
 		return false, nil
@@ -158,7 +159,6 @@ func setCSRFCookie(c *gin.Context, token string, config CSRFConfig) {
 		config.Domain,
 		config.Secure,
 		true, // HttpOnly
-		config.SameSite,
 	)
 }
 

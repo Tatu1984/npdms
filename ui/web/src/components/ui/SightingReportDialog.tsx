@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { MapPin, Camera, Calendar, User } from "lucide-react";
 import { Modal, ModalFooter } from "./Modal";
-import { Input } from "./Input";
-import { Textarea } from "./Textarea";
-import { Button } from "./Button";
+import { Input } from "./input";
+import { Textarea } from "./textarea";
+import { Button } from "./button";
 import { DatePicker } from "./DatePicker";
 import { FileUpload } from "./FileUpload";
+import { toast } from "@/stores/toastStore";
 
 export interface SightingReportDialogProps {
   alertId: string;
@@ -44,7 +45,7 @@ export function SightingReportDialog({
 
   const handleSubmit = () => {
     if (!location || !sightingDate || !reporterName || !reporterPhone) {
-      alert("Please fill in all required fields");
+      toast.warning("Required Fields", "Please fill in all required fields");
       return;
     }
 
@@ -81,7 +82,7 @@ export function SightingReportDialog({
         <Input
           label="Location *"
           value={location}
-          onChange={(value) => setLocation(value)}
+          onChange={(value: string) => setLocation(value)}
           placeholder="Where was the sighting?"
           icon={<MapPin className="h-4 w-4" />}
         />
@@ -98,7 +99,7 @@ export function SightingReportDialog({
             label="Sighting Time"
             type="time"
             value={sightingTime}
-            onChange={(value) => setSightingTime(value)}
+            onChange={(value: string) => setSightingTime(value)}
           />
         </div>
 
@@ -106,7 +107,7 @@ export function SightingReportDialog({
           <Input
             label="Reporter Name *"
             value={reporterName}
-            onChange={(value) => setReporterName(value)}
+            onChange={(value: string) => setReporterName(value)}
             placeholder="Your name"
             icon={<User className="h-4 w-4" />}
           />
@@ -114,7 +115,7 @@ export function SightingReportDialog({
           <Input
             label="Reporter Phone *"
             value={reporterPhone}
-            onChange={(value) => setReporterPhone(value)}
+            onChange={(value: string) => setReporterPhone(value)}
             placeholder="9876543210"
             type="tel"
           />
@@ -123,7 +124,7 @@ export function SightingReportDialog({
         <Textarea
           label="Description"
           value={description}
-          onChange={(value) => setDescription(value)}
+          onChange={(value: string) => setDescription(value)}
           placeholder="Describe what you saw..."
           rows={4}
         />

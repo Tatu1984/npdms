@@ -5,8 +5,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"npdms/internal/models"
-	"npdms/internal/services"
+	"github.com/npdms/api/internal/models"
+	"github.com/npdms/api/internal/services"
 )
 
 type MLHandler struct {

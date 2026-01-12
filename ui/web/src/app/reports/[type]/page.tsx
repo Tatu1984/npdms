@@ -20,9 +20,9 @@ import {
   XCircle,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface ReportConfig {
   id: string;
@@ -70,29 +70,26 @@ const reportConfigs: Record<string, ReportConfig> = {
   },
 };
 
+// Helper to get initial dates - computed once at module load
+const getInitialFromDate = () => {
+  return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+};
+
+const getInitialToDate = () => {
+  return new Date().toISOString().split("T")[0];
+};
+
 export default function ReportTypePage() {
   const params = useParams();
   const router = useRouter();
   const reportType = params.type as string;
   const config = reportConfigs[reportType];
 
-  const [fromDate, setFromDate] = useState(
-    new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-  );
-  const [toDate, setToDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+  const [fromDate, setFromDate] = useState(() => getInitialFromDate());
+  const [toDate, setToDate] = useState(() => getInitialToDate());
   const [reportData, setReportData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [downloadFormat, setDownloadFormat] = useState("pdf");
-
-  useEffect(() => {
-    if (!config) {
-      router.push("/reports");
-      return;
-    }
-    fetchReportData();
-  }, [reportType, fromDate, toDate]);
 
   const fetchReportData = async () => {
     setIsLoading(true);
@@ -189,6 +186,16 @@ export default function ReportTypePage() {
       setIsLoading(false);
     }, 500);
   };
+
+  // Effect to fetch data when dependencies change
+  useEffect(() => {
+    if (!config) {
+      router.push("/reports");
+      return;
+    }
+    fetchReportData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportType, fromDate, toDate, config, router]);
 
   const handleDownload = (format: string) => {
     const params = new URLSearchParams({

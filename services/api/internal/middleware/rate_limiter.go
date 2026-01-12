@@ -101,7 +101,7 @@ func checkRateLimit(
 	countCmd := pipe.ZCard(ctx, key)
 
 	// Add current request
-	pipe.ZAdd(ctx, key, &redis.Z{
+	pipe.ZAdd(ctx, key, redis.Z{
 		Score:  float64(now.UnixNano()),
 		Member: fmt.Sprintf("%d", now.UnixNano()),
 	})

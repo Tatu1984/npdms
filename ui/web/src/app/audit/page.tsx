@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   FileSearch,
   Search,
-  Filter,
   Clock,
   User,
   FileText,
@@ -15,16 +14,16 @@ import {
   Trash2,
   Plus,
   Download,
-  Calendar,
   CheckCircle,
   XCircle,
   RefreshCw,
 } from "lucide-react";
+import { toast } from "@/stores/toastStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 
 const mockAuditLogs = [
@@ -168,7 +167,7 @@ export default function AuditPage() {
   const [filterAction, setFilterAction] = useState("ALL");
   const [filterResource, setFilterResource] = useState("ALL");
   const [filterSuccess, setFilterSuccess] = useState("ALL");
-  const [dateRange, setDateRange] = useState({ from: "", to: "" });
+  const [_dateRange, _setDateRange] = useState({ from: "", to: "" });
 
   const canViewAll = user && hasMinimumRole(user.role, "DSP");
 
@@ -222,7 +221,7 @@ export default function AuditPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => alert("Exporting audit logs to CSV...")}>
+            <Button variant="secondary" onClick={() => toast.info("Export Started", "Exporting audit logs to CSV...")}>
               <Download className="h-4 w-4 mr-2" />
               Export Logs
             </Button>

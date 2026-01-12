@@ -54,7 +54,7 @@ const auditApi = {
     const response = await fetch(`${API_BASE}/audit/logs?${params}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -69,7 +69,7 @@ const auditApi = {
     const response = await fetch(`${API_BASE}/audit/${id}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 
@@ -84,7 +84,7 @@ const auditApi = {
     const response = await fetch(`${API_BASE}/audit/${resourceType}/${resourceId}`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
     });
 

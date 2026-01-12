@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
-import { Input } from "./Input";
-import { Button } from "./Button";
+import { Input } from "./input";
+import { Button } from "./button";
 import { cn } from "@/lib/utils";
 
 export interface DatePickerProps {

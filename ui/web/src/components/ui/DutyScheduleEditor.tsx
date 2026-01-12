@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { Clock, Users, X, Plus } from "lucide-react";
 import { Modal, ModalFooter } from "./Modal";
-import { Select } from "./Select";
-import { Button } from "./Button";
+import { LegacySelect as Select } from "./select";
+import { Button } from "./button";
 import { DatePicker } from "./DatePicker";
 import { usePersonnel } from "@/hooks/use-personnel";
 
@@ -114,7 +114,7 @@ export function DutyScheduleEditor({
                   <Select
                     options={shiftOptions}
                     value={shift.shift}
-                    onChange={(value) => handleShiftChange(shiftIndex, value)}
+                    onChange={(value: string) => handleShiftChange(shiftIndex, value)}
                     className="w-64"
                   />
                 </div>

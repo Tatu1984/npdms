@@ -6,9 +6,7 @@ import {
   BarChart3,
   TrendingUp,
   TrendingDown,
-  Calendar,
   Download,
-  Filter,
   MapPin,
   Clock,
   FileText,
@@ -18,6 +16,7 @@ import {
   PieChart,
   Activity,
 } from "lucide-react";
+import { toast } from "@/stores/toastStore";
 import {
   LineChart,
   Line,
@@ -36,11 +35,11 @@ import {
   AreaChart,
 } from "recharts";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/Select";
-import { Badge } from "@/components/ui/Badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import type { MapMarker } from "@/components/ui/Map";
@@ -256,7 +255,7 @@ export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState("month");
 
   const isDistrictLevel = user && hasMinimumRole(user.role, "SP");
-  const isStateLevel = user && hasMinimumRole(user.role, "DIG");
+  const _isStateLevel = user && hasMinimumRole(user.role, "DIG");
 
   return (
     <DashboardLayout>
@@ -276,7 +275,7 @@ export default function AnalyticsPage() {
               onChange={setTimeRange}
               className="w-40"
             />
-            <Button variant="secondary" onClick={() => alert("Exporting analytics report...")}>
+            <Button variant="secondary" onClick={() => toast.info("Action","Exporting analytics report...")}>
               <Download className="h-4 w-4 mr-2" />
               Export Report
             </Button>
@@ -621,7 +620,7 @@ export default function AnalyticsPage() {
                     zoom={12}
                     height="400px"
                     onMarkerClick={(marker) => {
-                      alert(`Viewing details for ${marker.title}\n${marker.description}`);
+                      toast.info("Action",`Viewing details for ${marker.title}\n${marker.description}`);
                     }}
                   />
                 </CardContent>
@@ -666,7 +665,7 @@ export default function AnalyticsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" onClick={() => alert(`Viewing hotspot details for ${hotspot.area}`)}>
+                          <Button variant="ghost" size="sm" onClick={() => toast.info("Action",`Viewing hotspot details for ${hotspot.area}`)}>
                             <MapPin className="h-4 w-4 mr-1" />
                             View
                           </Button>
@@ -751,13 +750,13 @@ export default function AnalyticsPage() {
                       </div>
                     </div>
                     <div className="flex gap-2 mt-4">
-                      <Button variant="secondary" size="sm" onClick={() => alert(`Deploying patrol to ${prediction.area}`)}>
+                      <Button variant="secondary" size="sm" onClick={() => toast.info("Action",`Deploying patrol to ${prediction.area}`)}>
                         Deploy Patrol
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => alert(`Viewing detailed analysis for ${prediction.id}`)}>
+                      <Button variant="ghost" size="sm" onClick={() => toast.info("Action",`Viewing detailed analysis for ${prediction.id}`)}>
                         View Analysis
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => alert(`Dismissed prediction ${prediction.id}`)}>
+                      <Button variant="ghost" size="sm" onClick={() => toast.info("Action",`Dismissed prediction ${prediction.id}`)}>
                         Dismiss
                       </Button>
                     </div>

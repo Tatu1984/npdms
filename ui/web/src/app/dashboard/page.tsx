@@ -15,9 +15,9 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ReportGeneratorDialog } from "@/components/ui/ReportGeneratorDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
@@ -192,7 +192,7 @@ function getRelativeTime(dateString: string): string {
 export default function DashboardPage() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { addToast } = useToastStore();
+  const { addToast: _addToast } = useToastStore(); // Reserved for future use
   const { firs, loadFIRs } = useFIRStore();
   const { cases } = useCasesStore();
   const { personnel } = usePersonnelStore();

@@ -9,24 +9,19 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  AlertTriangle,
-  Calendar,
   User,
-  FileText,
-  Gavel,
   IndianRupee,
-  Eye,
   Printer,
   UserCheck,
   ExternalLink,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
-import { Select } from "@/components/ui/Select";
+import { LegacySelect as Select } from "@/components/ui/select";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
 import { useBailStore, BailApplication } from "@/stores/bailStore";
@@ -126,7 +121,7 @@ export default function BailPage() {
         proposedBailAmount: "",
         lawyer: "",
       });
-    } catch (error) {
+    } catch {
       toast.error("Error", "Failed to record bail application");
     } finally {
       setIsSubmitting(false);

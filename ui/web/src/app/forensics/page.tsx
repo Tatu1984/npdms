@@ -20,11 +20,12 @@ import {
   Eye,
   X,
 } from "lucide-react";
+import { toast } from "@/stores/toastStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useForensicsStore, ForensicRequest } from "@/stores/forensicsStore";
@@ -122,9 +123,8 @@ export default function ForensicsPage() {
   };
 
   const handleDownloadReport = (request: ForensicRequest) => {
-    // Simulate report download
-    alert(`Downloading report for ${request.id}...`);
-    console.log("Downloading report for:", request);
+    toast.info("Downloading Report", `Preparing report for ${request.id}...`);
+    // In production, this would trigger actual file download
   };
 
   const handleStatusFilter = (status: string) => {

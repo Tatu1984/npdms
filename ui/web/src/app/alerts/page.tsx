@@ -6,7 +6,6 @@ import {
   Bell,
   AlertTriangle,
   Search,
-  Filter,
   Plus,
   Eye,
   CheckCircle,
@@ -15,18 +14,17 @@ import {
   Radio,
   Shield,
   Download,
-  Volume2,
   X,
   Loader2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Badge } from "@/components/ui/Badge";
-import { Textarea } from "@/components/ui/Textarea";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { FileUpload } from "@/components/ui/FileUpload";
 import { SightingReportDialog } from "@/components/ui/SightingReportDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
@@ -160,7 +158,7 @@ export default function AlertsPage() {
         title: "Alert Acknowledged",
         message: `Acknowledged: ${alert.title}`,
       });
-    } catch (error) {
+    } catch {
       addToast({
         type: "error",
         title: "Acknowledgment Failed",
@@ -191,7 +189,7 @@ export default function AlertsPage() {
       addToast({ type: "success", title: "Alert Issued", message: "Your alert has been broadcast successfully" });
       setShowIssueForm(false);
       setNewAlert({ type: "", scope: "STATION", title: "", description: "", expiresAt: "", priority: 2, imageUrl: "" });
-    } catch (error) {
+    } catch {
       addToast({
         type: "error",
         title: "Failed to Issue Alert",
@@ -300,6 +298,7 @@ export default function AlertsPage() {
             </CardContent>
           </Card>
         </div>
+        )}
 
         {/* Urgent Alert Banner */}
         {unacknowledged.length > 0 && (
@@ -408,7 +407,7 @@ export default function AlertsPage() {
                             message: response.error || "Failed to upload image",
                           });
                         }
-                      } catch (error) {
+                      } catch {
                         addToast({
                           type: "error",
                           title: "Upload Error",
@@ -467,7 +466,7 @@ export default function AlertsPage() {
                   <Select
                     options={alertTypeOptions}
                     value={typeFilter}
-                    onChange={setTypeFilter}
+                    onChange={(value: string) => setTypeFilter(value as "" | AlertType)}
                     className="w-full md:w-40"
                   />
                 </div>
@@ -565,8 +564,8 @@ export default function AlertsPage() {
                                 View Full Details
                               </Button>
                             </Link>
-                            <Button variant="ghost" size="sm" onClick={() => addToast({ type: "info", title: "Report Sighting", message: "Sighting report form coming soon" })}>
-                              Report Sighting
+                            <Button variant="ghost" size="sm" disabled title="Feature under development">
+                              Report Sighting (Soon)
                             </Button>
                           </div>
                         </div>
@@ -597,7 +596,6 @@ export default function AlertsPage() {
             </Card>
           </TabsContent>
         </Tabs>
-        )}
       </div>
 
       <SightingReportDialog
@@ -613,7 +611,8 @@ export default function AlertsPage() {
             title: "Report Submitted",
             message: "Sighting report submitted successfully",
           });
-          // TODO: Submit to backend
+          // Backend integration pending - report data logged to console for now
+          console.info("[Sighting Report]", report);
         }}
       />
     </DashboardLayout>

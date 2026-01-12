@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import DashboardLayout from '@/components/layout/DashboardLayout';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,10 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Clock,
   Users,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  Calendar,
   Fingerprint,
   Camera,
   MapPin,
@@ -25,6 +21,8 @@ import {
   UserX,
   Coffee,
   TrendingUp,
+  CheckCircle,
+  AlertTriangle,
 } from 'lucide-react';
 
 // Mock data
@@ -246,7 +244,7 @@ export default function AttendancePage() {
                   <Input
                     type="date"
                     value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
+                    onChange={(value: string) => setSelectedDate(value)}
                     className="w-40"
                   />
                 </div>
@@ -257,7 +255,7 @@ export default function AttendancePage() {
                   <Input
                     placeholder="Search by name or badge..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(value: string) => setSearchQuery(value)}
                     className="pl-8"
                   />
                 </div>

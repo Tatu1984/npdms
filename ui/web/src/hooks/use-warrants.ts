@@ -20,14 +20,14 @@ const warrantApi = {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => { if (value !== undefined) params.append(key, String(value)); });
     const response = await fetch(`${API_BASE}/warrants?${params}`, {
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
   },
   get: async (id: string): Promise<Warrant> => {
     const response = await fetch(`${API_BASE}/warrants/${id}`, {
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
@@ -35,7 +35,7 @@ const warrantApi = {
   create: async (data: Partial<Warrant>): Promise<Warrant> => {
     const response = await fetch(`${API_BASE}/warrants`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -44,7 +44,7 @@ const warrantApi = {
   update: async (id: string, data: Partial<Warrant>): Promise<Warrant> => {
     const response = await fetch(`${API_BASE}/warrants/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -53,7 +53,7 @@ const warrantApi = {
   updateStatus: async (id: string, status: WarrantStatus): Promise<Warrant> => {
     const response = await fetch(`${API_BASE}/warrants/${id}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
       body: JSON.stringify({ status }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -138,6 +138,9 @@ export function useCreateWarrant(options?: QueueOptions) {
       return temp;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: warrantKeys.lists() }); },
+    onError: (error: Error) => {
+      console.error('[useCreateWarrant] Mutation error:', error.message);
+    },
   });
 }
 
@@ -164,6 +167,9 @@ export function useUpdateWarrant(options?: QueueOptions) {
       queryClient.invalidateQueries({ queryKey: warrantKeys.lists() });
       queryClient.invalidateQueries({ queryKey: warrantKeys.detail(variables.id) });
     },
+    onError: (error: Error) => {
+      console.error('[useUpdateWarrant] Mutation error:', error.message);
+    },
   });
 }
 
@@ -189,6 +195,9 @@ export function useUpdateWarrantStatus(options?: QueueOptions) {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: warrantKeys.lists() });
       queryClient.invalidateQueries({ queryKey: warrantKeys.detail(variables.id) });
+    },
+    onError: (error: Error) => {
+      console.error('[useUpdateWarrantStatus] Mutation error:', error.message);
     },
   });
 }

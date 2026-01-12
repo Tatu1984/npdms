@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Mic, Square, Loader2 } from "lucide-react";
-import { Button } from "./Button";
-import { Textarea } from "./Textarea";
+import { Button } from "./button";
+import { Textarea } from "./textarea";
 
 export interface VoiceInputProps {
   onTranscript: (text: string) => void;
@@ -21,15 +21,16 @@ export function VoiceInput({
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     // Check if browser supports Web Speech API
     const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
-    
+
     if (!SpeechRecognition) {
-      setError("Speech recognition not supported in this browser");
-      return;
+      const timer = setTimeout(() => setError("Speech recognition not supported in this browser"), 0);
+      return () => clearTimeout(timer);
     }
 
     const recognition = new SpeechRecognition();
@@ -37,7 +38,7 @@ export function VoiceInput({
     recognition.interimResults = true;
     recognition.lang = language;
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    recognition.onresult = (event: any) => {
       let interimTranscript = "";
       let finalTranscript = "";
 
@@ -113,7 +114,7 @@ export function VoiceInput({
       <div className="flex items-center gap-2">
         <Button
           type="button"
-          variant={isListening ? "error" : "secondary"}
+          variant={isListening ? "destructive" : "secondary"}
           onClick={isListening ? stopListening : startListening}
           disabled={disabled || !!error}
           className="flex-shrink-0"
@@ -161,7 +162,9 @@ export function VoiceInput({
 // Extend Window interface for TypeScript
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    SpeechRecognition: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    webkitSpeechRecognition: any;
   }
 }

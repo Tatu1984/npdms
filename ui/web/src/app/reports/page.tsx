@@ -13,16 +13,15 @@ import {
   Calendar,
   FileSpreadsheet,
   FileJson,
-  FilePdf,
   Search,
   Filter,
   RefreshCw,
   AlertCircle,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface ReportType {
   id: string;
@@ -43,13 +42,13 @@ interface DailySummary {
 
 export default function ReportsPage() {
   const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split("T")[0]
+    () => new Date().toISOString().split("T")[0]
   );
   const [fromDate, setFromDate] = useState(
-    new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+    () => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
   );
   const [toDate, setToDate] = useState(
-    new Date().toISOString().split("T")[0]
+    () => new Date().toISOString().split("T")[0]
   );
   const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -334,7 +333,7 @@ export default function ReportsPage() {
                       </Button>
                     </Link>
                     <Button
-                      variant="primary"
+                      variant="default"
                       size="sm"
                       onClick={() => handleDownloadReport(report.id, downloadFormat)}
                     >
@@ -410,7 +409,7 @@ export default function ReportsPage() {
                   onClick={() => setDownloadFormat("pdf")}
                 >
                   <div className="flex items-center gap-3 mb-2">
-                    <FilePdf className="h-6 w-6 text-red-500" />
+                    <FileText className="h-6 w-6 text-red-500" />
                     <span className="font-semibold text-foreground">PDF</span>
                   </div>
                   <p className="text-xs text-foreground-muted">

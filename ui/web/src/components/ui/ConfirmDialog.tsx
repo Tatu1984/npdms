@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, Trash2 } from "lucide-react";
-import { Button } from "./Button";
+import { Button } from "./button";
 
 interface ConfirmDialogProps {
   isOpen: boolean;

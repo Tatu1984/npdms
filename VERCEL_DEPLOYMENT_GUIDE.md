@@ -127,9 +127,9 @@ NEXT_PUBLIC_APP_NAME=NPDMS
 NEXT_PUBLIC_API_URL=https://npdms.infinititechpartners.com/api/v1
 NEXT_PUBLIC_USE_REAL_API=false
 NEXTAUTH_URL=https://npdms.infinititechpartners.com
-NEXTAUTH_SECRET=DPdAGNwYhpaQLBvRAZS6Zjrko+PzFR+Mj4STRnePET4=
-DATABASE_URL=postgresql://neondb_owner:npg_WpKz7tg4FwGm@ep-fancy-rain-admoirx7-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
-POSTGRES_PRISMA_URL=postgresql://neondb_owner:npg_WpKz7tg4FwGm@ep-fancy-rain-admoirx7-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require&pgbouncer=true
+NEXTAUTH_SECRET=<your-nextauth-secret>
+DATABASE_URL=<your-neon-database-url>
+POSTGRES_PRISMA_URL=<your-neon-prisma-url>
 ```
 
 ### 3.4 Click Deploy

@@ -2,33 +2,60 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Shield, AlertCircle } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+
+// Login validation schema
+const loginSchema = z.object({
+  username: z
+    .string()
+    .min(3, "Username must be at least 3 characters")
+    .max(50, "Username must be less than 50 characters")
+    .regex(/^[a-zA-Z0-9_.-]+$/, "Username can only contain letters, numbers, underscores, dots, and hyphens"),
+  password: z
+    .string()
+    .min(6, "Password must be at least 6 characters")
+    .max(100, "Password must be less than 100 characters"),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuthStore();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const {
+    register,
+    handleSubmit: handleFormSubmit,
+    formState: { errors },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      username: "",
+      password: "",
+    },
+  });
+
+  const onSubmit = async (data: LoginFormData) => {
     setError("");
     setIsLoading(true);
 
     try {
-      const success = await login(username, password);
+      const success = await login(data.username, data.password);
       if (success) {
         router.push("/dashboard");
       } else {
-        setError("Invalid credentials. Use demo accounts: constable, sho, sp, or dgp with password: demo123");
+        setError("Invalid credentials. Please check your username and password.");
       }
-    } catch (err) {
+    } catch {
       setError("An error occurred. Please try again.");
     } finally {
       setIsLoading(false);
@@ -60,7 +87,7 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleFormSubmit(onSubmit)} className="space-y-4">
               {error && (
                 <div className="flex items-start gap-3 p-3 rounded-md bg-error/10 border border-error/30">
                   <AlertCircle className="h-5 w-5 text-error flex-shrink-0 mt-0.5" />
@@ -68,25 +95,37 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <Input
-                label="Username / Badge Number"
-                type="text"
-                placeholder="Enter username"
-                value={username}
-                onChange={setUsername}
-                required
-                autoComplete="username"
-              />
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-foreground">
+                  Username / Badge Number
+                </label>
+                <input
+                  {...register("username")}
+                  type="text"
+                  placeholder="Enter username"
+                  autoComplete="username"
+                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
+                />
+                {errors.username && (
+                  <p className="text-xs text-error">{errors.username.message}</p>
+                )}
+              </div>
 
-              <Input
-                label="Password"
-                type="password"
-                placeholder="Enter password"
-                value={password}
-                onChange={setPassword}
-                required
-                autoComplete="current-password"
-              />
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-foreground">
+                  Password
+                </label>
+                <input
+                  {...register("password")}
+                  type="password"
+                  placeholder="Enter password"
+                  autoComplete="current-password"
+                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
+                />
+                {errors.password && (
+                  <p className="text-xs text-error">{errors.password.message}</p>
+                )}
+              </div>
 
               <Button
                 type="submit"
@@ -96,89 +135,6 @@ export default function LoginPage() {
                 Sign In
               </Button>
             </form>
-
-            {/* Demo Accounts Info */}
-            <div className="mt-6 p-4 rounded-md bg-background-tertiary">
-              <p className="text-xs font-medium text-foreground-muted mb-3">
-                Demo Accounts (Password: demo123)
-              </p>
-
-              {/* Station Level */}
-              <div className="mb-3">
-                <p className="text-[10px] uppercase tracking-wider text-foreground-muted mb-1.5">Station Level</p>
-                <div className="grid grid-cols-3 gap-1.5 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#4A9EFF]" />
-                    <span className="text-foreground-muted">constable</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#4A9EFF]" />
-                    <span className="text-foreground-muted">hc</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#4A9EFF]" />
-                    <span className="text-foreground-muted">asi</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#36B37E]" />
-                    <span className="text-foreground-muted">si</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#36B37E]" />
-                    <span className="text-foreground-muted">inspector</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#36B37E]" />
-                    <span className="text-foreground-muted">sho</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* District Level */}
-              <div className="mb-3">
-                <p className="text-[10px] uppercase tracking-wider text-foreground-muted mb-1.5">District Level</p>
-                <div className="grid grid-cols-3 gap-1.5 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#FFAB00]" />
-                    <span className="text-foreground-muted">dsp</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#FFAB00]" />
-                    <span className="text-foreground-muted">sp</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* State Level */}
-              <div className="mb-3">
-                <p className="text-[10px] uppercase tracking-wider text-foreground-muted mb-1.5">State Level</p>
-                <div className="grid grid-cols-3 gap-1.5 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#9B59B6]" />
-                    <span className="text-foreground-muted">dig</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#9B59B6]" />
-                    <span className="text-foreground-muted">ig</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#9B59B6]" />
-                    <span className="text-foreground-muted">dgp</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Central Level */}
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-foreground-muted mb-1.5">Central Level</p>
-                <div className="grid grid-cols-3 gap-1.5 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#E74C3C]" />
-                    <span className="text-foreground-muted">secretary</span>
-                  </div>
-                </div>
-              </div>
-            </div>
           </CardContent>
         </Card>
 

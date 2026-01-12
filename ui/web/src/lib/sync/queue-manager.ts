@@ -141,14 +141,14 @@ class OfflineQueueManager {
       // Update the local resource with server data
       await this.updateLocalResource(item, responseData);
 
-      console.log(
-        `[Queue] ✓ Successfully synced ${item.mutationType} ${item.resourceType} (${item.resourceId})`
+      log.info(
+        `✓ Successfully synced ${item.mutationType} ${item.resourceType} (${item.resourceId})`
       );
 
       options.onSuccess?.(item);
     } catch (error) {
-      console.error(
-        `[Queue] ✗ Failed to sync ${item.mutationType} ${item.resourceType} (${item.resourceId}):`,
+      log.error(
+        `✗ Failed to sync ${item.mutationType} ${item.resourceType} (${item.resourceId}):`,
         error
       );
 
@@ -163,8 +163,8 @@ class OfflineQueueManager {
           error: error instanceof Error ? error.message : String(error),
         });
 
-        console.error(
-          `[Queue] ✗ Max retries (${item.maxRetries}) exceeded for ${item.resourceType} (${item.resourceId})`
+        log.error(
+          `✗ Max retries (${item.maxRetries}) exceeded for ${item.resourceType} (${item.resourceId})`
         );
 
         options.onError?.(item, error instanceof Error ? error : new Error(String(error)));
@@ -176,8 +176,8 @@ class OfflineQueueManager {
           error: error instanceof Error ? error.message : String(error),
         });
 
-        console.log(
-          `[Queue] Retry ${newRetries}/${item.maxRetries} for ${item.resourceType} (${item.resourceId})`
+        log.info(
+          `Retry ${newRetries}/${item.maxRetries} for ${item.resourceType} (${item.resourceId})`
         );
       }
     }

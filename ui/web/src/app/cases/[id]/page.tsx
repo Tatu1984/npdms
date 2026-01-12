@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  Briefcase,
   ArrowLeft,
   Edit,
   FileText,
@@ -12,17 +11,15 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  Link2,
   Plus,
-  MapPin,
   Scale,
   Gavel,
   Shield,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { AddPersonDialog } from "@/components/ui/AddPersonDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useCase, useUpdateCase } from "@/hooks/use-cases";
@@ -106,7 +103,7 @@ export default function CaseDetailPage() {
   // Fetch case from API using React Query
   const caseId = typeof params.id === 'string' ? params.id : undefined;
   const { data: currentCase, isLoading, error } = useCase(caseId);
-  const updateCaseMutation = useUpdateCase();
+  const _updateCaseMutation = useUpdateCase(); // TODO: Use for case updates
 
   // Local state for accused and witnesses (using mock data for now since API doesn't support these yet)
   const [localAccused, setLocalAccused] = useState(mockCase.accused);

@@ -260,8 +260,9 @@ type Witness struct {
 	UpdatedAt         time.Time  `json:"updatedAt" db:"updated_at"`
 }
 
-// Audit Log model
-type AuditLog struct {
+// AuditLog is defined in audit.go with full hash chain support
+// SimpleAuditLog is a simplified version for basic logging
+type SimpleAuditLog struct {
 	ID            uuid.UUID  `json:"id" db:"id"`
 	UserID        *uuid.UUID `json:"userId" db:"user_id"`
 	UserName      string     `json:"userName,omitempty"`
@@ -467,7 +468,7 @@ const (
 // Forensic model
 type Forensic struct {
 	ID            uuid.UUID      `json:"id" db:"id"`
-	RequestNumber string         `json:"id"`
+	RequestNumber string         `json:"requestNumber" db:"request_number"`
 	EvidenceID    uuid.UUID      `json:"evidenceId" db:"evidence_id"`
 	CaseID        *uuid.UUID     `json:"caseId" db:"case_id"`
 	CaseNumber    string         `json:"caseNumber,omitempty"`
@@ -519,15 +520,15 @@ type Personnel struct {
 	UpdatedAt     time.Time       `json:"updatedAt" db:"updated_at"`
 }
 
-// Vehicle Types and Status
-type VehicleType string
+// Police Vehicle Types and Status (different from traffic_challan.go VehicleType for civilian vehicles)
+type PoliceVehicleType string
 type VehicleStatus string
 
 const (
-	VehicleTypePatrol VehicleType = "Patrol"
-	VehicleTypeGypsy  VehicleType = "Gypsy"
-	VehicleTypePCR    VehicleType = "PCR"
-	VehicleTypeBus    VehicleType = "Bus"
+	PoliceVehicleTypePatrol PoliceVehicleType = "Patrol"
+	PoliceVehicleTypeGypsy  PoliceVehicleType = "Gypsy"
+	PoliceVehicleTypePCR    PoliceVehicleType = "PCR"
+	PoliceVehicleTypeBus    PoliceVehicleType = "Bus"
 )
 
 const (

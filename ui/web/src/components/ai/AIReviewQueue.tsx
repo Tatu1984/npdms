@@ -131,7 +131,7 @@ export default function AIReviewQueue({
 
       const response = await fetch(`/api/v1/ai-review/queue?${params}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
       });
 
@@ -170,7 +170,7 @@ export default function AIReviewQueue({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
         body: JSON.stringify(reviewForm),
       });

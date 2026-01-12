@@ -575,9 +575,10 @@ export default function DistrictDashboardPage() {
           </div>
           <Card>
             <CardContent className="pt-6">
-              <p className="text-center text-muted-foreground py-8">
-                Resource allocation module - Coming soon
-              </p>
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Resource allocation module</p>
+                <p className="text-sm text-muted-foreground/70 mt-2">This feature is currently under development</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

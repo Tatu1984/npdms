@@ -15,8 +15,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuthStore, getRoleDisplayName } from "@/stores/authStore";
 import { Avatar } from "@/components/ui/Avatar";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export function Header() {
   const router = useRouter();

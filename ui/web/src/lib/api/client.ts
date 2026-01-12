@@ -1,4 +1,4 @@
-// API Client with interceptors, error handling, and token refresh
+// API Client with interceptors, error handling, token refresh, CSRF protection, and rate limiting
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
@@ -13,18 +13,75 @@ interface RefreshResponse {
   expiresAt: string;
 }
 
+// CSRF Token management
+const CSRF_TOKEN_KEY = 'csrf-token';
+const CSRF_HEADER_NAME = 'X-CSRF-Token';
+
+// Rate limiting configuration
+const RATE_LIMIT_MAX_REQUESTS = 100; // Max requests per window
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute window
+
+class RateLimiter {
+  private requests: number[] = [];
+  private maxRequests: number;
+  private windowMs: number;
+
+  constructor(maxRequests: number, windowMs: number) {
+    this.maxRequests = maxRequests;
+    this.windowMs = windowMs;
+  }
+
+  canMakeRequest(): boolean {
+    const now = Date.now();
+    // Remove old requests outside the window
+    this.requests = this.requests.filter(time => now - time < this.windowMs);
+    return this.requests.length < this.maxRequests;
+  }
+
+  recordRequest(): void {
+    this.requests.push(Date.now());
+  }
+
+  getWaitTime(): number {
+    if (this.requests.length === 0) return 0;
+    const oldestRequest = Math.min(...this.requests);
+    const waitTime = this.windowMs - (Date.now() - oldestRequest);
+    return Math.max(0, waitTime);
+  }
+}
+
 class ApiClient {
   private baseUrl: string;
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
   private refreshPromise: Promise<string> | null = null;
+  private csrfToken: string | null = null;
+  private rateLimiter: RateLimiter;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
+    this.rateLimiter = new RateLimiter(RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
     if (typeof window !== 'undefined') {
       this.accessToken = localStorage.getItem('accessToken');
       this.refreshToken = localStorage.getItem('refreshToken');
+      this.csrfToken = this.getOrGenerateCsrfToken();
     }
+  }
+
+  private getOrGenerateCsrfToken(): string {
+    let token = sessionStorage.getItem(CSRF_TOKEN_KEY);
+    if (!token) {
+      // Generate a secure random token
+      const array = new Uint8Array(32);
+      crypto.getRandomValues(array);
+      token = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+      sessionStorage.setItem(CSRF_TOKEN_KEY, token);
+    }
+    return token;
+  }
+
+  getCsrfToken(): string | null {
+    return this.csrfToken;
   }
 
   setTokens(accessToken: string, refreshToken: string) {
@@ -88,6 +145,19 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
+    // Check rate limiting
+    if (!this.rateLimiter.canMakeRequest()) {
+      const waitTime = this.rateLimiter.getWaitTime();
+      throw new ApiClientError(
+        `Rate limit exceeded. Please wait ${Math.ceil(waitTime / 1000)} seconds.`,
+        429,
+        'rate_limit_exceeded'
+      );
+    }
+
+    // Record this request for rate limiting
+    this.rateLimiter.recordRequest();
+
     const url = `${this.baseUrl}${endpoint}`;
 
     const headers: HeadersInit = {
@@ -99,9 +169,16 @@ class ApiClient {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${this.accessToken}`;
     }
 
+    // Add CSRF token for state-changing methods
+    const method = options.method?.toUpperCase() || 'GET';
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && this.csrfToken) {
+      (headers as Record<string, string>)[CSRF_HEADER_NAME] = this.csrfToken;
+    }
+
     let response = await fetch(url, {
       ...options,
       headers,
+      credentials: 'same-origin', // Include cookies for CSRF validation
     });
 
     // Handle 401 - try to refresh token

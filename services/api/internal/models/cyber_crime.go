@@ -178,7 +178,4 @@ type CyberCrimeStats struct {
 	TrendData          []TrendPoint     `json:"trendData"`
 }
 
-type TrendPoint struct {
-	Date  string `json:"date"`
-	Count int64  `json:"count"`
-}
+// TrendPoint is defined in hierarchy.go

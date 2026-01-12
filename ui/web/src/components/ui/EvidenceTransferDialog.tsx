@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { Package, User, MapPin, FileText } from "lucide-react";
 import { Modal, ModalFooter } from "./Modal";
-import { Input } from "./Input";
-import { Select } from "./Select";
-import { Textarea } from "./Textarea";
-import { Button } from "./Button";
+import { Input } from "./input";
+import { LegacySelect as Select } from "./select";
+import { Textarea } from "./textarea";
+import { Button } from "./button";
 import { DatePicker } from "./DatePicker";
 import { useTransferEvidence } from "@/hooks/use-evidence";
+import { toast } from "@/stores/toastStore";
 
 export interface EvidenceTransferDialogProps {
   evidenceId: string;
@@ -37,7 +38,7 @@ export function EvidenceTransferDialog({
 
   const handleSubmit = async () => {
     if (!transferTo || !location || !transferDate || !reason) {
-      alert("Please fill in all required fields");
+      toast.warning("Required Fields", "Please fill in all required fields");
       return;
     }
 
@@ -54,7 +55,7 @@ export function EvidenceTransferDialog({
           remarks,
         },
       });
-      
+
       // Reset form
       setTransferTo("");
       setTransferToName("");
@@ -63,12 +64,13 @@ export function EvidenceTransferDialog({
       setTransferDate("");
       setReason("");
       setRemarks("");
-      
+
+      toast.success("Transfer Complete", "Evidence has been transferred successfully");
       onSuccess?.();
       onClose();
     } catch (error) {
       console.error("Transfer failed:", error);
-      alert("Failed to transfer evidence. Please try again.");
+      toast.error("Transfer Failed", "Failed to transfer evidence. Please try again.");
     }
   };
 
@@ -99,13 +101,13 @@ export function EvidenceTransferDialog({
           label="Transfer Type *"
           options={transferTypeOptions}
           value={transferTo}
-          onChange={(value) => setTransferTo(value)}
+          onChange={(value: string) => setTransferTo(value)}
         />
 
         <Input
           label="Transfer To (Name/ID) *"
           value={transferToName}
-          onChange={(value) => setTransferToName(value)}
+          onChange={(value: string) => setTransferToName(value)}
           placeholder="Enter name or ID"
           icon={<User className="h-4 w-4" />}
         />
@@ -113,14 +115,14 @@ export function EvidenceTransferDialog({
         <Input
           label="Designation"
           value={transferToDesignation}
-          onChange={(value) => setTransferToDesignation(value)}
+          onChange={(value: string) => setTransferToDesignation(value)}
           placeholder="e.g., SI, FSL Officer, etc."
         />
 
         <Input
           label="Location *"
           value={location}
-          onChange={(value) => setLocation(value)}
+          onChange={(value: string) => setLocation(value)}
           placeholder="Enter location"
           icon={<MapPin className="h-4 w-4" />}
         />
@@ -142,13 +144,13 @@ export function EvidenceTransferDialog({
             { value: "OTHER", label: "Other" },
           ]}
           value={reason}
-          onChange={(value) => setReason(value)}
+          onChange={(value: string) => setReason(value)}
         />
 
         <Textarea
           label="Remarks"
           value={remarks}
-          onChange={(value) => setRemarks(value)}
+          onChange={(value: string) => setRemarks(value)}
           placeholder="Additional notes about the transfer..."
           rows={3}
         />

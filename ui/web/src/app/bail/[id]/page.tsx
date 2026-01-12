@@ -6,10 +6,8 @@ import {
   ArrowLeft,
   Scale,
   User,
-  Calendar,
   Clock,
   Gavel,
-  Eye,
   Edit,
   Printer,
   CheckCircle,
@@ -23,9 +21,9 @@ import {
   Shield,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
 import { useBailStore } from "@/stores/bailStore";
@@ -190,7 +188,7 @@ export default function BailDetailPage() {
     toast.success("Status Updated", `Bail application status updated`);
   };
 
-  const handleVerifySurety = async (index: number) => {
+  const _handleVerifySurety = async (index: number) => {
     if (!storeApp) return;
     await verifySurety(storeApp.id, index);
     toast.success("Surety Verified", "Surety has been verified");
