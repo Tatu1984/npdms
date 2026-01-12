@@ -28,7 +28,6 @@ import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useCases, useDeleteCase } from "@/hooks/use-cases";
 import { type Case, type CaseStatus } from "@/lib/db/schema";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
-import { toast } from "@/stores/toastStore";
 
 const statusOptions = [
   { value: "", label: "All Statuses" },
@@ -91,7 +90,6 @@ export default function CasesPage() {
   const handleExport = () => {
     const data = casesData?.data || [];
     exportToCSV(data, "cases_export", exportConfigs.cases as any);
-    toast.success("Export successful", "Cases data exported to CSV");
   };
 
   const handleDeleteClick = (caseItem: Case) => {
@@ -103,11 +101,10 @@ export default function CasesPage() {
     if (!caseToDelete) return;
     try {
       await deleteCaseMutation.mutateAsync(caseToDelete.id);
-      toast.success("Case deleted", `Case ${caseToDelete.caseNumber} has been deleted`);
       setDeleteDialogOpen(false);
       setCaseToDelete(null);
     } catch (_error) {
-      toast.error("Error", "Failed to delete case");
+      console.error("Failed to delete case");
     }
   };
 
@@ -392,13 +389,11 @@ export default function CasesPage() {
           setStatusFilter(advancedFilters.status as CaseStatus | undefined);
           setCurrentPage(1);
           setShowAdvancedFilters(false);
-          toast.success("Filters Applied", "Advanced filters applied successfully");
         }}
         onReset={() => {
           setStatusFilter(undefined);
           setSearchQuery("");
           setCurrentPage(1);
-          toast.info("Filters Reset", "All filters have been reset");
         }}
         resourceType="case"
       />
