@@ -30,6 +30,7 @@ import {
   UserCircle,
   Fingerprint,
   Share2,
+  Radar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
@@ -60,6 +61,7 @@ const navigation: NavItem[] = [
   { name: "Inter-Agency", href: "/inter-agency", icon: Share2, minRole: "DSP" },
   { name: "Analytics", href: "/analytics", icon: BarChart3, minRole: "SP" },
   { name: "Audit Logs", href: "/audit", icon: FileSearch, minRole: "DSP" },
+  { name: "IP Tracker", href: "/ip-tracker", icon: Radar, minRole: "INSPECTOR" },
   { name: "RTI Reports", href: "/rti", icon: FileCheck, minRole: "SHO" },
   { name: "Alerts", href: "/alerts", icon: Bell },
   { name: "Lookout", href: "/lookout", icon: AlertTriangle },
