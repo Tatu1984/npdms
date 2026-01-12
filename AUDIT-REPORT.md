@@ -1557,3 +1557,149 @@ Warnings: ~100 (non-critical lint warnings)
 **Build Status**: PASSING
 **Production Readiness**: 92%
 **Auditor**: Claude Code
+
+---
+
+# DEMO MODE FIXES - JANUARY 12, 2026
+
+**Date**: 2026-01-12
+**Issue**: Pages showing infinite loading when backend API unavailable
+**Status**: PARTIALLY FIXED
+
+---
+
+## PROBLEM IDENTIFIED
+
+When deployed to production (Vercel), the frontend was calling backend API endpoints that returned 404 errors because the Go backend is not deployed. This caused:
+
+1. **Infinite Loading States** - Pages stuck on loading spinners
+2. **Service Worker 404** - `sw.js` not found (PWA registration failed)
+3. **Icon 404** - `icon-192x192.png` missing (PWA icons not deployed)
+4. **API 404** - All `/api/v1/*` endpoints returning 404
+
+### Console Errors Observed:
+```
+[SW] Service worker registration failed: TypeError: Failed to register a ServiceWorker
+GET https://npdms.infinititechpartners.com/api/v1/cases?search=&page=1&pageSize=10 404 (Not Found)
+[useCases] Network error, using IndexedDB: Error: HTTP 404
+```
+
+---
+
+## FIXES APPLIED
+
+### 1. Added Demo Fallback Data for Cases Hook
+**File:** `ui/web/src/hooks/use-cases.ts`
+
+Added `DEMO_CASES` array with 5 sample case records:
+- CASE-2024-00156: Armed Robbery at Jewellery Store (INVESTIGATION)
+- CASE-2024-00157: Cyber Fraud Investigation (CHARGESHEET)
+- CASE-2024-00158: Assault Case - Bar Fight (TRIAL)
+- CASE-2024-00159: Vehicle Theft - Two Wheeler (CLOSED)
+- CASE-2024-00160: Drug Possession Case (INVESTIGATION)
+
+**Logic:** When API fails AND IndexedDB is empty, return demo data.
+
+### 2. Added Demo Fallback Data for FIRs Hook
+**File:** `ui/web/src/hooks/use-firs.ts`
+
+Added `DEMO_FIRS` array with 6 sample FIR records:
+- KOR/2024/00089: Armed Robbery at Jewellery Store (UNDER_INVESTIGATION)
+- KOR/2024/00090: Online Banking Fraud (CHARGESHEET_FILED)
+- KOR/2024/00091: Assault at Local Bar (COURT_PROCEEDINGS)
+- KOR/2024/00092: Two Wheeler Theft (CLOSED)
+- KOR/2024/00093: Drug Possession - NDPS Act (UNDER_INVESTIGATION)
+- KOR/2024/00094: Domestic Violence Complaint (REGISTERED)
+
+**Logic:** When API fails AND IndexedDB is empty, return demo data.
+
+---
+
+## PAGES NOW WORKING IN DEMO MODE
+
+| Page | Status | Demo Data |
+|------|--------|-----------|
+| `/cases` | ✅ WORKING | 5 demo cases |
+| `/fir` | ✅ WORKING | 6 demo FIRs |
+
+---
+
+## PAGES STILL NEEDING DEMO DATA
+
+| Page | Hook | Status |
+|------|------|--------|
+| `/evidence` | `use-evidence.ts` | ❌ Needs demo data |
+| `/warrants` | `use-warrants.ts` | ❌ Needs demo data |
+| `/bail` | `use-bail.ts` | ❌ Needs demo data |
+| `/personnel` | `use-personnel.ts` | ❌ Needs demo data |
+| `/vehicles` | `use-vehicles.ts` | ❌ Needs demo data |
+| `/alerts` | `use-alerts.ts` | ❌ Needs demo data |
+| `/forensics` | `use-forensics.ts` | ❌ Needs demo data |
+| `/court` | `use-court-hearings.ts` | ❌ Needs demo data |
+| `/audit` | `use-audit.ts` | ❌ Needs demo data |
+
+---
+
+## OTHER OUTSTANDING ISSUES
+
+### PWA Issues
+- [ ] Service Worker (`sw.js`) not being generated
+- [ ] PWA icons not included in build output
+- [ ] Manifest icons returning 404
+
+### Backend Deployment
+- [ ] Go backend API not deployed
+- [ ] Need to deploy to a server or serverless platform
+- [ ] Configure CORS for production domain
+
+### Remaining Code Issues
+- [ ] ~330 ESLint warnings (mostly `@typescript-eslint/no-explicit-any`)
+- [ ] Some unused imports still present
+- [ ] Mock data in analytics and other pages
+
+---
+
+## NEXT STEPS
+
+### Phase 1: Complete Demo Data (Priority: HIGH)
+Fill up dummy/demo data for ALL pages and sections to ensure the application works in demo mode without a backend:
+
+1. **Evidence Hook** - Add demo evidence records
+2. **Warrants Hook** - Add demo warrant records
+3. **Bail Hook** - Add demo bail applications
+4. **Personnel Hook** - Add demo officer records
+5. **Vehicles Hook** - Add demo vehicle records
+6. **Alerts Hook** - Add demo alert records
+7. **Forensics Hook** - Add demo forensic requests
+8. **Court Hearings Hook** - Add demo hearing records
+9. **Audit Hook** - Add demo audit log entries
+10. **Dashboard** - Ensure stats work with demo data
+
+### Phase 2: Remaining Issues (Priority: MEDIUM)
+After demo data is complete, address remaining production issues:
+
+1. **PWA Configuration** - Fix service worker and icon generation
+2. **ESLint Cleanup** - Address remaining warnings
+3. **Type Safety** - Replace `any` types with proper types
+4. **Backend Deployment** - Deploy Go API to production
+5. **Testing** - Add unit and E2E tests
+
+---
+
+## UPDATED SCORES
+
+| Category | Previous | Current | Status |
+|----------|----------|---------|--------|
+| Demo Readiness | 99% | **75%** | PARTIAL |
+| Production Readiness | 92% | **70%** | NEEDS WORK |
+| Offline Support | 100% | **40%** | NEEDS DEMO DATA |
+
+**Note:** Scores decreased because we discovered that without demo data, most pages don't work when backend is unavailable.
+
+---
+
+**Session Updated**: 2026-01-12
+**Build Status**: PASSING
+**Commit**: 3dcf313 - Add demo fallback data for FIRs and Cases
+**Next Action**: Add demo data to remaining hooks
+**Auditor**: Claude Code
