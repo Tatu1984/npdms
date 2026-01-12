@@ -12,6 +12,85 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
+// Demo data for when API and IndexedDB are empty
+const DEMO_CASES: Case[] = [
+  {
+    id: 'demo-case-001',
+    caseNumber: 'CASE-2024-00156',
+    firId: 'demo-fir-001',
+    firNumber: 'KOR/2024/00089',
+    title: 'Armed Robbery at Jewellery Store',
+    description: 'Armed robbery case involving multiple suspects at ABC Jewellers',
+    status: 'INVESTIGATION',
+    stationId: 'station-001',
+    investigatingOfficer: 'SI Rajesh Kumar',
+    courtName: 'Sessions Court, Koramangala',
+    nextHearing: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-case-002',
+    caseNumber: 'CASE-2024-00157',
+    firId: 'demo-fir-002',
+    firNumber: 'KOR/2024/00090',
+    title: 'Cyber Fraud Investigation',
+    description: 'Online banking fraud case with multiple victims',
+    status: 'CHARGESHEET',
+    stationId: 'station-001',
+    investigatingOfficer: 'SI Priya Sharma',
+    courtName: 'Magistrate Court, Koramangala',
+    nextHearing: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-case-003',
+    caseNumber: 'CASE-2024-00158',
+    firId: 'demo-fir-003',
+    firNumber: 'KOR/2024/00091',
+    title: 'Assault Case - Bar Fight',
+    description: 'Assault during altercation at local bar',
+    status: 'TRIAL',
+    stationId: 'station-001',
+    investigatingOfficer: 'ASI Vijay Reddy',
+    courtName: 'Sessions Court, Koramangala',
+    nextHearing: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-case-004',
+    caseNumber: 'CASE-2024-00159',
+    firId: 'demo-fir-004',
+    firNumber: 'KOR/2024/00092',
+    title: 'Vehicle Theft - Two Wheeler',
+    description: 'Motorcycle theft from residential parking',
+    status: 'CLOSED',
+    stationId: 'station-001',
+    investigatingOfficer: 'SI Rajesh Kumar',
+    courtName: undefined,
+    nextHearing: undefined,
+    createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-case-005',
+    caseNumber: 'CASE-2024-00160',
+    firId: 'demo-fir-005',
+    firNumber: 'KOR/2024/00093',
+    title: 'Drug Possession Case',
+    description: 'NDPS Act case - possession of controlled substances',
+    status: 'INVESTIGATION',
+    stationId: 'station-001',
+    investigatingOfficer: 'Inspector Anil Desai',
+    courtName: 'Sessions Court, Koramangala',
+    nextHearing: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+] as Case[];
+
 interface ListResponse<T> {
   data: T[];
   total: number;
@@ -118,7 +197,14 @@ export function useCases(filters: CaseFilters = {}) {
         }
       }
 
-      const results = await db.cases.orderBy('createdAt').reverse().toArray();
+      // Try IndexedDB first
+      let results = await db.cases.orderBy('createdAt').reverse().toArray();
+
+      // If no data in IndexedDB, use demo data
+      if (results.length === 0) {
+        results = DEMO_CASES;
+      }
+
       const filtered = results.filter((c) => {
         if (filters.status && c.status !== filters.status) return false;
         if (filters.firId && c.firId !== filters.firId) return false;

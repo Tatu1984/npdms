@@ -22,6 +22,148 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
+// Demo data for when API and IndexedDB are empty
+const DEMO_FIRS: FIR[] = [
+  {
+    id: 'demo-fir-001',
+    firNumber: 'KOR/2024/00089',
+    stationId: 'station-001',
+    stationName: 'Koramangala Police Station',
+    title: 'Armed Robbery at Jewellery Store',
+    description: 'Armed robbery reported at ABC Jewellers, Koramangala. Multiple masked suspects involved.',
+    crimeCategory: 'PROPERTY',
+    ipcSections: ['IPC 392', 'IPC 397'],
+    reportedBy: 'Ramesh Agarwal',
+    reporterContact: '+91 98765 43210',
+    reporterAddress: '45, 5th Cross, Koramangala, Bangalore',
+    incidentDate: new Date(Date.now() - 32 * 24 * 60 * 60 * 1000).toISOString(),
+    incidentTime: '22:30',
+    incidentLocation: 'ABC Jewellers, 100ft Road, Koramangala',
+    status: 'UNDER_INVESTIGATION',
+    priority: 'HIGH',
+    registeredAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+    registeredBy: 'SI Rajesh Kumar',
+    investigatingOfficer: 'SI Rajesh Kumar',
+    createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-fir-002',
+    firNumber: 'KOR/2024/00090',
+    stationId: 'station-001',
+    stationName: 'Koramangala Police Station',
+    title: 'Online Banking Fraud',
+    description: 'Victim lost Rs. 5 lakhs through phishing attack on banking credentials.',
+    crimeCategory: 'ECONOMIC',
+    ipcSections: ['IPC 420', 'IT Act 66'],
+    reportedBy: 'Suresh Menon',
+    reporterContact: '+91 87654 32109',
+    reporterAddress: '23, HSR Layout, Bangalore',
+    incidentDate: new Date(Date.now() - 47 * 24 * 60 * 60 * 1000).toISOString(),
+    incidentTime: '14:00',
+    incidentLocation: 'Online - Victim residence HSR Layout',
+    status: 'CHARGESHEET_FILED',
+    priority: 'MEDIUM',
+    registeredAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+    registeredBy: 'SI Priya Sharma',
+    investigatingOfficer: 'SI Priya Sharma',
+    createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-fir-003',
+    firNumber: 'KOR/2024/00091',
+    stationId: 'station-001',
+    stationName: 'Koramangala Police Station',
+    title: 'Assault at Local Bar',
+    description: 'Physical assault during altercation at Blue Moon Bar. Victim sustained injuries.',
+    crimeCategory: 'VIOLENT',
+    ipcSections: ['IPC 323', 'IPC 324'],
+    reportedBy: 'Arun Patel',
+    reporterContact: '+91 76543 21098',
+    reporterAddress: '78, Indiranagar, Bangalore',
+    incidentDate: new Date(Date.now() - 62 * 24 * 60 * 60 * 1000).toISOString(),
+    incidentTime: '23:45',
+    incidentLocation: 'Blue Moon Bar, Indiranagar',
+    status: 'COURT_PROCEEDINGS',
+    priority: 'MEDIUM',
+    registeredAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+    registeredBy: 'ASI Vijay Reddy',
+    investigatingOfficer: 'ASI Vijay Reddy',
+    createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-fir-004',
+    firNumber: 'KOR/2024/00092',
+    stationId: 'station-001',
+    stationName: 'Koramangala Police Station',
+    title: 'Two Wheeler Theft',
+    description: 'Honda Activa stolen from residential parking at night. CCTV footage available.',
+    crimeCategory: 'PROPERTY',
+    ipcSections: ['IPC 379'],
+    reportedBy: 'Deepak Sharma',
+    reporterContact: '+91 65432 10987',
+    reporterAddress: '12, JP Nagar, Bangalore',
+    incidentDate: new Date(Date.now() - 92 * 24 * 60 * 60 * 1000).toISOString(),
+    incidentTime: '03:00',
+    incidentLocation: 'Residential Parking, JP Nagar',
+    status: 'CLOSED',
+    priority: 'LOW',
+    registeredAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+    registeredBy: 'SI Rajesh Kumar',
+    investigatingOfficer: 'SI Rajesh Kumar',
+    createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'demo-fir-005',
+    firNumber: 'KOR/2024/00093',
+    stationId: 'station-001',
+    stationName: 'Koramangala Police Station',
+    title: 'Drug Possession - NDPS Act',
+    description: 'Suspect apprehended with 50 grams of cannabis. Search and seizure conducted.',
+    crimeCategory: 'NARCOTICS',
+    ipcSections: ['NDPS 20', 'NDPS 22'],
+    reportedBy: 'State of Karnataka',
+    reporterContact: 'Police Station',
+    reporterAddress: 'Koramangala Police Station',
+    incidentDate: new Date(Date.now() - 17 * 24 * 60 * 60 * 1000).toISOString(),
+    incidentTime: '19:30',
+    incidentLocation: 'Near Forum Mall, Koramangala',
+    status: 'UNDER_INVESTIGATION',
+    priority: 'HIGH',
+    registeredAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    registeredBy: 'Inspector Anil Desai',
+    investigatingOfficer: 'Inspector Anil Desai',
+    createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-fir-006',
+    firNumber: 'KOR/2024/00094',
+    stationId: 'station-001',
+    stationName: 'Koramangala Police Station',
+    title: 'Domestic Violence Complaint',
+    description: 'Complainant alleges physical and mental harassment by husband and in-laws.',
+    crimeCategory: 'OTHER',
+    ipcSections: ['IPC 498A', 'DV Act'],
+    reportedBy: 'Sunita Devi',
+    reporterContact: '+91 54321 09876',
+    reporterAddress: '56, BTM Layout, Bangalore',
+    incidentDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    incidentTime: '20:00',
+    incidentLocation: 'Marital Home, BTM Layout',
+    status: 'REGISTERED',
+    priority: 'HIGH',
+    registeredAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    registeredBy: 'SI Priya Sharma',
+    investigatingOfficer: 'SI Priya Sharma',
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+] as FIR[];
+
 interface ListResponse<T> {
   data: T[];
   total: number;
@@ -212,10 +354,16 @@ export function useFIRs(filters: FIRFilters = {}) {
       }
 
       // Offline mode: fetch from IndexedDB
-      let query = db.firs.orderBy('registeredAt').reverse();
+      const query = db.firs.orderBy('registeredAt').reverse();
 
       // Apply filters
-      const results = await query.toArray();
+      let results = await query.toArray();
+
+      // If no data in IndexedDB, use demo data
+      if (results.length === 0) {
+        results = DEMO_FIRS;
+      }
+
       const filtered = results.filter((fir) => {
         if (filters.status && fir.status !== filters.status) return false;
         if (filters.priority && fir.priority !== filters.priority) return false;
