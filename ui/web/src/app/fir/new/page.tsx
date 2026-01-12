@@ -37,6 +37,7 @@ import { FIRPreviewDialog } from "@/components/ui/FIRPreviewDialog";
 import { VoiceInput } from "@/components/ui/VoiceInput";
 import { DocumentScanner } from "@/components/ui/DocumentScanner";
 import { NLPExtractor } from "@/components/ui/NLPExtractor";
+import { LocationPicker, type LocationData } from "@/components/ui/LocationPicker";
 import { uploadViaAPI, UploadCategory } from "@/lib/upload";
 
 // Validation Schema
@@ -197,6 +198,7 @@ export default function NewFIRPage() {
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [verificationChecked, setVerificationChecked] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
 
   // Upload handler function
   const handleFileUpload = async (files: File[], category: UploadCategory) => {
@@ -559,24 +561,21 @@ export default function NewFIRPage() {
                     </label>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="relative">
-                    <Input
-                      label="Location *"
-                      {...register("incidentLocation")}
-                      placeholder="Address or landmark"
-                      error={!!errors.incidentLocation}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-2 top-8"
-                    >
-                      <MapPin className="h-4 w-4" />
-                    </Button>
-                    <FieldError name="incidentLocation" />
-                  </div>
+                <div className="space-y-4">
+                  <LocationPicker
+                    label="Incident Location *"
+                    value={watch("incidentLocation") || ""}
+                    onChange={(address, data) => {
+                      setValue("incidentLocation", address);
+                      if (data) {
+                        setLocationData(data);
+                      }
+                    }}
+                    placeholder="Enter address, search, or use auto-detect"
+                    required
+                    error={errors.incidentLocation?.message}
+                    showMap={true}
+                  />
                   <div>
                     <Input
                       label="Beat/Area"

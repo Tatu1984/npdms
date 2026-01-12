@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { LegacySelect as Select } from '@/components/ui/select';
 import { useToastStore } from '@/stores/toastStore';
+import { LocationPicker, type LocationData } from '@/components/ui/LocationPicker';
 import {
   Shield,
   ArrowLeft,
@@ -59,6 +60,7 @@ export default function NewCyberCrimePage() {
   const router = useRouter();
   const { addToast } = useToastStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
 
   const [formData, setFormData] = useState({
     // Complainant Details
@@ -158,21 +160,23 @@ export default function NewCyberCrimePage() {
                       required
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Input
-                      label="Email Address"
-                      type="email"
-                      value={formData.complainantEmail}
-                      onChange={(v: string) => handleChange('complainantEmail', v)}
-                      placeholder="email@example.com"
-                    />
-                    <Input
-                      label="Address"
-                      value={formData.complainantAddress}
-                      onChange={(v: string) => handleChange('complainantAddress', v)}
-                      placeholder="Full address"
-                    />
-                  </div>
+                  <Input
+                    label="Email Address"
+                    type="email"
+                    value={formData.complainantEmail}
+                    onChange={(v: string) => handleChange('complainantEmail', v)}
+                    placeholder="email@example.com"
+                  />
+                  <LocationPicker
+                    label="Address"
+                    value={formData.complainantAddress}
+                    onChange={(address, data) => {
+                      handleChange('complainantAddress', address);
+                      if (data) setLocationData(data);
+                    }}
+                    placeholder="Enter address, search, or use auto-detect"
+                    showMap={false}
+                  />
                 </CardContent>
               </Card>
 

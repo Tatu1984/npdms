@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Shield,
@@ -14,6 +14,7 @@ import {
   FileText,
   Download,
   RefreshCw,
+  Edit,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -26,14 +27,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
-import { useArmouryStore } from "@/stores/armouryStore";
+import { useArmouryStore, type Weapon } from "@/stores/armouryStore";
 import { usePersonnelStore } from "@/stores/personnelStore";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
 
 // Weapon data now comes from useArmouryStore
 
-// Mock ammunition data
-const mockAmmunition = [
+// Initial ammunition data
+const initialAmmunition = [
   { type: "9mm", inStock: 1800, issued: 450, minLevel: 500, status: "OK" },
   { type: ".303", inStock: 340, issued: 60, minLevel: 200, status: "OK" },
   { type: "7.62mm", inStock: 180, issued: 20, minLevel: 200, status: "LOW" },
@@ -89,12 +90,15 @@ function getStatusBadgeVariant(status: string) {
 export default function ArmouryPage() {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
-  const { weapons, issuanceRecords, issueWeapon, returnWeapon, getAvailableWeapons } = useArmouryStore();
+  const { weapons, issuanceRecords, issueWeapon, returnWeapon, getAvailableWeapons, createWeapon } = useArmouryStore();
   const { personnel } = usePersonnelStore();
   const [activeTab, setActiveTab] = useState("weapons");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+
+  // Ammunition state
+  const [ammunition, setAmmunition] = useState(initialAmmunition);
 
   // Issuance form state
   const [issuanceForm, setIssuanceForm] = useState({
@@ -106,6 +110,22 @@ export default function ArmouryPage() {
 
   // Overdue modal state
   const [showOverdueModal, setShowOverdueModal] = useState(false);
+
+  // Add Weapon modal state
+  const [showAddWeaponModal, setShowAddWeaponModal] = useState(false);
+  const [newWeapon, setNewWeapon] = useState({
+    type: "9mm Pistol",
+    make: "",
+    serialNumber: "",
+    condition: "SERVICEABLE",
+  });
+
+  // Add Ammunition modal state
+  const [showAddAmmoModal, setShowAddAmmoModal] = useState(false);
+  const [newAmmo, setNewAmmo] = useState({
+    type: "9mm",
+    quantity: "",
+  });
 
   const canIssue = user && hasMinimumRole(user.role, "SHO");
   const canAudit = user && hasMinimumRole(user.role, "SP");
@@ -171,6 +191,65 @@ export default function ArmouryPage() {
     setIssuanceForm({ officerId: "", weaponId: "", ammunition: "", purpose: "" });
   };
 
+  const handleAddWeapon = async () => {
+    if (!newWeapon.make || !newWeapon.serialNumber) {
+      addToast({ type: "error", title: "Validation Error", message: "Please fill in all required fields" });
+      return;
+    }
+
+    const weaponCount = weapons.length + 1;
+    const weaponData: Omit<Weapon, "id"> = {
+      weaponId: `WPN-KOR-${String(weaponCount).padStart(3, "0")}`,
+      type: newWeapon.type,
+      make: newWeapon.make,
+      serialNumber: newWeapon.serialNumber,
+      status: "IN_ARMOURY",
+      assignedTo: null,
+      assignedBadge: null,
+      issuedDate: null,
+      expectedReturn: null,
+      condition: newWeapon.condition as Weapon["condition"],
+    };
+
+    await createWeapon(weaponData);
+    addToast({
+      type: "success",
+      title: "Weapon Added",
+      message: `${weaponData.weaponId} has been added to the registry`,
+    });
+    setShowAddWeaponModal(false);
+    setNewWeapon({ type: "9mm Pistol", make: "", serialNumber: "", condition: "SERVICEABLE" });
+  };
+
+  const handleAddAmmunition = () => {
+    if (!newAmmo.quantity || parseInt(newAmmo.quantity) <= 0) {
+      addToast({ type: "error", title: "Validation Error", message: "Please enter a valid quantity" });
+      return;
+    }
+
+    setAmmunition((prev) =>
+      prev.map((ammo) => {
+        if (ammo.type === newAmmo.type) {
+          const newStock = ammo.inStock + parseInt(newAmmo.quantity);
+          return {
+            ...ammo,
+            inStock: newStock,
+            status: newStock < ammo.minLevel ? "LOW" : "OK",
+          };
+        }
+        return ammo;
+      })
+    );
+
+    addToast({
+      type: "success",
+      title: "Stock Updated",
+      message: `Added ${newAmmo.quantity} rounds of ${newAmmo.type} ammunition`,
+    });
+    setShowAddAmmoModal(false);
+    setNewAmmo({ type: "9mm", quantity: "" });
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -184,22 +263,18 @@ export default function ArmouryPage() {
           </div>
           <div className="flex gap-2">
             {canIssue && (
+              <Button variant="secondary" onClick={() => setShowAddWeaponModal(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Weapon
+              </Button>
+            )}
+            {canIssue && (
               <Button onClick={() => {
                 setActiveTab("issuance");
                 addToast({ type: "info", title: "Issue Weapon", message: "Fill the issuance form below" });
               }}>
-                <Plus className="h-4 w-4 mr-2" />
+                <Crosshair className="h-4 w-4 mr-2" />
                 Issue Weapon
-              </Button>
-            )}
-            {canAudit && (
-              <Button
-                variant="secondary"
-                disabled
-                title="Feature under development"
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                Audit Report (Coming Soon)
               </Button>
             )}
           </div>
@@ -413,11 +488,10 @@ export default function ArmouryPage() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    disabled
-                    title="Feature under development"
+                    onClick={() => setShowAddAmmoModal(true)}
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Stock (Coming Soon)
+                    Add Stock
                   </Button>
                 )}
               </CardHeader>
@@ -434,7 +508,7 @@ export default function ArmouryPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockAmmunition.map((ammo, index) => (
+                    {ammunition.map((ammo, index) => (
                       <TableRow key={index}>
                         <TableCell>
                           <span className="font-medium text-foreground">{ammo.type}</span>
@@ -465,8 +539,16 @@ export default function ArmouryPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           {canIssue && (
-                            <Button variant="ghost" size="sm" disabled title="Feature under development">
-                              Issue (Soon)
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setNewAmmo({ type: ammo.type, quantity: "" });
+                                setShowAddAmmoModal(true);
+                              }}
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              Add
                             </Button>
                           )}
                         </TableCell>
@@ -483,7 +565,7 @@ export default function ArmouryPage() {
                 <CardTitle>Stock Levels</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {mockAmmunition.map((ammo, index) => (
+                {ammunition.map((ammo, index) => (
                   <div key={index}>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm text-foreground">{ammo.type}</span>
@@ -694,6 +776,105 @@ export default function ArmouryPage() {
               Send All Reminders
             </Button>
           )}
+        </ModalFooter>
+      </Modal>
+
+      {/* Add Weapon Modal */}
+      <Modal
+        isOpen={showAddWeaponModal}
+        onClose={() => setShowAddWeaponModal(false)}
+        title="Add New Weapon"
+        description="Register a new weapon in the armoury"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <Select
+            label="Weapon Type *"
+            options={[
+              { value: "9mm Pistol", label: "9mm Pistol" },
+              { value: ".303 Rifle", label: ".303 Rifle" },
+              { value: "7.62mm Rifle", label: "7.62mm Rifle" },
+              { value: "Tear Gas Gun", label: "Tear Gas Gun" },
+              { value: "AK-47", label: "AK-47" },
+            ]}
+            value={newWeapon.type}
+            onChange={(value: string) => setNewWeapon({ ...newWeapon, type: value })}
+          />
+          <Input
+            label="Make/Model *"
+            placeholder="e.g., Glock 17, INSAS"
+            value={newWeapon.make}
+            onChange={(value: string) => setNewWeapon({ ...newWeapon, make: value })}
+          />
+          <Input
+            label="Serial Number *"
+            placeholder="e.g., GLK-2024-12345"
+            value={newWeapon.serialNumber}
+            onChange={(value: string) => setNewWeapon({ ...newWeapon, serialNumber: value })}
+          />
+          <Select
+            label="Condition"
+            options={[
+              { value: "SERVICEABLE", label: "Serviceable" },
+              { value: "UNDER_REPAIR", label: "Under Repair" },
+              { value: "UNSERVICEABLE", label: "Unserviceable" },
+            ]}
+            value={newWeapon.condition}
+            onChange={(value: string) => setNewWeapon({ ...newWeapon, condition: value })}
+          />
+        </div>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setShowAddWeaponModal(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleAddWeapon}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Weapon
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Add Ammunition Modal */}
+      <Modal
+        isOpen={showAddAmmoModal}
+        onClose={() => setShowAddAmmoModal(false)}
+        title="Add Ammunition Stock"
+        description="Update ammunition inventory"
+        size="md"
+      >
+        <div className="space-y-4">
+          <Select
+            label="Ammunition Type *"
+            options={[
+              { value: "9mm", label: "9mm" },
+              { value: ".303", label: ".303" },
+              { value: "7.62mm", label: "7.62mm" },
+              { value: "Tear Gas", label: "Tear Gas" },
+            ]}
+            value={newAmmo.type}
+            onChange={(value: string) => setNewAmmo({ ...newAmmo, type: value })}
+          />
+          <Input
+            label="Quantity (rounds) *"
+            type="number"
+            placeholder="Enter number of rounds"
+            value={newAmmo.quantity}
+            onChange={(value: string) => setNewAmmo({ ...newAmmo, quantity: value })}
+          />
+          <div className="p-3 bg-background-tertiary rounded-lg">
+            <p className="text-sm text-foreground-muted">
+              Current stock: {ammunition.find(a => a.type === newAmmo.type)?.inStock.toLocaleString() || 0} rounds
+            </p>
+          </div>
+        </div>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setShowAddAmmoModal(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleAddAmmunition}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Stock
+          </Button>
         </ModalFooter>
       </Modal>
     </DashboardLayout>

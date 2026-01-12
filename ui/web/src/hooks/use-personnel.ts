@@ -287,30 +287,42 @@ export function usePersonnel(filters: PersonnelFilters = {}) {
   return useQuery({
     queryKey: personnelKeys.list(filters),
     queryFn: async () => {
+      // Try API first if online
       if (isOnline) {
         try {
           const response = await personnelApi.list(filters);
-          await Promise.all(
-            response.data.map((personnel) =>
-              db.personnel.put({
-                ...personnel,
-                _pending: false,
-                _localOnly: false,
-              })
-            )
-          );
-          return response;
+          if (response.data && response.data.length > 0) {
+            await Promise.all(
+              response.data.map((personnel) =>
+                db.personnel.put({
+                  ...personnel,
+                  _pending: false,
+                  _localOnly: false,
+                })
+              )
+            );
+            return response;
+          }
         } catch (error) {
-          console.error('[usePersonnel] Network error, falling back to IndexedDB:', error);
+          console.warn('[usePersonnel] API unavailable, using local data:', error);
         }
       }
 
-      let query = db.personnel.orderBy('name');
-      let results = await query.toArray();
+      // Fallback to IndexedDB
+      let results: Personnel[] = [];
+      try {
+        const query = db.personnel.orderBy('name');
+        results = await query.toArray();
+      } catch (error) {
+        console.warn('[usePersonnel] IndexedDB error, using demo data:', error);
+      }
+
       // If no data in IndexedDB, use demo data
-      if (results.length === 0) {
+      if (!results || results.length === 0) {
+        console.log('[usePersonnel] Using demo personnel data');
         results = DEMO_PERSONNEL;
       }
+
       const filtered = results.filter((personnel) => {
         if (filters.rank && personnel.rank !== filters.rank) return false;
         if (filters.dutyStatus && personnel.dutyStatus !== filters.dutyStatus) return false;
@@ -341,6 +353,7 @@ export function usePersonnel(filters: PersonnelFilters = {}) {
     },
     staleTime: 30000,
     gcTime: 300000,
+    retry: false, // Don't retry failed queries, use fallback instead
   });
 }
 

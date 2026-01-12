@@ -82,25 +82,31 @@ const stats = {
   totalFinancialLoss: 45000000,
 };
 
-const typeColors: Record<string, string> = {
-  PHISHING: 'bg-yellow-100 text-yellow-800',
-  RANSOMWARE: 'bg-red-100 text-red-800',
-  IDENTITY_THEFT: 'bg-purple-100 text-purple-800',
-  ONLINE_FRAUD: 'bg-orange-100 text-orange-800',
-  CYBER_STALKING: 'bg-pink-100 text-pink-800',
-  DATA_BREACH: 'bg-blue-100 text-blue-800',
-  CRYPTO_FRAUD: 'bg-indigo-100 text-indigo-800',
-  HACKING: 'bg-gray-100 text-gray-800',
-};
+function getTypeBadgeVariant(type: string) {
+  const variants: Record<string, string> = {
+    PHISHING: 'warning',
+    RANSOMWARE: 'error',
+    IDENTITY_THEFT: 'info',
+    ONLINE_FRAUD: 'warning',
+    CYBER_STALKING: 'error',
+    DATA_BREACH: 'info',
+    CRYPTO_FRAUD: 'info',
+    HACKING: 'secondary',
+  };
+  return variants[type] || 'secondary';
+}
 
-const statusColors: Record<string, string> = {
-  REPORTED: 'bg-gray-100 text-gray-800',
-  ANALYZING: 'bg-blue-100 text-blue-800',
-  INVESTIGATING: 'bg-yellow-100 text-yellow-800',
-  ESCALATED: 'bg-orange-100 text-orange-800',
-  RESOLVED: 'bg-green-100 text-green-800',
-  CLOSED: 'bg-gray-100 text-gray-800',
-};
+function getStatusBadgeVariant(status: string) {
+  const variants: Record<string, string> = {
+    REPORTED: 'secondary',
+    ANALYZING: 'info',
+    INVESTIGATING: 'warning',
+    ESCALATED: 'error',
+    RESOLVED: 'success',
+    CLOSED: 'secondary',
+  };
+  return variants[status] || 'secondary';
+}
 
 const platformIcons: Record<string, React.ReactNode> = {
   WEBSITE: <Globe className="h-4 w-4" />,
@@ -140,8 +146,8 @@ export default function CyberCrimePage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Cyber Crime Unit</h1>
-            <p className="text-gray-500">Manage digital crime investigations</p>
+            <h1 className="text-2xl font-bold text-foreground">Cyber Crime Unit</h1>
+            <p className="text-foreground-muted">Manage digital crime investigations</p>
           </div>
           <Button onClick={() => router.push('/cyber-crime/new')}>
             <Plus className="mr-2 h-4 w-4" />
@@ -153,45 +159,45 @@ export default function CyberCrimePage() {
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Total Cases</CardTitle>
-              <Shield className="h-5 w-5 text-blue-500" />
+              <CardTitle className="text-sm font-medium text-foreground-muted">Total Cases</CardTitle>
+              <Shield className="h-5 w-5 text-accent" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalCases}</div>
-              <p className="text-xs text-gray-500">All time</p>
+              <div className="text-2xl font-bold text-foreground">{stats.totalCases}</div>
+              <p className="text-xs text-foreground-muted">All time</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Active Cases</CardTitle>
-              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              <CardTitle className="text-sm font-medium text-foreground-muted">Active Cases</CardTitle>
+              <AlertTriangle className="h-5 w-5 text-warning" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.activeCases}</div>
-              <p className="text-xs text-gray-500">Under investigation</p>
+              <div className="text-2xl font-bold text-foreground">{stats.activeCases}</div>
+              <p className="text-xs text-foreground-muted">Under investigation</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Resolved</CardTitle>
-              <FileText className="h-5 w-5 text-green-500" />
+              <CardTitle className="text-sm font-medium text-foreground-muted">Resolved</CardTitle>
+              <FileText className="h-5 w-5 text-success" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.resolvedCases}</div>
-              <p className="text-xs text-gray-500">Cases closed</p>
+              <div className="text-2xl font-bold text-foreground">{stats.resolvedCases}</div>
+              <p className="text-xs text-foreground-muted">Cases closed</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Financial Loss</CardTitle>
-              <DollarSign className="h-5 w-5 text-red-500" />
+              <CardTitle className="text-sm font-medium text-foreground-muted">Financial Loss</CardTitle>
+              <DollarSign className="h-5 w-5 text-error" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(stats.totalFinancialLoss)}</div>
-              <p className="text-xs text-gray-500">Total reported</p>
+              <div className="text-2xl font-bold text-foreground">{formatCurrency(stats.totalFinancialLoss)}</div>
+              <p className="text-xs text-foreground-muted">Total reported</p>
             </CardContent>
           </Card>
         </div>
@@ -201,15 +207,12 @@ export default function CyberCrimePage() {
           <CardContent className="pt-6">
             <div className="flex flex-wrap gap-4">
               <div className="flex-1 min-w-[200px]">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input
-                    placeholder="Search by case number or complainant..."
-                    value={searchQuery}
-                    onChange={(value: string) => setSearchQuery(value)}
-                    className="pl-9"
-                  />
-                </div>
+                <Input
+                  placeholder="Search by case number or complainant..."
+                  value={searchQuery}
+                  onChange={(value: string) => setSearchQuery(value)}
+                  icon={<Search className="h-4 w-4" />}
+                />
               </div>
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -251,81 +254,81 @@ export default function CyberCrimePage() {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b">
+                <thead className="bg-background-tertiary border-b border-border">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-foreground-muted uppercase">
                       Case Number
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-foreground-muted uppercase">
                       Type
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-foreground-muted uppercase">
                       Complainant
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-foreground-muted uppercase">
                       Platform
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-foreground-muted uppercase">
                       Financial Loss
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-foreground-muted uppercase">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-foreground-muted uppercase">
                       Priority
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-foreground-muted uppercase">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-border">
                   {filteredCrimes.map((crime) => (
                     <tr
                       key={crime.id}
-                      className="hover:bg-gray-50 cursor-pointer"
+                      className="hover:bg-background-tertiary cursor-pointer"
                       onClick={() => router.push(`/cyber-crime/${crime.id}`)}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium text-gray-900">{crime.caseNumber}</div>
-                        <div className="text-sm text-gray-500">
+                        <div className="font-medium text-foreground">{crime.caseNumber}</div>
+                        <div className="text-sm text-foreground-muted">
                           {new Date(crime.reportedAt).toLocaleDateString()}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge className={typeColors[crime.type] || 'bg-gray-100 text-gray-800'}>
+                        <Badge variant={getTypeBadgeVariant(crime.type) as any}>
                           {crime.type.replace(/_/g, ' ')}
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{crime.complainantName}</div>
+                        <div className="text-sm text-foreground">{crime.complainantName}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center text-sm text-gray-500">
+                        <div className="flex items-center text-sm text-foreground-muted">
                           {platformIcons[crime.platform]}
                           <span className="ml-2">{crime.platform.replace(/_/g, ' ')}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-foreground">
                           {crime.financialLoss > 0 ? formatCurrency(crime.financialLoss) : '-'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge className={statusColors[crime.status]}>
+                        <Badge variant={getStatusBadgeVariant(crime.status) as any}>
                           {crime.status}
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Badge
-                          className={
+                          variant={
                             crime.priority === 'CRITICAL'
-                              ? 'bg-red-100 text-red-800'
+                              ? 'error'
                               : crime.priority === 'HIGH'
-                              ? 'bg-orange-100 text-orange-800'
+                              ? 'warning'
                               : crime.priority === 'MEDIUM'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-green-100 text-green-800'
+                              ? 'info'
+                              : 'success'
                           }
                         >
                           {crime.priority}
