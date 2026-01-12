@@ -30,9 +30,14 @@ const DEMO_FIRS: FIR[] = [
     stationId: 'station-001',
     stationName: 'Koramangala Police Station',
     title: 'Armed Robbery at Jewellery Store',
-    description: 'Armed robbery reported at ABC Jewellers, Koramangala. Multiple masked suspects involved.',
+    description: 'Armed robbery reported at ABC Jewellers, Koramangala. Multiple masked suspects involved. Three individuals wearing balaclavas entered the store around 10:30 PM. They threatened staff with weapons and made away with gold ornaments worth approximately Rs. 45 lakhs.',
     crimeCategory: 'PROPERTY',
-    ipcSections: ['IPC 392', 'IPC 397'],
+    offenceCategory: 'Property Crime',
+    offenceType: 'Armed Robbery',
+    ipcSections: ['IPC 392', 'IPC 397', 'Arms Act 25'],
+    complainantName: 'Ramesh Agarwal',
+    complainantPhone: '+91 98765 43210',
+    complainantAddress: '45, 5th Cross, Koramangala, Bangalore - 560034',
     reportedBy: 'Ramesh Agarwal',
     reporterContact: '+91 98765 43210',
     reporterAddress: '45, 5th Cross, Koramangala, Bangalore',
@@ -44,6 +49,7 @@ const DEMO_FIRS: FIR[] = [
     registeredAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
     registeredBy: 'SI Rajesh Kumar',
     investigatingOfficer: 'SI Rajesh Kumar',
+    investigatingOfficerName: 'SI Rajesh Kumar',
     createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -53,9 +59,14 @@ const DEMO_FIRS: FIR[] = [
     stationId: 'station-001',
     stationName: 'Koramangala Police Station',
     title: 'Online Banking Fraud',
-    description: 'Victim lost Rs. 5 lakhs through phishing attack on banking credentials.',
+    description: 'Victim lost Rs. 5 lakhs through phishing attack on banking credentials. Fraudsters impersonated bank officials and obtained OTP through social engineering.',
     crimeCategory: 'ECONOMIC',
-    ipcSections: ['IPC 420', 'IT Act 66'],
+    offenceCategory: 'Cyber Crime',
+    offenceType: 'Online Fraud',
+    ipcSections: ['IPC 420', 'IT Act 66C', 'IT Act 66D'],
+    complainantName: 'Suresh Menon',
+    complainantPhone: '+91 87654 32109',
+    complainantAddress: '23, HSR Layout, Sector 2, Bangalore - 560102',
     reportedBy: 'Suresh Menon',
     reporterContact: '+91 87654 32109',
     reporterAddress: '23, HSR Layout, Bangalore',
@@ -67,6 +78,7 @@ const DEMO_FIRS: FIR[] = [
     registeredAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
     registeredBy: 'SI Priya Sharma',
     investigatingOfficer: 'SI Priya Sharma',
+    investigatingOfficerName: 'SI Priya Sharma',
     createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -76,20 +88,26 @@ const DEMO_FIRS: FIR[] = [
     stationId: 'station-001',
     stationName: 'Koramangala Police Station',
     title: 'Assault at Local Bar',
-    description: 'Physical assault during altercation at Blue Moon Bar. Victim sustained injuries.',
+    description: 'Physical assault during altercation at Blue Moon Bar. Victim sustained injuries including fractures and lacerations. Multiple witnesses present.',
     crimeCategory: 'VIOLENT',
-    ipcSections: ['IPC 323', 'IPC 324'],
+    offenceCategory: 'Violent Crime',
+    offenceType: 'Assault',
+    ipcSections: ['IPC 323', 'IPC 324', 'IPC 506'],
+    complainantName: 'Arun Patel',
+    complainantPhone: '+91 76543 21098',
+    complainantAddress: '78, 12th Main, Indiranagar, Bangalore - 560038',
     reportedBy: 'Arun Patel',
     reporterContact: '+91 76543 21098',
     reporterAddress: '78, Indiranagar, Bangalore',
     incidentDate: new Date(Date.now() - 62 * 24 * 60 * 60 * 1000).toISOString(),
     incidentTime: '23:45',
-    incidentLocation: 'Blue Moon Bar, Indiranagar',
-    status: 'COURT_PROCEEDINGS',
+    incidentLocation: 'Blue Moon Bar, 100ft Road, Indiranagar',
+    status: 'COURT_PENDING',
     priority: 'MEDIUM',
     registeredAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
     registeredBy: 'ASI Vijay Reddy',
     investigatingOfficer: 'ASI Vijay Reddy',
+    investigatingOfficerName: 'ASI Vijay Reddy',
     createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -99,20 +117,26 @@ const DEMO_FIRS: FIR[] = [
     stationId: 'station-001',
     stationName: 'Koramangala Police Station',
     title: 'Two Wheeler Theft',
-    description: 'Honda Activa stolen from residential parking at night. CCTV footage available.',
+    description: 'Honda Activa (KA-03-MX-1234) stolen from residential parking at night. CCTV footage available from building entrance.',
     crimeCategory: 'PROPERTY',
+    offenceCategory: 'Property Crime',
+    offenceType: 'Vehicle Theft',
     ipcSections: ['IPC 379'],
+    complainantName: 'Deepak Sharma',
+    complainantPhone: '+91 65432 10987',
+    complainantAddress: '12, 4th Phase, JP Nagar, Bangalore - 560078',
     reportedBy: 'Deepak Sharma',
     reporterContact: '+91 65432 10987',
     reporterAddress: '12, JP Nagar, Bangalore',
     incidentDate: new Date(Date.now() - 92 * 24 * 60 * 60 * 1000).toISOString(),
     incidentTime: '03:00',
-    incidentLocation: 'Residential Parking, JP Nagar',
+    incidentLocation: 'Residential Parking, Sunrise Apartments, JP Nagar',
     status: 'CLOSED',
     priority: 'LOW',
     registeredAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
     registeredBy: 'SI Rajesh Kumar',
     investigatingOfficer: 'SI Rajesh Kumar',
+    investigatingOfficerName: 'SI Rajesh Kumar',
     createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
   },
@@ -122,9 +146,14 @@ const DEMO_FIRS: FIR[] = [
     stationId: 'station-001',
     stationName: 'Koramangala Police Station',
     title: 'Drug Possession - NDPS Act',
-    description: 'Suspect apprehended with 50 grams of cannabis. Search and seizure conducted.',
+    description: 'Suspect apprehended with 50 grams of cannabis during routine patrol. Search and seizure conducted as per procedure.',
     crimeCategory: 'NARCOTICS',
+    offenceCategory: 'Narcotics',
+    offenceType: 'Drug Possession',
     ipcSections: ['NDPS 20', 'NDPS 22'],
+    complainantName: 'State of Karnataka',
+    complainantPhone: '080-25520100',
+    complainantAddress: 'Koramangala Police Station, Bangalore',
     reportedBy: 'State of Karnataka',
     reporterContact: 'Police Station',
     reporterAddress: 'Koramangala Police Station',
@@ -136,6 +165,7 @@ const DEMO_FIRS: FIR[] = [
     registeredAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
     registeredBy: 'Inspector Anil Desai',
     investigatingOfficer: 'Inspector Anil Desai',
+    investigatingOfficerName: 'Inspector Anil Desai',
     createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -145,20 +175,26 @@ const DEMO_FIRS: FIR[] = [
     stationId: 'station-001',
     stationName: 'Koramangala Police Station',
     title: 'Domestic Violence Complaint',
-    description: 'Complainant alleges physical and mental harassment by husband and in-laws.',
+    description: 'Complainant alleges physical and mental harassment by husband and in-laws. Reports include assault, dowry demands, and threats.',
     crimeCategory: 'OTHER',
-    ipcSections: ['IPC 498A', 'DV Act'],
+    offenceCategory: 'Crimes Against Women',
+    offenceType: 'Domestic Violence',
+    ipcSections: ['IPC 498A', 'DV Act 2005'],
+    complainantName: 'Sunita Devi',
+    complainantPhone: '+91 54321 09876',
+    complainantAddress: '56, 3rd Stage, BTM Layout, Bangalore - 560076',
     reportedBy: 'Sunita Devi',
     reporterContact: '+91 54321 09876',
     reporterAddress: '56, BTM Layout, Bangalore',
     incidentDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
     incidentTime: '20:00',
-    incidentLocation: 'Marital Home, BTM Layout',
+    incidentLocation: 'Marital Home, 56 BTM Layout',
     status: 'REGISTERED',
     priority: 'HIGH',
     registeredAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     registeredBy: 'SI Priya Sharma',
     investigatingOfficer: 'SI Priya Sharma',
+    investigatingOfficerName: 'SI Priya Sharma',
     createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -401,20 +437,23 @@ export function useFIRs(filters: FIRFilters = {}) {
 }
 
 /**
- * Fetch single FIR by ID (offline-first)
+ * Fetch single FIR by ID or FIR number (offline-first)
  */
-export function useFIR(id: string | undefined) {
+export function useFIR(idOrNumber: string | undefined) {
   const isOnline = networkMonitor.isOnline();
 
   return useQuery({
-    queryKey: firKeys.detail(id!),
+    queryKey: firKeys.detail(idOrNumber!),
     queryFn: async () => {
-      if (!id) return null;
+      if (!idOrNumber) return null;
+
+      // Decode URL-encoded FIR number (e.g., KOR%2F2024%2F00089 -> KOR/2024/00089)
+      const decodedId = decodeURIComponent(idOrNumber);
 
       // Try to fetch from server if online
       if (isOnline) {
         try {
-          const fir = await firApi.get(id);
+          const fir = await firApi.get(decodedId);
 
           // Sync to IndexedDB
           await db.firs.put({
@@ -425,14 +464,27 @@ export function useFIR(id: string | undefined) {
 
           return fir;
         } catch (error) {
-          console.error('[useFIR] Network error, falling back to IndexedDB:', error);
+          console.error('[useFIR] Network error, falling back to IndexedDB/demo:', error);
         }
       }
 
-      // Offline mode: fetch from IndexedDB
-      return (await db.firs.get(id)) || null;
+      // Offline mode: fetch from IndexedDB first
+      let fir = await db.firs.get(decodedId);
+
+      // If not found by ID, try to find by FIR number
+      if (!fir) {
+        const allFirs = await db.firs.toArray();
+        fir = allFirs.find(f => f.firNumber === decodedId || f.id === decodedId);
+      }
+
+      // If still not found, check demo data
+      if (!fir) {
+        fir = DEMO_FIRS.find(f => f.firNumber === decodedId || f.id === decodedId);
+      }
+
+      return fir || null;
     },
-    enabled: !!id,
+    enabled: !!idOrNumber,
     staleTime: 30000,
     gcTime: 300000,
   });
@@ -489,15 +541,17 @@ export function useCreateFIR(options?: QueueOptions) {
   return useMutation({
     mutationFn: async (data: Partial<FIR>) => {
       const tempId = uuidv4();
+      const firNumber = data.firNumber || `KOR/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 99999)).padStart(5, '0')}`;
       const tempFir: FIR = {
         ...data,
         id: tempId,
-        firNumber: `TEMP-${tempId.slice(0, 8)}`, // Temporary FIR number
+        firNumber,
+        stationName: data.stationName || 'Koramangala Police Station',
         registeredAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        _pending: !isOnline,
-        _localOnly: !isOnline,
+        _pending: true,
+        _localOnly: true,
       } as FIR;
 
       if (isOnline) {
@@ -514,25 +568,28 @@ export function useCreateFIR(options?: QueueOptions) {
 
           return created;
         } catch (error) {
-          console.error('[useCreateFIR] Network error, queuing for offline sync:', error);
+          console.error('[useCreateFIR] Network error, saving locally:', error);
           // Fall through to offline mode
         }
       }
 
-      // Offline: Store in IndexedDB and queue
+      // Offline/Demo: Store in IndexedDB
       await db.firs.put(tempFir);
 
-      await queueCreate(
-        'fir',
-        tempId,
-        data,
-        `${API_BASE}/firs`,
-        options
-      );
+      // Only queue for sync if we were online and failed
+      if (isOnline) {
+        await queueCreate(
+          'fir',
+          tempId,
+          data,
+          `${API_BASE}/firs`,
+          options
+        );
+      }
 
       return tempFir;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       // Invalidate queries to refetch
       queryClient.invalidateQueries({ queryKey: firKeys.lists() });
       queryClient.invalidateQueries({ queryKey: firKeys.stats() });

@@ -230,25 +230,44 @@ export function useCases(filters: CaseFilters = {}) {
   });
 }
 
-export function useCase(id: string | undefined) {
+export function useCase(idOrNumber: string | undefined) {
   const isOnline = networkMonitor.isOnline();
 
   return useQuery({
-    queryKey: caseKeys.detail(id!),
+    queryKey: caseKeys.detail(idOrNumber!),
     queryFn: async () => {
-      if (!id) return null;
+      if (!idOrNumber) return null;
+
+      // Decode URL-encoded case number
+      const decodedId = decodeURIComponent(idOrNumber);
+
       if (isOnline) {
         try {
-          const c = await caseApi.get(id);
+          const c = await caseApi.get(decodedId);
           await db.cases.put({ ...c, _pending: false, _localOnly: false });
           return c;
         } catch (error) {
-          console.error('[useCase] Network error:', error);
+          console.error('[useCase] Network error, falling back to IndexedDB/demo:', error);
         }
       }
-      return (await db.cases.get(id)) || null;
+
+      // Offline mode: fetch from IndexedDB first
+      let caseData = await db.cases.get(decodedId);
+
+      // If not found by ID, try to find by case number
+      if (!caseData) {
+        const allCases = await db.cases.toArray();
+        caseData = allCases.find(c => c.caseNumber === decodedId || c.id === decodedId);
+      }
+
+      // If still not found, check demo data
+      if (!caseData) {
+        caseData = DEMO_CASES.find(c => c.caseNumber === decodedId || c.id === decodedId);
+      }
+
+      return caseData || null;
     },
-    enabled: !!id,
+    enabled: !!idOrNumber,
     staleTime: 30000,
   });
 }
@@ -260,14 +279,15 @@ export function useCreateCase(options?: QueueOptions) {
   return useMutation({
     mutationFn: async (data: Partial<Case>) => {
       const tempId = uuidv4();
+      const caseNumber = data.caseNumber || `CASE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, '0')}`;
       const temp: Case = {
         ...data,
         id: tempId,
-        caseNumber: `TEMP-${tempId.slice(0, 8)}`,
+        caseNumber,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        _pending: !isOnline,
-        _localOnly: !isOnline,
+        _pending: true,
+        _localOnly: true,
       } as Case;
 
       if (isOnline) {
@@ -276,12 +296,18 @@ export function useCreateCase(options?: QueueOptions) {
           await db.cases.put({ ...created, _pending: false, _localOnly: false });
           return created;
         } catch (error) {
-          console.error('[useCreateCase] Network error:', error);
+          console.error('[useCreateCase] Network error, saving locally:', error);
         }
       }
 
+      // Offline/Demo: Store in IndexedDB
       await db.cases.put(temp);
-      await queueCreate('case', tempId, data, `${API_BASE}/cases`, options);
+
+      // Only queue for sync if we were online and failed
+      if (isOnline) {
+        await queueCreate('case', tempId, data, `${API_BASE}/cases`, options);
+      }
+
       return temp;
     },
     onSuccess: () => {
