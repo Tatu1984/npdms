@@ -2,23 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MapPin, Crosshair, Loader2, AlertCircle, Search, X } from 'lucide-react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { Button } from './button';
 import { Input } from './input';
-
-// Fix for default markers in Leaflet
-const defaultIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
-
-L.Marker.prototype.options.icon = defaultIcon;
 
 export interface LocationData {
   address: string;
@@ -77,84 +62,132 @@ export function LocationPicker({
   const [searchQuery, setSearchQuery] = useState('');
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-  const markerRef = useRef<L.Marker | null>(null);
+  const mapInstanceRef = useRef<unknown>(null);
+  const markerRef = useRef<unknown>(null);
+  const leafletRef = useRef<typeof import('leaflet') | null>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Initialize map
+  // Dynamically import and initialize Leaflet
   useEffect(() => {
     if (!isClient || !showMap || !mapRef.current || mapInstanceRef.current) return;
 
-    const map = L.map(mapRef.current, {
-      center: coordinates ? [coordinates.lat, coordinates.lng] : defaultCenter,
-      zoom: 15,
-      zoomControl: true,
-    });
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(map);
-
-    // Add click handler to set location
-    map.on('click', async (e: L.LeafletMouseEvent) => {
-      const { lat, lng } = e.latlng;
-      setCoordinates({ lat, lng });
-
-      // Reverse geocode to get address
+    const initMap = async () => {
       try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
-          { headers: { 'Accept-Language': 'en' } }
-        );
-        const data: NominatimResult = await response.json();
+        // Dynamically import Leaflet
+        const L = await import('leaflet');
 
-        if (data.display_name) {
-          const locationData: LocationData = {
-            address: data.display_name,
-            latitude: lat,
-            longitude: lng,
-            city: data.address.city || data.address.town || data.address.village,
-            state: data.address.state,
-            country: data.address.country,
-            postalCode: data.address.postcode,
-          };
-          onChange(data.display_name, locationData);
+        // Import CSS dynamically
+        if (typeof document !== 'undefined') {
+          const existingLink = document.querySelector('link[href*="leaflet"]');
+          if (!existingLink) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            document.head.appendChild(link);
+          }
         }
-      } catch (err) {
-        console.error('Reverse geocoding failed:', err);
-      }
-    });
 
-    mapInstanceRef.current = map;
+        leafletRef.current = L;
+
+        // Fix default marker icons
+        const defaultIcon = L.icon({
+          iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+          iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+          shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+          iconSize: [25, 41],
+          iconAnchor: [12, 41],
+          popupAnchor: [1, -34],
+          shadowSize: [41, 41],
+        });
+        L.Marker.prototype.options.icon = defaultIcon;
+
+        // Initialize map
+        const map = L.map(mapRef.current!, {
+          center: coordinates ? [coordinates.lat, coordinates.lng] : defaultCenter,
+          zoom: 15,
+          zoomControl: true,
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        }).addTo(map);
+
+        // Add click handler to set location
+        map.on('click', async (e: { latlng: { lat: number; lng: number } }) => {
+          const { lat, lng } = e.latlng;
+          setCoordinates({ lat, lng });
+
+          // Update marker
+          if (markerRef.current) {
+            (markerRef.current as import('leaflet').Marker).setLatLng([lat, lng]);
+          } else {
+            markerRef.current = L.marker([lat, lng]).addTo(map);
+          }
+
+          // Reverse geocode to get address
+          try {
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
+              { headers: { 'Accept-Language': 'en' } }
+            );
+            const data: NominatimResult = await response.json();
+
+            if (data.display_name) {
+              const locationData: LocationData = {
+                address: data.display_name,
+                latitude: lat,
+                longitude: lng,
+                city: data.address.city || data.address.town || data.address.village,
+                state: data.address.state,
+                country: data.address.country,
+                postalCode: data.address.postcode,
+              };
+              onChange(data.display_name, locationData);
+            }
+          } catch (err) {
+            console.error('Reverse geocoding failed:', err);
+          }
+        });
+
+        mapInstanceRef.current = map;
+        setMapLoaded(true);
+      } catch (err) {
+        console.error('Failed to load map:', err);
+      }
+    };
+
+    initMap();
 
     return () => {
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        (mapInstanceRef.current as import('leaflet').Map).remove();
         mapInstanceRef.current = null;
       }
     };
-  }, [isClient, showMap, defaultCenter]);
+  }, [isClient, showMap, defaultCenter, onChange]);
 
-  // Update marker when coordinates change
+  // Update marker when coordinates change externally
   useEffect(() => {
-    if (!mapInstanceRef.current || !coordinates) return;
+    if (!mapInstanceRef.current || !coordinates || !leafletRef.current || !mapLoaded) return;
 
-    const map = mapInstanceRef.current;
+    const L = leafletRef.current;
+    const map = mapInstanceRef.current as import('leaflet').Map;
 
     if (markerRef.current) {
-      markerRef.current.setLatLng([coordinates.lat, coordinates.lng]);
+      (markerRef.current as import('leaflet').Marker).setLatLng([coordinates.lat, coordinates.lng]);
     } else {
       markerRef.current = L.marker([coordinates.lat, coordinates.lng]).addTo(map);
     }
 
     map.setView([coordinates.lat, coordinates.lng], 16);
-  }, [coordinates]);
+  }, [coordinates, mapLoaded]);
 
   // Auto-detect current location
   const handleAutoDetect = useCallback(async () => {
@@ -194,7 +227,6 @@ export function LocationPicker({
           }
         } catch (err) {
           console.error('Reverse geocoding failed:', err);
-          // Still set coordinates even if reverse geocoding fails
           onChange(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`, {
             address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
             latitude,
