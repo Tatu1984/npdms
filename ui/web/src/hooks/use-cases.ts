@@ -197,8 +197,9 @@ export function useCases(filters: CaseFilters = {}) {
         }
       }
 
-      // Try IndexedDB first
-      let results = await db.cases.orderBy('createdAt').reverse().toArray();
+      // Try IndexedDB first (createdAt is not indexed, so sort in memory)
+      let results = await db.cases.toArray();
+      results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       // If no data in IndexedDB, use demo data
       if (results.length === 0) {
