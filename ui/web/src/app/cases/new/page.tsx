@@ -27,6 +27,8 @@ import { useToastStore } from "@/stores/toastStore";
 import { useCreateCase } from "@/hooks/use-cases";
 import { type CaseStatus } from "@/lib/db/schema";
 import { sanitizeString } from "@/lib/validations";
+import { IPCSectionSelector } from "@/components/ui/IPCSectionSelector";
+import { LocationPicker, type LocationData } from "@/components/ui/LocationPicker";
 
 // Case form validation schema
 const caseFormSchema = z.object({
@@ -65,6 +67,9 @@ const caseCategories = [
   { value: "NARCOTICS", label: "Narcotics" },
   { value: "DOMESTIC_VIOLENCE", label: "Domestic Violence" },
   { value: "KIDNAPPING", label: "Kidnapping" },
+  { value: "SEXUAL_OFFENCE", label: "Sexual Offence" },
+  { value: "PROPERTY_CRIME", label: "Property Crime" },
+  { value: "ECONOMIC_OFFENCE", label: "Economic Offence" },
   { value: "OTHER", label: "Other" },
 ];
 
@@ -75,23 +80,6 @@ const priorities = [
   { value: "CRITICAL", label: "Critical" },
 ];
 
-const commonIPCSections = [
-  { value: "IPC 302", label: "IPC 302 - Murder" },
-  { value: "IPC 304", label: "IPC 304 - Culpable Homicide" },
-  { value: "IPC 307", label: "IPC 307 - Attempt to Murder" },
-  { value: "IPC 376", label: "IPC 376 - Rape" },
-  { value: "IPC 379", label: "IPC 379 - Theft" },
-  { value: "IPC 392", label: "IPC 392 - Robbery" },
-  { value: "IPC 397", label: "IPC 397 - Robbery with Attempt to Cause Death" },
-  { value: "IPC 406", label: "IPC 406 - Criminal Breach of Trust" },
-  { value: "IPC 420", label: "IPC 420 - Cheating" },
-  { value: "IPC 498A", label: "IPC 498A - Cruelty by Husband" },
-  { value: "NDPS 20", label: "NDPS Act Section 20" },
-  { value: "NDPS 22", label: "NDPS Act Section 22" },
-  { value: "IT Act 66", label: "IT Act Section 66" },
-  { value: "Arms Act 25", label: "Arms Act Section 25" },
-];
-
 type CaseFormData = z.infer<typeof caseFormSchema>;
 
 export default function NewCasePage() {
@@ -100,6 +88,7 @@ export default function NewCasePage() {
   const { addToast } = useToastStore();
   const createCaseMutation = useCreateCase();
   const [selectedSections, setSelectedSections] = useState<string[]>([]);
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
 
   const canCreate = user && hasMinimumRole(user.role, "SI");
 
@@ -142,15 +131,23 @@ export default function NewCasePage() {
     setAccused(updated);
   };
 
-  const toggleSection = (section: string) => {
-    if (selectedSections.includes(section)) {
-      setSelectedSections(selectedSections.filter((s) => s !== section));
-    } else {
-      setSelectedSections([...selectedSections, section]);
+  const handleLocationChange = (address: string, data?: LocationData) => {
+    setValue("incidentLocation", address);
+    if (data) {
+      setLocationData(data);
     }
   };
 
   const onSubmit = async (data: CaseFormData) => {
+    if (selectedSections.length === 0) {
+      addToast({
+        type: "error",
+        title: "Validation Error",
+        message: "Please select at least one IPC section",
+      });
+      return;
+    }
+
     try {
       const newCase = await createCaseMutation.mutateAsync({
         firId: data.linkedFIR,
@@ -284,7 +281,7 @@ export default function NewCasePage() {
                 </CardContent>
               </Card>
 
-              {/* Incident Details */}
+              {/* Incident Details with Location Picker */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -293,18 +290,15 @@ export default function NewCasePage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div>
-                    <Input
-                      label="Incident Location *"
-                      placeholder="Address where the incident occurred"
-                      value={formData.incidentLocation}
-                      onChange={(v: string) => setValue("incidentLocation", v)}
-                      icon={<MapPin className="h-4 w-4" />}
-                    />
-                    {errors.incidentLocation && (
-                      <p className="text-xs text-error mt-1">{errors.incidentLocation.message}</p>
-                    )}
-                  </div>
+                  <LocationPicker
+                    label="Incident Location *"
+                    value={formData.incidentLocation}
+                    onChange={handleLocationChange}
+                    placeholder="Enter address or click Auto Detect"
+                    required
+                    error={errors.incidentLocation?.message}
+                    showMap={true}
+                  />
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -328,7 +322,7 @@ export default function NewCasePage() {
                 </CardContent>
               </Card>
 
-              {/* IPC Sections */}
+              {/* IPC Sections - New Searchable Selector */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -337,36 +331,13 @@ export default function NewCasePage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-foreground-muted mb-4">
-                    Select all applicable IPC/Special Act sections
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {commonIPCSections.map((section) => (
-                      <button
-                        key={section.value}
-                        type="button"
-                        onClick={() => toggleSection(section.value)}
-                        className={`flex items-center gap-2 p-3 rounded-lg border text-left transition-colors ${
-                          selectedSections.includes(section.value)
-                            ? "border-accent bg-accent/10 text-accent"
-                            : "border-border bg-background-secondary text-foreground-muted hover:text-foreground"
-                        }`}
-                      >
-                        <div
-                          className={`w-4 h-4 rounded border flex items-center justify-center ${
-                            selectedSections.includes(section.value)
-                              ? "border-accent bg-accent"
-                              : "border-foreground-muted"
-                          }`}
-                        >
-                          {selectedSections.includes(section.value) && (
-                            <Check className="h-3 w-3 text-white" />
-                          )}
-                        </div>
-                        <span className="text-sm">{section.label}</span>
-                      </button>
-                    ))}
-                  </div>
+                  <IPCSectionSelector
+                    value={selectedSections}
+                    onChange={setSelectedSections}
+                    label="Select IPC/Special Act Sections *"
+                    required
+                    error={selectedSections.length === 0 ? "At least one section is required" : undefined}
+                  />
                 </CardContent>
               </Card>
 
@@ -467,7 +438,7 @@ export default function NewCasePage() {
               {selectedSections.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Selected Sections</CardTitle>
+                    <CardTitle>Selected Sections ({selectedSections.length})</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
@@ -479,6 +450,38 @@ export default function NewCasePage() {
                           {section}
                         </span>
                       ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Location Summary */}
+              {locationData && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Location Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm space-y-2">
+                    {locationData.city && (
+                      <div>
+                        <span className="text-foreground-muted">City: </span>
+                        <span className="text-foreground">{locationData.city}</span>
+                      </div>
+                    )}
+                    {locationData.state && (
+                      <div>
+                        <span className="text-foreground-muted">State: </span>
+                        <span className="text-foreground">{locationData.state}</span>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-foreground-muted">Coordinates: </span>
+                      <span className="text-foreground font-mono text-xs">
+                        {locationData.latitude.toFixed(6)}, {locationData.longitude.toFixed(6)}
+                      </span>
                     </div>
                   </CardContent>
                 </Card>

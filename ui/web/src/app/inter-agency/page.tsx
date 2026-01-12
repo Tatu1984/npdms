@@ -1,12 +1,15 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Modal, ModalFooter } from '@/components/ui/Modal';
+import { useToastStore } from '@/stores/toastStore';
 import {
   Share2,
   Building2,
@@ -190,6 +193,18 @@ const statusColors: Record<string, string> = {
 export default function InterAgencyPage() {
   const [activeTab, setActiveTab] = useState('agencies');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showApiKeysModal, setShowApiKeysModal] = useState(false);
+  const { addToast } = useToastStore();
+
+  const handleGenerateApiKey = () => {
+    const newKey = `npdms_${Math.random().toString(36).substring(2, 15)}_${Date.now().toString(36)}`;
+    navigator.clipboard.writeText(newKey);
+    addToast({
+      type: 'success',
+      title: 'API Key Generated',
+      message: 'New API key has been generated and copied to clipboard',
+    });
+  };
 
   return (
     <DashboardLayout>
@@ -201,16 +216,63 @@ export default function InterAgencyPage() {
             <p className="text-gray-500">API connections and data sharing with other agencies</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => setShowApiKeysModal(true)}>
               <Key className="mr-2 h-4 w-4" />
               API Keys
             </Button>
-            <Button>
-              <Link2 className="mr-2 h-4 w-4" />
-              New Connection
-            </Button>
+            <Link href="/inter-agency/new">
+              <Button>
+                <Link2 className="mr-2 h-4 w-4" />
+                New Connection
+              </Button>
+            </Link>
           </div>
         </div>
+
+        {/* API Keys Modal */}
+        <Modal
+          isOpen={showApiKeysModal}
+          onClose={() => setShowApiKeysModal(false)}
+          title="API Key Management"
+          size="md"
+        >
+          <div className="space-y-4">
+            <div className="p-4 bg-background-secondary rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Production API Key</span>
+                <Badge variant="success">Active</Badge>
+              </div>
+              <div className="font-mono text-xs bg-background p-2 rounded border">
+                npdms_prod_****************************
+              </div>
+              <p className="text-xs text-foreground-muted mt-2">Created: Jan 1, 2024</p>
+            </div>
+            <div className="p-4 bg-background-secondary rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Development API Key</span>
+                <Badge variant="info">Dev</Badge>
+              </div>
+              <div className="font-mono text-xs bg-background p-2 rounded border">
+                npdms_dev_****************************
+              </div>
+              <p className="text-xs text-foreground-muted mt-2">Created: Jan 5, 2024</p>
+            </div>
+            <div className="p-3 bg-warning/10 rounded-lg">
+              <p className="text-sm text-warning">
+                Keep your API keys secure. Do not share them in public repositories.
+              </p>
+            </div>
+          </div>
+          <ModalFooter>
+            <Button variant="secondary" onClick={() => setShowApiKeysModal(false)}>
+              Close
+            </Button>
+            <Button onClick={handleGenerateApiKey}>
+              <Key className="h-4 w-4 mr-2" />
+              Generate New Key
+            </Button>
+          </ModalFooter>
+        </Modal>
 
         {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-6">
