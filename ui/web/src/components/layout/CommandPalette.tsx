@@ -50,7 +50,7 @@ export function CommandPalette({
   const quickCreate = [
     { id: "new-fir", label: "Register FIR / GD", href: "/fir/new", icon: FileText },
     { id: "new-case", label: "Open case file", href: "/cases/new", icon: Package },
-    { id: "new-evidence", label: "Register evidence", href: "/evidence/new", icon: Package },
+    { id: "new-evidence", label: "Register evidence", href: "/custody?register=1", icon: Package },
     { id: "new-person", label: "Add person of interest", href: "/personnel/new", icon: Users },
     { id: "new-vehicle", label: "Add vehicle", href: "/vehicles/new", icon: Car },
   ];

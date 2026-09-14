@@ -394,7 +394,7 @@ function CreateWorkspaceDialog({
             <Input
               id="ws-case"
               value={caseNumber}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCaseNumber(e.target.value)}
+              onChange={(v: string) => setCaseNumber(v)}
               placeholder="e.g. PS-BHW/2024/0412"
             />
           </div>
@@ -403,7 +403,7 @@ function CreateWorkspaceDialog({
             <Input
               id="ws-title"
               value={title}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
+              onChange={(v: string) => setTitle(v)}
               placeholder="Short description of the occurrence"
             />
           </div>
@@ -412,7 +412,7 @@ function CreateWorkspaceDialog({
             <Input
               id="ws-offence"
               value={offence}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOffence(e.target.value)}
+              onChange={(v: string) => setOffence(v)}
               placeholder="e.g. Robbery with deadly weapon"
             />
           </div>
@@ -421,7 +421,7 @@ function CreateWorkspaceDialog({
             <Input
               id="ws-sections"
               value={sections}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSections(e.target.value)}
+              onChange={(v: string) => setSections(v)}
               placeholder="Comma separated, e.g. BNS 309, BNS 310"
             />
           </div>
@@ -548,7 +548,7 @@ function ReassignDialog({
               id="as-reason"
               rows={3}
               value={reason}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setReason(e.target.value)}
+              onChange={(v: string) => setReason(v)}
               placeholder="Written to the audit trail"
             />
           </div>

@@ -377,7 +377,7 @@ export default function FIRDetailPage() {
                         Register Case from this FIR
                       </Button>
                     </Link>
-                    <Link href="/evidence/new" className="block">
+                    <Link href={`/custody?register=1&firId=${fir.id}`} className="block">
                       <Button variant="secondary" className="w-full justify-start">
                         <Package className="h-4 w-4 mr-2" />
                         Register Evidence

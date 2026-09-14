@@ -119,7 +119,7 @@ export function DataTable<T>({
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-subtle" />
               <Input
                 value={query}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
+                onChange={(v: string) => setQuery(v)}
                 placeholder={searchPlaceholder ?? t("common.search")}
                 className="pl-9"
                 aria-label={t("common.search")}

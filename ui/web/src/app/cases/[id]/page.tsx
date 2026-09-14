@@ -480,7 +480,7 @@ export default function CaseDetailPage() {
                     <CardTitle>Follow-up</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    <Link href="/evidence/new" className="block">
+                    <Link href={`/custody?register=1&caseId=${currentCase.id}`} className="block">
                       <Button variant="secondary" className="w-full justify-start">
                         <Package className="h-4 w-4 mr-2" />
                         Register Evidence

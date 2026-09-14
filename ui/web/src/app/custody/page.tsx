@@ -44,6 +44,9 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useQueryClient } from "@tanstack/react-query";
 import { custodyKeys } from "@/hooks/use-custody";
+import { RecordLinkPicker, type RecordLink } from "@/components/platform/pickers";
+import { casesApi } from "@/lib/api/cases";
+import { firsApi } from "@/lib/api/firs";
 
 /**
  * Integrity is shown with three distinct states, never two. "Not yet checked"
@@ -88,6 +91,18 @@ export default function CustodyPage() {
   const qc = useQueryClient();
 
   const [registerOpen, setRegisterOpen] = React.useState(false);
+  const [preset, setPreset] = React.useState<{ caseId?: string; firId?: string }>({});
+
+  // Opened from a case or FIR (/evidence/new?caseId=… forwards here): open the
+  // register dialog with that record linked. Read once on mount; useSearchParams
+  // would force this statically rendered page behind a Suspense boundary.
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("register") === "1") {
+      setPreset({ caseId: params.get("caseId") ?? undefined, firId: params.get("firId") ?? undefined });
+      setRegisterOpen(true);
+    }
+  }, []);
   const { data, isLoading, isError, error, refetch } = useEvidenceRegister({ pageSize: 100 });
   const stats = useCustodyStats();
 
@@ -287,6 +302,7 @@ export default function CustodyPage() {
       </div>
 
       <RegisterEvidenceDialog
+        preset={preset}
         open={registerOpen}
         onOpenChange={setRegisterOpen}
         onRegistered={(id) => {
@@ -300,10 +316,12 @@ export default function CustodyPage() {
 }
 
 function RegisterEvidenceDialog({
+  preset,
   open,
   onOpenChange,
   onRegistered,
 }: {
+  preset: { caseId?: string; firId?: string };
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRegistered: (id: string) => void;
@@ -314,6 +332,7 @@ function RegisterEvidenceDialog({
   const [collectionLocation, setCollectionLocation] = React.useState("");
   const [storageLocation, setStorageLocation] = React.useState("");
   const [sealNumber, setSealNumber] = React.useState("");
+  const [link, setLink] = React.useState<RecordLink | null>(null);
   const [pending, setPending] = React.useState(false);
   const [failure, setFailure] = React.useState<string | null>(null);
 
@@ -325,8 +344,37 @@ function RegisterEvidenceDialog({
       setStorageLocation("");
       setSealNumber("");
       setFailure(null);
+      setLink(null);
     }
   }, [open]);
+
+  // Resolve a preset case or FIR to a labelled link.
+  React.useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (preset.caseId) {
+          const c = await casesApi.get(preset.caseId);
+          if (!cancelled)
+            setLink({
+              kind: "case",
+              id: c.id,
+              firId: c.firId,
+              label: [c.caseNumber, c.firNumber && `FIR ${c.firNumber}`, c.title].filter(Boolean).join(" · "),
+            });
+        } else if (preset.firId) {
+          const f = await firsApi.get(preset.firId);
+          if (!cancelled) setLink({ kind: "fir", id: f.id, label: `FIR ${f.firNumber} · ${f.complainantName}` });
+        }
+      } catch {
+        // An unknown preset leaves the picker open for the officer to choose.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, preset.caseId, preset.firId]);
 
   const submit = async () => {
     setPending(true);
@@ -339,6 +387,8 @@ function RegisterEvidenceDialog({
         storageLocation: storageLocation.trim() || undefined,
         sealNumber: sealNumber.trim() || undefined,
         status: "IN_CUSTODY",
+        caseId: link?.kind === "case" ? link.id : undefined,
+        firId: link?.kind === "case" ? link.firId || undefined : link?.id,
       });
       onRegistered(created.id);
     } catch (e) {
@@ -361,12 +411,16 @@ function RegisterEvidenceDialog({
 
         <div className="grid gap-3">
           <div className="grid gap-1.5">
+            <Label>Case or FIR</Label>
+            <RecordLinkPicker value={link} onChange={setLink} />
+          </div>
+          <div className="grid gap-1.5">
             <Label htmlFor="ev-desc">Description</Label>
             <Textarea
               id="ev-desc"
               rows={2}
               value={description}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
+              onChange={(v: string) => setDescription(v)}
               placeholder="What the item is"
             />
           </div>
@@ -392,8 +446,7 @@ function RegisterEvidenceDialog({
               <Input
                 id="ev-where"
                 value={collectionLocation}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setCollectionLocation(e.target.value)
+                onChange={(v: string) => setCollectionLocation(v)
                 }
               />
             </div>
@@ -402,8 +455,7 @@ function RegisterEvidenceDialog({
               <Input
                 id="ev-store"
                 value={storageLocation}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setStorageLocation(e.target.value)
+                onChange={(v: string) => setStorageLocation(v)
                 }
                 placeholder="e.g. Malkhana — Bhowanipore PS"
               />
@@ -414,7 +466,7 @@ function RegisterEvidenceDialog({
             <Input
               id="ev-seal"
               value={sealNumber}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSealNumber(e.target.value)}
+              onChange={(v: string) => setSealNumber(v)}
             />
           </div>
 
@@ -429,7 +481,7 @@ function RegisterEvidenceDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button disabled={!description.trim() || pending} isLoading={pending} onClick={submit}>
+          <Button disabled={!description.trim() || !link || pending} isLoading={pending} onClick={submit}>
             Register
           </Button>
         </DialogFooter>

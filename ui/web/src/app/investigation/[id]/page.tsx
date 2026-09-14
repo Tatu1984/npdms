@@ -444,7 +444,7 @@ export default function WorkspacePage() {
                 </Button>
               }
               menu={[
-                act.link("register", "Open evidence register", "/evidence", { icon: ShieldCheck }),
+                act.link("register", "Open evidence register", "/custody", { icon: ShieldCheck }),
                 act.link("custody", "Custody ledger", "/custody", { icon: ShieldCheck }),
               ]}
               bodyClassName="flex flex-col gap-2"
@@ -1477,7 +1477,7 @@ function AttachEvidenceDialog({
             <Input
               id="ev-note"
               value={note}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNote(e.target.value)}
+              onChange={(v: string) => setNote(v)}
               placeholder="Optional — why this item matters to the case"
             />
           </div>
@@ -1564,7 +1564,7 @@ function AddPersonDialog({
             <Input
               id="p-name"
               value={name}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
+              onChange={(v: string) => setName(v)}
             />
           </div>
           <div className="grid gap-1.5">
@@ -1587,7 +1587,7 @@ function AddPersonDialog({
             <Input
               id="p-phone"
               value={phone}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPhone(e.target.value)}
+              onChange={(v: string) => setPhone(v)}
             />
           </div>
           <div className="grid gap-1.5">
@@ -1595,7 +1595,7 @@ function AddPersonDialog({
             <Input
               id="p-address"
               value={address}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddress(e.target.value)}
+              onChange={(v: string) => setAddress(v)}
             />
           </div>
           {create.error instanceof Error && (
@@ -1677,7 +1677,7 @@ function AddTimelineDialog({
               id="tl-at"
               type="datetime-local"
               value={occurredAt}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOccurredAt(e.target.value)}
+              onChange={(v: string) => setOccurredAt(v)}
             />
           </div>
           <div className="grid gap-1.5">
@@ -1685,7 +1685,7 @@ function AddTimelineDialog({
             <Input
               id="tl-title"
               value={title}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
+              onChange={(v: string) => setTitle(v)}
             />
           </div>
           <div className="grid gap-1.5">
@@ -1709,7 +1709,7 @@ function AddTimelineDialog({
             <Input
               id="tl-where"
               value={location}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocation(e.target.value)}
+              onChange={(v: string) => setLocation(v)}
               placeholder="Address or landmark — distinct places give the case its location count"
             />
           </div>
@@ -1719,7 +1719,7 @@ function AddTimelineDialog({
               id="tl-detail"
               rows={2}
               value={detail}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDetail(e.target.value)}
+              onChange={(v: string) => setDetail(v)}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -1728,7 +1728,7 @@ function AddTimelineDialog({
               <Input
                 id="tl-src"
                 value={sourceLabel}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSourceLabel(e.target.value)}
+                onChange={(v: string) => setSourceLabel(v)}
                 placeholder="e.g. Showroom DVR CH-01"
               />
             </div>
@@ -1737,7 +1737,7 @@ function AddTimelineDialog({
               <Input
                 id="tl-loc"
                 value={sourceLocator}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSourceLocator(e.target.value)}
+                onChange={(v: string) => setSourceLocator(v)}
                 placeholder="Timestamp, page or row"
               />
             </div>
@@ -1824,7 +1824,7 @@ function AddContradictionDialog({
             <Input
               id="cd-title"
               value={title}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
+              onChange={(v: string) => setTitle(v)}
               placeholder="e.g. Timing conflict between witness account and CCTV"
             />
           </div>
@@ -1834,13 +1834,13 @@ function AddContradictionDialog({
               <Input
                 id="cd-al"
                 value={aLabel}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setALabel(e.target.value)}
+                onChange={(v: string) => setALabel(v)}
                 placeholder="Witness — name"
               />
               <Textarea
                 rows={3}
                 value={aClaim}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setAClaim(e.target.value)}
+                onChange={(v: string) => setAClaim(v)}
                 placeholder="What it says"
               />
             </div>
@@ -1849,13 +1849,13 @@ function AddContradictionDialog({
               <Input
                 id="cd-bl"
                 value={bLabel}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBLabel(e.target.value)}
+                onChange={(v: string) => setBLabel(v)}
                 placeholder="CCTV / CDR / document"
               />
               <Textarea
                 rows={3}
                 value={bClaim}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setBClaim(e.target.value)}
+                onChange={(v: string) => setBClaim(v)}
                 placeholder="What it says"
               />
             </div>
@@ -1942,7 +1942,7 @@ function AddTaskDialog({
             <Input
               id="tk-title"
               value={title}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
+              onChange={(v: string) => setTitle(v)}
               placeholder="What must be done"
             />
           </div>
@@ -1953,7 +1953,7 @@ function AddTaskDialog({
                 id="tk-due"
                 type="date"
                 value={dueDate}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDueDate(e.target.value)}
+                onChange={(v: string) => setDueDate(v)}
               />
             </div>
             <div className="grid gap-1.5">

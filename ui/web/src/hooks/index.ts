@@ -9,9 +9,6 @@ export * from './use-firs';
 // Cases
 export * from './use-cases';
 
-// Evidence
-export * from './use-evidence';
-
 // Warrants
 export * from './use-warrants';
 
@@ -36,11 +33,3 @@ export * from './use-court-hearings';
 // Court Orders
 export * from './use-court-orders';
 
-// Accused
-export * from './use-accused';
-
-// Witnesses
-export * from './use-witnesses';
-
-// Audit Logs
-export * from './use-audit';

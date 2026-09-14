@@ -10,6 +10,7 @@ import {
   FileCheck2,
   FileUp,
   Fingerprint,
+  FlaskConical,
   Lock,
   ScanLine,
   ShieldAlert,
@@ -54,6 +55,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { IntegrityBadge } from "../page";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { OfficerPicker } from "@/components/platform/pickers";
+import { ForensicRequestDialog } from "@/components/ui/ForensicRequestDialog";
+import { casesApi } from "@/lib/api/cases";
+import { firsApi } from "@/lib/api/firs";
+import { toast } from "@/stores/toastStore";
 
 function formatBytes(bytes?: number) {
   if (!bytes) return "—";
@@ -85,6 +93,20 @@ export default function EvidenceDetailPage() {
   const [verifyOpen, setVerifyOpen] = React.useState(search.get("verify") === "1");
   const [transferOpen, setTransferOpen] = React.useState(false);
   const [uploadOpen, setUploadOpen] = React.useState(false);
+  const [forensicOpen, setForensicOpen] = React.useState(false);
+
+  const caseId = item.data?.caseId;
+  const firId = item.data?.firId;
+  const linkedCase = useQuery({
+    queryKey: ["cases", "detail", caseId],
+    queryFn: () => casesApi.get(caseId!),
+    enabled: Boolean(caseId),
+  });
+  const linkedFir = useQuery({
+    queryKey: ["firs", "detail", firId],
+    queryFn: () => firsApi.get(firId!),
+    enabled: Boolean(firId),
+  });
   const [result, setResult] = React.useState<VerificationResult | null>(null);
 
   if (item.isLoading) {
@@ -158,7 +180,16 @@ export default function EvidenceDetailPage() {
                   Attach file
                 </Button>
               )}
-              <Button onClick={() => setTransferOpen(true)}>
+              <Button variant="outline" onClick={() => setForensicOpen(true)}>
+                <FlaskConical className="h-4 w-4" />
+                Request forensic analysis
+              </Button>
+              <Button
+                onClick={() => {
+                  transfer.reset();
+                  setTransferOpen(true);
+                }}
+              >
                 <ArrowLeftRight className="h-4 w-4" />
                 Record transfer
               </Button>
@@ -215,6 +246,30 @@ export default function EvidenceDetailPage() {
                   <Field label="Seal number" value={e.sealNumber || "—"} mono />
                   <Field label="Condition" value={e.condition || "—"} />
                   <Field label="Currently held by" value={e.currentHolder || "—"} />
+                  <Field
+                    label="Case"
+                    value={
+                      caseId ? (
+                        <Link href={`/cases/${caseId}`} className="font-mono text-accent hover:underline">
+                          {linkedCase.data?.caseNumber ?? "View case"}
+                        </Link>
+                      ) : (
+                        "Not linked"
+                      )
+                    }
+                  />
+                  <Field
+                    label="FIR"
+                    value={
+                      firId ? (
+                        <Link href={`/fir/${firId}`} className="font-mono text-accent hover:underline">
+                          {linkedFir.data?.firNumber ?? "View FIR"}
+                        </Link>
+                      ) : (
+                        "Not linked"
+                      )
+                    }
+                  />
                   <Field
                     label="Registered"
                     value={new Date(e.createdAt).toLocaleString("en-IN")}
@@ -597,11 +652,24 @@ export default function EvidenceDetailPage() {
         evidenceNumber={e.evidenceNumber}
         currentHolder={e.currentHolder}
         pending={transfer.isPending}
+        error={transfer.error}
         onSubmit={async (body) => {
-          await transfer.mutateAsync(body);
+          try {
+            await transfer.mutateAsync(body);
+          } catch {
+            return; // shown in the dialog
+          }
           setTransferOpen(false);
           setTab("custody");
         }}
+      />
+
+      <ForensicRequestDialog
+        evidenceId={e.id}
+        caseId={e.caseId}
+        isOpen={forensicOpen}
+        onClose={() => setForensicOpen(false)}
+        onSuccess={() => toast.success("Forensic request recorded", `${e.evidenceNumber} sent for analysis`)}
       />
 
       {/* ------------------------------------------------------ upload ---- */}
@@ -627,12 +695,15 @@ function TransferDialog({
   currentHolder,
   onSubmit,
   pending,
+  error,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   evidenceNumber: string;
   currentHolder?: string;
+  error: unknown;
   onSubmit: (body: {
+    toUserId?: string;
     toLocation: string;
     purpose: string;
     sealNumber?: string;
@@ -643,6 +714,7 @@ function TransferDialog({
 }) {
   const { t } = useI18n();
   const [toLocation, setToLocation] = React.useState("");
+  const [toOfficer, setToOfficer] = React.useState<{ id: string; name: string } | null>(null);
   const [purpose, setPurpose] = React.useState("");
   const [sealNumber, setSealNumber] = React.useState("");
   const [sealIntact, setSealIntact] = React.useState(true);
@@ -651,6 +723,7 @@ function TransferDialog({
   React.useEffect(() => {
     if (open) {
       setToLocation("");
+      setToOfficer(null);
       setPurpose("");
       setSealNumber("");
       setSealIntact(true);
@@ -671,12 +744,28 @@ function TransferDialog({
 
         <div className="grid gap-3">
           <div className="grid gap-1.5">
-            <Label htmlFor="tr-to">Transfer to</Label>
+            <Label>Receiving officer</Label>
+            {toOfficer ? (
+              <div className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+                <span className="text-foreground">{toOfficer.name}</span>
+                <button type="button" className="text-xs text-accent hover:underline" onClick={() => setToOfficer(null)}>
+                  Change
+                </button>
+              </div>
+            ) : (
+              <OfficerPicker
+                onChange={(id, name) => setToOfficer({ id, name })}
+                emptyLabel="Leave empty when handing to a laboratory or court"
+              />
+            )}
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="tr-to">Destination</Label>
             <Input
               id="tr-to"
               value={toLocation}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setToLocation(e.target.value)}
-              placeholder="Officer, laboratory or court"
+              onChange={(v: string) => setToLocation(v)}
+              placeholder={toOfficer ? "e.g. Malkhana, Bhowanipore PS" : "Laboratory, court or storage location"}
             />
           </div>
           <div className="grid gap-1.5">
@@ -685,7 +774,7 @@ function TransferDialog({
               id="tr-purpose"
               rows={2}
               value={purpose}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPurpose(e.target.value)}
+              onChange={(v: string) => setPurpose(v)}
               placeholder="Why the item is moving"
             />
           </div>
@@ -694,7 +783,7 @@ function TransferDialog({
             <Input
               id="tr-seal"
               value={sealNumber}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSealNumber(e.target.value)}
+              onChange={(v: string) => setSealNumber(v)}
             />
           </div>
           <label className="flex items-center gap-2 text-sm text-foreground-muted">
@@ -706,6 +795,11 @@ function TransferDialog({
             />
             Seal verified intact at handover
           </label>
+          {error instanceof Error && (
+            <p className="rounded-md border border-danger/25 bg-danger-subtle px-3 py-2 text-xs text-danger">
+              {error.message}
+            </p>
+          )}
           {!sealIntact && (
             <div className="grid gap-1.5">
               <Label htmlFor="tr-cond">Condition note</Label>
@@ -713,8 +807,7 @@ function TransferDialog({
                 id="tr-cond"
                 rows={2}
                 value={conditionNote}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  setConditionNote(e.target.value)
+                onChange={(v: string) => setConditionNote(v)
                 }
                 placeholder="A broken seal is recorded against the item — describe what was found"
               />
@@ -727,11 +820,12 @@ function TransferDialog({
             {t("common.cancel")}
           </Button>
           <Button
-            disabled={!toLocation.trim() || !purpose.trim() || pending}
+            disabled={(!toLocation.trim() && !toOfficer) || !purpose.trim() || pending}
             isLoading={pending}
             onClick={() =>
               onSubmit({
-                toLocation: toLocation.trim(),
+                toUserId: toOfficer?.id,
+                toLocation: toLocation.trim() || (toOfficer ? toOfficer.name : ""),
                 purpose: purpose.trim(),
                 sealNumber: sealNumber.trim() || undefined,
                 sealIntact,

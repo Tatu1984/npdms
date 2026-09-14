@@ -1,392 +1,336 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import Link from "next/link";
 import { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   ArrowLeft,
-  Bell,
   AlertTriangle,
+  Bell,
   CheckCircle,
   Clock,
-  MapPin,
-  User,
-  Calendar,
-  Share2,
-  Printer,
-  Shield,
+  Edit,
+  Loader2,
   Radio,
-  Volume2,
-  Image as ImageIcon,
+  Shield,
+  Trash2,
+  User,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { toast } from "@/stores/toastStore";
+import { useAcknowledgeAlert, useAlert, useDeleteAlert, useUpdateAlert } from "@/hooks/use-alerts";
+import type { AlertPriority, AlertScope, AlertType } from "@/lib/api/alerts";
+import { ApiClientError } from "@/lib/api/client";
 
-// Mock alerts data
-const mockAlerts: Record<string, {
-  id: string;
-  type: string;
-  scope: string;
-  title: string;
-  description: string;
-  issuedAt: string;
-  expiresAt: string;
-  issuedBy: string;
-  acknowledged: boolean;
-  acknowledgedBy?: string;
-  acknowledgedAt?: string;
-  priority: number;
-  image?: boolean;
-  affectedAreas?: string[];
-  relatedFIRs?: string[];
-  acknowledgments?: { station: string; officer: string; time: string }[];
-}> = {
-  "alert-001": {
-    id: "alert-001",
-    type: "FLASH",
-    scope: "DISTRICT",
-    title: "Armed suspects spotted near MG Road",
-    description:
-      "Two armed suspects spotted near MG Road Metro Station. Wearing dark clothes, one has red motorcycle. Approach with caution. Suspects are believed to be connected to recent bank robbery. Height approximately 5'8\" and 5'10\". One suspect has visible tattoo on left arm.",
-    issuedAt: "2024-01-18T14:30:00Z",
-    expiresAt: "2024-01-18T20:30:00Z",
-    issuedBy: "Control Room",
-    acknowledged: false,
-    priority: 1,
-    affectedAreas: ["MG Road", "Trinity Circle", "Ulsoor", "Commercial Street"],
-    acknowledgments: [
-      { station: "Cubbon Park PS", officer: "SHO Kumar", time: "14:35" },
-      { station: "Commercial Street PS", officer: "SHO Reddy", time: "14:38" },
-    ],
-  },
-  "alert-002": {
-    id: "alert-002",
-    type: "URGENT",
-    scope: "STATION",
-    title: "VIP movement - Route diversion required",
-    description:
-      "Governor convoy movement expected on 80 Feet Road between 15:00-16:00 hours. Traffic diversion and security arrangements required. All personnel to be on high alert. Route: Raj Bhavan to Vidhana Soudha via 80 Feet Road.",
-    issuedAt: "2024-01-18T12:00:00Z",
-    expiresAt: "2024-01-18T16:00:00Z",
-    issuedBy: "SP Office",
-    acknowledged: true,
-    acknowledgedBy: "SHO Koramangala",
-    acknowledgedAt: "2024-01-18T12:15:00Z",
-    priority: 2,
-    affectedAreas: ["80 Feet Road", "Raj Bhavan Road"],
-  },
-  "alert-003": {
-    id: "alert-003",
-    type: "BOLO",
-    scope: "STATE",
-    title: "BOLO: Wanted suspect in murder case",
-    description:
-      "Rajan Kumar alias Raju, 32M, wanted in connection with murder case CC/2024/0045. Height: 5'8\", Dark complexion, Scar on left cheek. Last seen in Jayanagar area. Consider armed and dangerous. Known associates in Mysore and Tumkur districts.",
-    issuedAt: "2024-01-17T08:00:00Z",
-    expiresAt: "2024-01-24T23:59:59Z",
-    issuedBy: "State Crime Branch",
-    acknowledged: true,
-    priority: 1,
-    image: true,
-    relatedFIRs: ["BLR/2024/00234", "MYS/2024/00089"],
-  },
+const typeLabels: Record<AlertType, string> = { FLASH: "Flash", URGENT: "Urgent", BOLO: "BOLO", NOTICE: "Notice" };
+const scopeLabels: Record<AlertScope, string> = {
+  STATION: "Station",
+  DISTRICT: "District",
+  STATE: "State",
+  NATIONAL: "National",
 };
+const badgeVariant: Record<AlertType, string> = { FLASH: "error", URGENT: "warning", BOLO: "info", NOTICE: "secondary" };
+const typeIcon: Record<AlertType, typeof Bell> = { FLASH: Radio, URGENT: AlertTriangle, BOLO: Shield, NOTICE: Bell };
 
-function getAlertBadgeVariant(type: string) {
-  const variants: Record<string, string> = {
-    FLASH: "error",
-    URGENT: "warning",
-    BOLO: "info",
-    NOTICE: "secondary",
-  };
-  return variants[type] || "secondary";
-}
+const formatDateTime = (value: string) =>
+  new Date(value).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
-function getAlertIcon(type: string) {
-  switch (type) {
-    case "FLASH":
-      return <Radio className="h-5 w-5" />;
-    case "URGENT":
-      return <AlertTriangle className="h-5 w-5" />;
-    case "BOLO":
-      return <Shield className="h-5 w-5" />;
-    default:
-      return <Bell className="h-5 w-5" />;
-  }
+/** datetime-local wants local wall-clock time without a zone. */
+function toLocalInput(iso: string) {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export default function AlertDetailPage() {
-  const params = useParams();
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
   const { user } = useAuthStore();
-  const [acknowledgeNote, setAcknowledgeNote] = useState("");
+  const { data: alert, isPending, isError, error, refetch } = useAlert(params.id);
+  const acknowledge = useAcknowledgeAlert();
+  const update = useUpdateAlert();
+  const remove = useDeleteAlert();
+  const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [form, setForm] = useState({
+    type: "NOTICE" as AlertType,
+    scope: "STATION" as AlertScope,
+    title: "",
+    description: "",
+    expiresAt: "",
+    priority: 2 as AlertPriority,
+  });
 
-  const alertId = params.id as string;
-  const alert = mockAlerts[alertId] || mockAlerts["alert-001"];
+  // Matches the server's floor for editing and deleting alerts.
+  const canManage = user && hasMinimumRole(user.role, "SHO");
 
-  const canAcknowledge = user && hasMinimumRole(user.role, "SI");
-  const isExpired = new Date(alert.expiresAt) < new Date();
+  if (isPending) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96 gap-3 text-foreground-muted">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading alert…
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (isError) {
+    const notFound = error instanceof ApiClientError && error.code === 404;
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center h-96 gap-2">
+          <AlertTriangle className="h-12 w-12 text-warning mb-2" />
+          <h2 className="text-xl font-bold text-foreground">{notFound ? "Alert Not Found" : "Alert could not be loaded"}</h2>
+          <p className="text-foreground-muted mb-2">{notFound ? "The requested alert does not exist." : error.message}</p>
+          <div className="flex gap-2">
+            {!notFound && (
+              <Button variant="secondary" onClick={() => refetch()}>
+                Try again
+              </Button>
+            )}
+            <Link href="/alerts">
+              <Button>Back to Alerts</Button>
+            </Link>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const Icon = typeIcon[alert.type];
+  const expired = new Date(alert.expiresAt) <= new Date();
+
+  const openEdit = () => {
+    setForm({
+      type: alert.type,
+      scope: alert.scope,
+      title: alert.title,
+      description: alert.description,
+      expiresAt: toLocalInput(alert.expiresAt),
+      priority: alert.priority,
+    });
+    setEditing(true);
+  };
+
+  const handleAcknowledge = async () => {
+    try {
+      await acknowledge.mutateAsync(alert.id);
+      toast.success("Alert Acknowledged", alert.title);
+    } catch (err) {
+      toast.error("Not acknowledged", err instanceof Error ? err.message : "The server rejected the request");
+    }
+  };
+
+  const handleSave = async () => {
+    if (!form.title.trim() || !form.description.trim() || !form.expiresAt) {
+      toast.error("Validation Error", "Title, description and expiry are required");
+      return;
+    }
+    try {
+      await update.mutateAsync({
+        alert,
+        changes: {
+          type: form.type,
+          scope: form.scope,
+          title: form.title.trim(),
+          description: form.description.trim(),
+          expiresAt: new Date(form.expiresAt).toISOString(),
+          priority: form.priority,
+        },
+      });
+      toast.success("Alert Updated", form.title.trim());
+      setEditing(false);
+    } catch (err) {
+      toast.error("Alert not updated", err instanceof Error ? err.message : "The server rejected the request");
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await remove.mutateAsync(alert.id);
+      toast.success("Alert Deleted", alert.title);
+      router.push("/alerts");
+    } catch (err) {
+      toast.error("Alert not deleted", err instanceof Error ? err.message : "The server rejected the request");
+      setConfirmDelete(false);
+    }
+  };
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Link href="/alerts">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Alerts
-              </Button>
-            </Link>
+            <Button variant="ghost" size="sm" onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back
+            </Button>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={badgeVariant[alert.type] as any}>
+                  <Icon className="h-3 w-3 mr-1" />
+                  {typeLabels[alert.type]}
+                </Badge>
+                <Badge variant="secondary">{scopeLabels[alert.scope]}</Badge>
+                <Badge variant={alert.priority === 1 ? "error" : "secondary"}>Priority {alert.priority}</Badge>
+                {expired && <Badge variant="secondary">Expired</Badge>}
+              </div>
+              <h1 className="text-2xl font-bold text-foreground mt-1">{alert.title}</h1>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm">
-              <Share2 className="h-4 w-4 mr-2" />
-              Share
-            </Button>
-            <Button variant="ghost" size="sm">
-              <Printer className="h-4 w-4 mr-2" />
-              Print
-            </Button>
+          <div className="flex gap-2">
+            {!alert.acknowledged && !expired && (
+              <Button onClick={handleAcknowledge} disabled={acknowledge.isPending}>
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Acknowledge
+              </Button>
+            )}
+            {canManage && (
+              <>
+                <Button variant="secondary" onClick={openEdit}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+                <Button variant="ghost" className="text-error" onClick={() => setConfirmDelete(true)}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Alert Header Card */}
-        <Card className={`border-l-4 ${
-          alert.type === "FLASH" ? "border-l-error bg-error/5" :
-          alert.type === "URGENT" ? "border-l-warning bg-warning/5" :
-          alert.type === "BOLO" ? "border-l-info bg-info/5" :
-          "border-l-border"
-        }`}>
-          <CardContent className="p-6">
-            <div className="flex items-start gap-4">
-              <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
-                alert.type === "FLASH" ? "bg-error/20 text-error" :
-                alert.type === "URGENT" ? "bg-warning/20 text-warning" :
-                alert.type === "BOLO" ? "bg-info/20 text-info" :
-                "bg-background-tertiary text-foreground"
-              }`}>
-                {getAlertIcon(alert.type)}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <Badge variant={getAlertBadgeVariant(alert.type) as any}>
-                    {alert.type}
-                  </Badge>
-                  <Badge variant="secondary">{alert.scope}</Badge>
-                  {isExpired && (
-                    <Badge variant="closed">EXPIRED</Badge>
-                  )}
-                  {alert.acknowledged && !isExpired && (
-                    <Badge variant="success">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Acknowledged
-                    </Badge>
-                  )}
-                </div>
-                <h1 className="text-xl font-bold text-foreground mb-2">{alert.title}</h1>
-                <div className="flex items-center gap-4 text-sm text-foreground-muted">
-                  <span className="flex items-center gap-1">
-                    <User className="h-4 w-4" />
-                    {alert.issuedBy}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-4 w-4" />
-                    {new Date(alert.issuedAt).toLocaleString("en-IN")}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-4 w-4" />
-                    Expires: {new Date(alert.expiresAt).toLocaleString("en-IN")}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Description */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Alert Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-foreground whitespace-pre-wrap">{alert.description}</p>
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Alert</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-foreground whitespace-pre-wrap">{alert.description}</p>
+            </CardContent>
+          </Card>
 
-                {alert.image && (
-                  <div className="mt-4 p-4 rounded-lg bg-background-tertiary flex items-center gap-4">
-                    <div className="h-24 w-24 bg-background rounded-lg flex items-center justify-center">
-                      <ImageIcon className="h-8 w-8 text-foreground-muted" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">Suspect Photo Attached</p>
-                      <p className="text-sm text-foreground-muted">Click to view full image</p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Affected Areas */}
-            {alert.affectedAreas && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Affected Areas
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-2">
-                    {alert.affectedAreas.map((area, index) => (
-                      <Badge key={index} variant="secondary" className="px-3 py-1">
-                        {area}
-                      </Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Related FIRs */}
-            {alert.relatedFIRs && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Related FIRs</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {alert.relatedFIRs.map((fir, index) => (
-                      <Link key={index} href={`/fir/${fir}`} className="block">
-                        <div className="p-3 rounded-md bg-background-tertiary hover:bg-accent/10 transition-colors">
-                          <span className="font-mono text-accent">{fir}</span>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Acknowledge Form */}
-            {!alert.acknowledged && canAcknowledge && !isExpired && (
-              <Card className="border-accent/30">
-                <CardHeader>
-                  <CardTitle>Acknowledge Alert</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Textarea
-                    label="Acknowledgment Note (Optional)"
-                    placeholder="Add any notes or actions taken..."
-                    value={acknowledgeNote}
-                    onChange={setAcknowledgeNote}
-                    rows={3}
-                  />
-                  <Button className="w-full">
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Acknowledge Alert
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Sidebar */}
           <div className="space-y-6">
-            {/* Status Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Status</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Timing
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3 text-sm">
                 <div>
-                  <p className="text-sm text-foreground-muted">Priority</p>
-                  <Badge variant={alert.priority === 1 ? "error" : alert.priority === 2 ? "warning" : "secondary"}>
-                    Priority {alert.priority}
-                  </Badge>
+                  <p className="text-foreground-muted">Issued</p>
+                  <p className="text-foreground">{formatDateTime(alert.issuedAt)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-foreground-muted">Issued</p>
-                  <p className="text-foreground">
-                    {new Date(alert.issuedAt).toLocaleString("en-IN")}
+                  <p className="text-foreground-muted">{expired ? "Expired" : "Expires"}</p>
+                  <p className={expired ? "text-foreground-muted" : "text-foreground"}>{formatDateTime(alert.expiresAt)}</p>
+                </div>
+                <div>
+                  <p className="text-foreground-muted">Issued by</p>
+                  <p className="text-foreground flex items-center gap-2">
+                    <User className="h-4 w-4 text-foreground-muted" />
+                    {alert.issuedBy || "Not recorded"}
                   </p>
                 </div>
-                <div>
-                  <p className="text-sm text-foreground-muted">Expires</p>
-                  <p className={isExpired ? "text-error" : "text-foreground"}>
-                    {new Date(alert.expiresAt).toLocaleString("en-IN")}
-                  </p>
-                </div>
-                {alert.acknowledgedBy && (
-                  <>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Acknowledged By</p>
-                      <p className="text-foreground">{alert.acknowledgedBy}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Acknowledged At</p>
-                      <p className="text-foreground">
-                        {new Date(alert.acknowledgedAt!).toLocaleString("en-IN")}
-                      </p>
-                    </div>
-                  </>
-                )}
               </CardContent>
             </Card>
 
-            {/* Acknowledgments from Stations */}
-            {alert.acknowledgments && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Station Acknowledgments</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {alert.acknowledgments.map((ack, index) => (
-                      <div key={index} className="flex items-center gap-3 p-2 rounded-md bg-background-tertiary">
-                        <CheckCircle className="h-4 w-4 text-success" />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-foreground">{ack.station}</p>
-                          <p className="text-xs text-foreground-muted">{ack.officer} at {ack.time}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Quick Actions */}
-            <Card>
+            <Card className={alert.acknowledged ? "border-success/30" : "border-warning/30"}>
               <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5" />
+                  Acknowledgement
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <Button variant="secondary" className="w-full justify-start">
-                  <Volume2 className="h-4 w-4 mr-2" />
-                  Play Audio Broadcast
-                </Button>
-                <Button variant="secondary" className="w-full justify-start">
-                  <Share2 className="h-4 w-4 mr-2" />
-                  Forward to Station
-                </Button>
-                {alert.type === "BOLO" && (
-                  <Button variant="secondary" className="w-full justify-start">
-                    <Shield className="h-4 w-4 mr-2" />
-                    Report Sighting
-                  </Button>
+              <CardContent className="text-sm">
+                {alert.acknowledged ? (
+                  <p className="text-foreground">
+                    Acknowledged by {alert.acknowledgedBy || "an officer"}
+                    {alert.acknowledgedAt && ` on ${formatDateTime(alert.acknowledgedAt)}`}
+                  </p>
+                ) : (
+                  <p className="text-foreground-muted">
+                    {expired ? "Expired without acknowledgement." : "Not yet acknowledged."}
+                  </p>
                 )}
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
+
+      <Modal isOpen={editing} onClose={() => setEditing(false)} title="Edit alert" size="lg">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Select
+              label="Type"
+              options={(Object.keys(typeLabels) as AlertType[]).map((t) => ({ value: t, label: typeLabels[t] }))}
+              value={form.type}
+              onChange={(v: string) => setForm({ ...form, type: v as AlertType })}
+            />
+            <Select
+              label="Scope"
+              options={(Object.keys(scopeLabels) as AlertScope[]).map((s) => ({ value: s, label: scopeLabels[s] }))}
+              value={form.scope}
+              onChange={(v: string) => setForm({ ...form, scope: v as AlertScope })}
+            />
+            <Select
+              label="Priority"
+              options={[1, 2, 3].map((p) => ({ value: String(p), label: `Priority ${p}` }))}
+              value={String(form.priority)}
+              onChange={(v: string) => setForm({ ...form, priority: Number(v) as AlertPriority })}
+            />
+          </div>
+          <Input label="Title" value={form.title} onChange={(v: string) => setForm({ ...form, title: v })} />
+          <Textarea
+            label="Description"
+            rows={4}
+            value={form.description}
+            onChange={(v: string) => setForm({ ...form, description: v })}
+          />
+          <Input
+            label="Expires At"
+            type="datetime-local"
+            value={form.expiresAt}
+            onChange={(v: string) => setForm({ ...form, expiresAt: v })}
+          />
+        </div>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={update.isPending}>
+            {update.isPending ? "Saving…" : "Save"}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      <Modal
+        isOpen={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title="Delete this alert?"
+        description="The alert is removed for every officer. The deletion is recorded in the audit trail."
+      >
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setConfirmDelete(false)}>
+            Keep
+          </Button>
+          <Button variant="destructive" onClick={handleDelete} disabled={remove.isPending}>
+            Delete Alert
+          </Button>
+        </ModalFooter>
+      </Modal>
     </DashboardLayout>
   );
 }

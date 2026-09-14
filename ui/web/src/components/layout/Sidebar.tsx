@@ -47,7 +47,7 @@ const navigation: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "FIR Management", href: "/fir", icon: FileText },
   { name: "Case Tracking", href: "/cases", icon: Briefcase },
-  { name: "Evidence", href: "/evidence", icon: Package },
+  { name: "Evidence", href: "/custody", icon: Package },
   { name: "Warrants", href: "/warrant", icon: FileWarning },
   { name: "Bail Processing", href: "/bail", icon: Scale },
   { name: "Court", href: "/court", icon: Gavel },

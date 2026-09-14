@@ -3,8 +3,6 @@ import { Inter, Noto_Sans_Bengali } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { PlatformProviders } from "@/components/providers/platform-providers";
-import { SyncStatus, OfflineBanner } from "@/components/sync-status";
-import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { ErrorBoundary } from "@/components/error-boundary";
 
 const inter = Inter({
@@ -59,10 +57,7 @@ export default function RootLayout({
         <ErrorBoundary>
           <QueryProvider>
             <PlatformProviders>
-              <OfflineBanner />
               {children}
-              <SyncStatus />
-              <ServiceWorkerRegister />
             </PlatformProviders>
           </QueryProvider>
         </ErrorBoundary>

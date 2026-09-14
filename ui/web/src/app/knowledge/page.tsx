@@ -203,7 +203,7 @@ export default function KnowledgePage() {
                   <div className="flex gap-2">
                     <Input
                       value={query}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
+                      onChange={(v: string) => setQuery(v)}
                       onKeyDown={(e: React.KeyboardEvent) => e.key === "Enter" && ask(query)}
                       placeholder={
                         locale === "bn"

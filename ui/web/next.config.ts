@@ -125,20 +125,5 @@ export default withPWA({
         },
       },
     },
-    {
-      urlPattern: /\/api\/v1\/.*/i,
-      handler: "NetworkFirst",
-      options: {
-        cacheName: "npdms-api",
-        networkTimeoutSeconds: 10,
-        expiration: {
-          maxEntries: 64,
-          maxAgeSeconds: 24 * 60 * 60, // 24 hours
-        },
-        cacheableResponse: {
-          statuses: [0, 200],
-        },
-      },
-    },
   ],
 })(nextConfig);

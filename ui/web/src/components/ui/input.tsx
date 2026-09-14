@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, InputHTMLAttributes, ReactNode, ChangeEvent } from "react";
+import { forwardRef, InputHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
@@ -8,7 +8,9 @@ export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
   error?: string | boolean;
   hint?: string;
   icon?: ReactNode;
-  onChange?: ((value: string) => void) | ((e: ChangeEvent<HTMLInputElement>) => void);
+  /** Receives the new value, not the event. A union with the event signature let
+   *  handlers reading e.target.value typecheck and then throw on every keystroke. */
+  onChange?: (value: string) => void;
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
@@ -47,7 +49,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
               if (onChange) {
                 // Check if it's a value handler (function with 1 param expecting string)
                 // by trying to call with just the value
-                (onChange as (value: string) => void)(e.target.value);
+                onChange(e.target.value);
               }
             }}
             {...props}

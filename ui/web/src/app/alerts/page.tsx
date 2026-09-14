@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useDeferredValue, useState } from "react";
 import Link from "next/link";
 import {
   Bell,
@@ -9,11 +9,9 @@ import {
   Plus,
   Eye,
   CheckCircle,
-  Clock,
   Megaphone,
   Radio,
   Shield,
-  Download,
   X,
   Loader2,
 } from "lucide-react";
@@ -25,189 +23,258 @@ import { LegacySelect as Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { FileUpload } from "@/components/ui/FileUpload";
-import { SightingReportDialog } from "@/components/ui/SightingReportDialog";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
-import { useToastStore } from "@/stores/toastStore";
-import { Alert, AlertType, AlertScope } from "@/lib/db/schema";
-import { useAlerts, useCreateAlert, useAcknowledgeAlert } from "@/hooks/use-alerts";
-import { uploadViaAPI } from "@/lib/upload";
+import { toast } from "@/stores/toastStore";
+import {
+  useAcknowledgeAlert,
+  useActiveAlerts,
+  useAlerts,
+  useCreateAlert,
+  useUnacknowledgedAlerts,
+} from "@/hooks/use-alerts";
+import type { Alert, AlertPriority, AlertScope, AlertType } from "@/lib/api/alerts";
 
-const alertTypeOptions = [
-  { value: "", label: "All Types" },
-  { value: "FLASH", label: "Flash" },
-  { value: "URGENT", label: "Urgent" },
-  { value: "NOTICE", label: "Notice" },
-  { value: "BOLO", label: "BOLO" },
-];
+const PAGE_SIZE = 20;
 
-const scopeOptions = [
-  { value: "STATION", label: "Station Only" },
-  { value: "DISTRICT", label: "District-wide" },
-  { value: "STATE", label: "State-wide" },
-  { value: "NATIONAL", label: "National" },
-];
+const typeLabels: Record<AlertType, string> = {
+  FLASH: "Flash",
+  URGENT: "Urgent",
+  BOLO: "BOLO",
+  NOTICE: "Notice",
+};
 
-// Alert data now comes from useAlertsStore
+const scopeLabels: Record<AlertScope, string> = {
+  STATION: "Station",
+  DISTRICT: "District",
+  STATE: "State",
+  NATIONAL: "National",
+};
 
-function getAlertBadgeVariant(type: string) {
-  const variants: Record<string, string> = {
-    FLASH: "error",
-    URGENT: "warning",
-    BOLO: "info",
-    NOTICE: "secondary",
-  };
-  return variants[type] || "secondary";
-}
+const priorityLabels: Record<AlertPriority, string> = { 1: "Priority 1 — highest", 2: "Priority 2", 3: "Priority 3" };
 
-function getAlertStyle(type: string) {
-  switch (type) {
-    case "FLASH":
-      return "border-l-4 border-l-error bg-error/5";
-    case "URGENT":
-      return "border-l-4 border-l-warning bg-warning/5";
-    case "BOLO":
-      return "border-l-4 border-l-info bg-info/5";
-    default:
-      return "border-l-4 border-l-border";
-  }
-}
+const badgeVariant: Record<AlertType, string> = {
+  FLASH: "error",
+  URGENT: "warning",
+  BOLO: "info",
+  NOTICE: "secondary",
+};
+
+const cardStyle: Record<AlertType, string> = {
+  FLASH: "border-l-4 border-l-error bg-error/5",
+  URGENT: "border-l-4 border-l-warning bg-warning/5",
+  BOLO: "border-l-4 border-l-info bg-info/5",
+  NOTICE: "border-l-4 border-l-border",
+};
 
 function formatTimeAgo(dateString: string) {
   const diff = Date.now() - new Date(dateString).getTime();
-  const mins = Math.floor(diff / 60000);
+  const mins = Math.max(0, Math.floor(diff / 60000));
   const hours = Math.floor(mins / 60);
   const days = Math.floor(hours / 24);
-
   if (days > 0) return `${days}d ago`;
   if (hours > 0) return `${hours}h ago`;
   return `${mins}m ago`;
 }
 
+const formatDateTime = (value: string) =>
+  new Date(value).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+
+const emptyForm = () => ({
+  type: "" as AlertType | "",
+  scope: "STATION" as AlertScope,
+  title: "",
+  description: "",
+  expiresAt: "",
+  priority: 2 as AlertPriority,
+});
+
+function AlertCard({
+  alert,
+  onAcknowledge,
+  acknowledging,
+}: {
+  alert: Alert;
+  onAcknowledge: (alert: Alert) => void;
+  acknowledging: boolean;
+}) {
+  const expired = new Date(alert.expiresAt) <= new Date();
+  return (
+    <Card className={cardStyle[alert.type]}>
+      <CardContent className="p-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex-1 min-w-[16rem]">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <Badge variant={badgeVariant[alert.type] as any}>{typeLabels[alert.type]}</Badge>
+              <Badge variant="secondary">{scopeLabels[alert.scope]}</Badge>
+              {alert.priority === 1 && <Badge variant="error">Priority 1</Badge>}
+              {expired && <Badge variant="secondary">Expired</Badge>}
+              <span className="text-xs text-foreground-muted">{formatTimeAgo(alert.issuedAt)}</span>
+            </div>
+            <h3 className="font-medium text-foreground">{alert.title}</h3>
+            <p className="text-sm text-foreground-muted mt-1 line-clamp-2">{alert.description}</p>
+            <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-foreground-muted">
+              {alert.issuedBy && <span>From: {alert.issuedBy}</span>}
+              <span>
+                {expired ? "Expired" : "Expires"}: {formatDateTime(alert.expiresAt)}
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            {alert.acknowledged ? (
+              <Badge variant="success">
+                <CheckCircle className="h-3 w-3 mr-1" />
+                Acknowledged{alert.acknowledgedBy ? ` by ${alert.acknowledgedBy}` : ""}
+              </Badge>
+            ) : (
+              !expired && (
+                <Button size="sm" onClick={() => onAcknowledge(alert)} disabled={acknowledging}>
+                  Acknowledge
+                </Button>
+              )
+            )}
+            <Link href={`/alerts/${alert.id}`}>
+              <Button variant="ghost" size="sm">
+                <Eye className="h-4 w-4 mr-1" />
+                Details
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ListState({
+  isPending,
+  error,
+  onRetry,
+  empty,
+  emptyText,
+}: {
+  isPending: boolean;
+  error: Error | null;
+  onRetry: () => void;
+  empty: boolean;
+  emptyText: string;
+}) {
+  if (isPending) {
+    return (
+      <Card>
+        <CardContent className="p-8 flex items-center justify-center gap-3 text-foreground-muted">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading alerts…
+        </CardContent>
+      </Card>
+    );
+  }
+  if (error) {
+    return (
+      <Card className="border-error/30">
+        <CardContent className="p-8 text-center space-y-3">
+          <AlertTriangle className="h-10 w-10 text-error mx-auto" />
+          <p className="font-medium text-foreground">Alerts could not be loaded</p>
+          <p className="text-sm text-foreground-muted">{error.message}</p>
+          <Button variant="secondary" onClick={onRetry}>
+            Try again
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+  if (empty) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center text-foreground-muted">{emptyText}</CardContent>
+      </Card>
+    );
+  }
+  return null;
+}
+
 export default function AlertsPage() {
   const { user } = useAuthStore();
-  const { addToast } = useToastStore();
   const [activeTab, setActiveTab] = useState("active");
   const [searchQuery, setSearchQuery] = useState("");
+  const search = useDeferredValue(searchQuery.trim());
   const [typeFilter, setTypeFilter] = useState<AlertType | "">("");
+  const [scopeFilter, setScopeFilter] = useState<AlertScope | "">("");
+  const [ackFilter, setAckFilter] = useState<"" | "true" | "false">("");
+  const [page, setPage] = useState(1);
   const [showIssueForm, setShowIssueForm] = useState(false);
-  const [showSightingReport, setShowSightingReport] = useState(false);
-  const [sightingAlertId, setSightingAlertId] = useState<string | null>(null);
+  const [newAlert, setNewAlert] = useState(emptyForm);
 
-  // Form state for new alert
-  const [newAlert, setNewAlert] = useState({
-    type: "" as AlertType | "",
-    scope: "STATION" as AlertScope,
-    title: "",
-    description: "",
-    expiresAt: "",
-    priority: 2 as 1 | 2 | 3,
-    imageUrl: "",
-  });
-
-  const canIssue = user && hasMinimumRole(user.role, "SHO");
-  const canIssueDistrict = user && hasMinimumRole(user.role, "SP");
-  const canIssueState = user && hasMinimumRole(user.role, "DIG");
-
-  // Fetch all alerts using React Query
-  const { data: alertsResponse, isLoading, error } = useAlerts({
+  const active = useActiveAlerts();
+  const unacknowledged = useUnacknowledgedAlerts();
+  const all = useAlerts({
+    page,
+    pageSize: PAGE_SIZE,
+    search: search || undefined,
     type: typeFilter || undefined,
+    scope: scopeFilter || undefined,
+    acknowledged: ackFilter === "" ? undefined : ackFilter === "true",
   });
+  const createAlert = useCreateAlert();
+  const acknowledge = useAcknowledgeAlert();
 
-  // Create alert mutation
-  const createAlertMutation = useCreateAlert();
+  // The server's floor for issuing, editing and deleting alerts is SHO.
+  const canIssue = user && hasMinimumRole(user.role, "SHO");
 
-  // Acknowledge alert mutation
-  const acknowledgeAlertMutation = useAcknowledgeAlert();
-
-  // Extract alerts data
-  const alerts = alertsResponse?.data || [];
-
-  // Memoized computations for active and unacknowledged alerts
-  const activeAlerts = useMemo(() => {
-    const now = new Date().toISOString();
-    return alerts.filter((a) => a.expiresAt > now);
-  }, [alerts]);
-
-  const unacknowledged = useMemo(() => {
-    const now = new Date().toISOString();
-    return alerts.filter((a) => !a.acknowledged && a.expiresAt > now);
-  }, [alerts]);
-
-  // Filtered alerts based on search query
-  const filteredAlerts = useMemo(() => {
-    return alerts.filter((a) => {
-      if (searchQuery) {
-        const search = searchQuery.toLowerCase();
-        return (
-          a.title.toLowerCase().includes(search) ||
-          a.description.toLowerCase().includes(search)
-        );
-      }
-      return true;
-    });
-  }, [alerts, searchQuery]);
+  const activeAlerts = active.data ?? [];
+  const pending = unacknowledged.data ?? [];
+  const bolos = activeAlerts.filter((a) => a.type === "BOLO");
 
   const handleAcknowledge = async (alert: Alert) => {
-    if (!user) return;
-
     try {
-      await acknowledgeAlertMutation.mutateAsync(alert.id);
-      addToast({
-        type: "success",
-        title: "Alert Acknowledged",
-        message: `Acknowledged: ${alert.title}`,
-      });
-    } catch {
-      addToast({
-        type: "error",
-        title: "Acknowledgment Failed",
-        message: "Failed to acknowledge alert. Please try again.",
-      });
+      await acknowledge.mutateAsync(alert.id);
+      toast.success("Alert Acknowledged", alert.title);
+    } catch (error) {
+      toast.error("Not acknowledged", error instanceof Error ? error.message : "The server rejected the request");
     }
   };
 
   const handleIssueAlert = async () => {
-    if (!newAlert.type || !newAlert.title || !newAlert.description || !newAlert.expiresAt) {
-      addToast({ type: "error", title: "Validation Error", message: "Please fill in all required fields" });
+    if (!newAlert.type || !newAlert.title.trim() || !newAlert.description.trim() || !newAlert.expiresAt) {
+      toast.error("Validation Error", "Type, title, description and expiry are required");
       return;
     }
-
+    const expiresAt = new Date(newAlert.expiresAt);
+    if (expiresAt <= new Date()) {
+      toast.error("Validation Error", "The expiry must be in the future");
+      return;
+    }
     try {
-      await createAlertMutation.mutateAsync({
-        type: newAlert.type as AlertType,
+      const created = await createAlert.mutateAsync({
+        type: newAlert.type,
         scope: newAlert.scope,
-        title: newAlert.title,
-        description: newAlert.description,
-        expiresAt: new Date(newAlert.expiresAt).toISOString(),
-        issuedBy: user?.name || "Unknown",
+        title: newAlert.title.trim(),
+        description: newAlert.description.trim(),
+        expiresAt: expiresAt.toISOString(),
         priority: newAlert.priority,
-        hasImage: !!newAlert.imageUrl,
-        imageUrl: newAlert.imageUrl || undefined,
+        stationId: user?.stationId ?? null,
       });
-
-      addToast({ type: "success", title: "Alert Issued", message: "Your alert has been broadcast successfully" });
+      toast.success("Alert Issued", created.title);
       setShowIssueForm(false);
-      setNewAlert({ type: "", scope: "STATION", title: "", description: "", expiresAt: "", priority: 2, imageUrl: "" });
-    } catch {
-      addToast({
-        type: "error",
-        title: "Failed to Issue Alert",
-        message: "Failed to create alert. Please try again.",
-      });
+      setNewAlert(emptyForm());
+    } catch (error) {
+      toast.error("Alert not issued", error instanceof Error ? error.message : "The server rejected the request");
     }
   };
+
+  const stats: Array<{ label: string; value: number | undefined; icon: typeof Bell; valueClass: string; iconClass: string; failed: boolean }> = [
+    { label: "Active Alerts", value: active.data?.length, icon: Bell, valueClass: "text-foreground", iconClass: "text-accent", failed: active.isError },
+    { label: "Awaiting Acknowledgement", value: unacknowledged.data?.length, icon: AlertTriangle, valueClass: "text-error", iconClass: "text-error", failed: unacknowledged.isError },
+    { label: "Active Flash Alerts", value: active.data?.filter((a) => a.type === "FLASH").length, icon: Radio, valueClass: "text-warning", iconClass: "text-warning", failed: active.isError },
+    { label: "Active BOLOs", value: active.data ? bolos.length : undefined, icon: Shield, valueClass: "text-info", iconClass: "text-info", failed: active.isError },
+  ];
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Page Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Alerts & Communications</h1>
-            <p className="text-foreground-muted">
-              View and manage alerts, BOLO notices, and broadcasts
-            </p>
+            <p className="text-foreground-muted">View and manage alerts, BOLO notices and broadcasts</p>
           </div>
           {canIssue && (
             <Button onClick={() => setShowIssueForm(true)}>
@@ -217,110 +284,37 @@ export default function AlertsPage() {
           )}
         </div>
 
-        {/* Error State */}
-        {error && (
-          <Card className="border-error/50 bg-error/5">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <AlertTriangle className="h-5 w-5 text-error" />
-                <div>
-                  <p className="font-medium text-foreground">Failed to Load Alerts</p>
-                  <p className="text-sm text-foreground-muted">
-                    Unable to fetch alerts. Please check your connection and try again.
-                  </p>
+        {/* Counts come from the server's active and unacknowledged lists */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {stats.map(({ label, value, icon: Icon, valueClass, iconClass, failed }) => (
+            <Card key={label}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-foreground-muted">{label}</p>
+                    <p className={`text-2xl font-bold ${valueClass}`}>
+                      {failed ? "—" : value ?? <Loader2 className="h-5 w-5 animate-spin" />}
+                    </p>
+                  </div>
+                  <Icon className={`h-8 w-8 opacity-50 ${iconClass}`} />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Loading State */}
-        {isLoading && (
-          <Card>
-            <CardContent className="p-8">
-              <div className="flex flex-col items-center justify-center gap-3">
-                <Loader2 className="h-8 w-8 text-accent animate-spin" />
-                <p className="text-foreground-muted">Loading alerts...</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Stats */}
-        {!isLoading && !error && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Active Alerts</p>
-                  <p className="text-2xl font-bold text-foreground">{activeAlerts.length}</p>
-                </div>
-                <Bell className="h-8 w-8 text-accent opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card className={unacknowledged.length > 0 ? "border-error/50" : ""}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Pending Acknowledgment</p>
-                  <p className="text-2xl font-bold text-error">{unacknowledged.length}</p>
-                </div>
-                <AlertTriangle className="h-8 w-8 text-error opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Flash Alerts</p>
-                  <p className="text-2xl font-bold text-warning">
-                    {activeAlerts.filter((a) => a.type === "FLASH").length}
-                  </p>
-                </div>
-                <Radio className="h-8 w-8 text-warning opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Active BOLOs</p>
-                  <p className="text-2xl font-bold text-info">
-                    {activeAlerts.filter((a) => a.type === "BOLO").length}
-                  </p>
-                </div>
-                <Shield className="h-8 w-8 text-info opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-        )}
 
-        {/* Urgent Alert Banner */}
-        {unacknowledged.length > 0 && (
+        {pending.length > 0 && (
           <Card className="border-error/50 bg-error/5">
             <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-error/20 flex items-center justify-center animate-pulse">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-error/20 flex items-center justify-center">
                   <AlertTriangle className="h-5 w-5 text-error" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-foreground">
-                    {unacknowledged.length} Alert(s) Require Acknowledgment
-                  </p>
-                  <p className="text-sm text-foreground-muted">
-                    {unacknowledged[0].title}
-                  </p>
+                  <p className="font-medium text-foreground">{pending.length} alert(s) awaiting acknowledgement</p>
+                  <p className="text-sm text-foreground-muted">{pending[0].title}</p>
                 </div>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => handleAcknowledge(unacknowledged[0])}
-                >
+                <Button size="sm" onClick={() => handleAcknowledge(pending[0])} disabled={acknowledge.isPending}>
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Acknowledge
                 </Button>
@@ -329,7 +323,6 @@ export default function AlertsPage() {
           </Card>
         )}
 
-        {/* Issue Alert Form Modal */}
         {showIssueForm && canIssue && (
           <Card className="border-accent/30">
             <CardHeader className="flex flex-row items-center justify-between">
@@ -339,282 +332,213 @@ export default function AlertsPage() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Select
-                  label="Alert Type"
+                  label="Alert Type *"
                   options={[
-                    { value: "FLASH", label: "Flash - Immediate Action Required" },
-                    { value: "URGENT", label: "Urgent - High Priority" },
-                    { value: "BOLO", label: "BOLO - Be On Lookout" },
-                    { value: "NOTICE", label: "Notice - Information" },
+                    { value: "", label: "Select type" },
+                    { value: "FLASH", label: "Flash — immediate action" },
+                    { value: "URGENT", label: "Urgent — high priority" },
+                    { value: "BOLO", label: "BOLO — be on the lookout" },
+                    { value: "NOTICE", label: "Notice — information" },
                   ]}
                   value={newAlert.type}
                   onChange={(value: string) => setNewAlert({ ...newAlert, type: value as AlertType })}
                 />
                 <Select
-                  label="Scope"
-                  options={scopeOptions.filter((s) => {
-                    if (s.value === "NATIONAL") return false;
-                    if (s.value === "STATE" && !canIssueState) return false;
-                    if (s.value === "DISTRICT" && !canIssueDistrict) return false;
-                    return true;
-                  })}
+                  label="Scope *"
+                  options={(Object.keys(scopeLabels) as AlertScope[]).map((s) => ({ value: s, label: scopeLabels[s] }))}
                   value={newAlert.scope}
                   onChange={(value: string) => setNewAlert({ ...newAlert, scope: value as AlertScope })}
                 />
+                <Select
+                  label="Priority *"
+                  options={([1, 2, 3] as AlertPriority[]).map((p) => ({ value: String(p), label: priorityLabels[p] }))}
+                  value={String(newAlert.priority)}
+                  onChange={(value: string) => setNewAlert({ ...newAlert, priority: Number(value) as AlertPriority })}
+                />
               </div>
               <Input
-                label="Title"
+                label="Title *"
                 placeholder="Brief, clear alert title"
                 value={newAlert.title}
                 onChange={(value: string) => setNewAlert({ ...newAlert, title: value })}
               />
               <Textarea
-                label="Description"
-                placeholder="Detailed description of the alert..."
+                label="Description *"
+                placeholder="What officers need to know and do"
                 rows={4}
                 value={newAlert.description}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNewAlert({ ...newAlert, description: e.target.value })}
+                onChange={(v: string) => setNewAlert({ ...newAlert, description: v })
+                }
               />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="Expires At"
-                  type="datetime-local"
-                  value={newAlert.expiresAt}
-                  onChange={(value: string) => setNewAlert({ ...newAlert, expiresAt: value })}
-                />
-                <FileUpload
-                  fileType="image"
-                  multiple={false}
-                  maxSize={5}
-                  label="Alert Image"
-                  hint="Upload image for BOLO/FLASH alerts (JPG, PNG up to 5MB)"
-                  onUpload={async (files) => {
-                    if (files.length > 0) {
-                      try {
-                        const response = await uploadViaAPI(files[0], "photos");
-                        if (response.success && response.url) {
-                          setNewAlert({ ...newAlert, imageUrl: response.url });
-                          addToast({
-                            type: "success",
-                            title: "Image Uploaded",
-                            message: "Image uploaded successfully",
-                          });
-                        } else {
-                          addToast({
-                            type: "error",
-                            title: "Upload Failed",
-                            message: response.error || "Failed to upload image",
-                          });
-                        }
-                      } catch {
-                        addToast({
-                          type: "error",
-                          title: "Upload Error",
-                          message: "Error uploading image",
-                        });
-                      }
-                    }
-                  }}
-                  className="col-span-2"
-                />
-              </div>
+              <Input
+                label="Expires At *"
+                type="datetime-local"
+                value={newAlert.expiresAt}
+                onChange={(value: string) => setNewAlert({ ...newAlert, expiresAt: value })}
+              />
+              <p className="text-xs text-foreground-muted">
+                For a wanted or missing person with sightings to track, issue a notice from the{" "}
+                <Link href="/lookout" className="text-accent hover:underline">
+                  lookout register
+                </Link>{" "}
+                instead.
+              </p>
               <div className="flex justify-end gap-2 pt-4 border-t border-border">
                 <Button variant="ghost" onClick={() => setShowIssueForm(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleIssueAlert}>
+                <Button onClick={handleIssueAlert} disabled={createAlert.isPending}>
                   <Megaphone className="h-4 w-4 mr-2" />
-                  Issue Alert
+                  {createAlert.isPending ? "Issuing…" : "Issue Alert"}
                 </Button>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="active">
               <Bell className="h-4 w-4 mr-2" />
-              Active Alerts
+              Active
+            </TabsTrigger>
+            <TabsTrigger value="pending">
+              <AlertTriangle className="h-4 w-4 mr-2" />
+              Awaiting acknowledgement
             </TabsTrigger>
             <TabsTrigger value="bolo">
               <Shield className="h-4 w-4 mr-2" />
-              BOLO Notices
+              BOLO notices
             </TabsTrigger>
-            <TabsTrigger value="archive">
-              <Clock className="h-4 w-4 mr-2" />
-              Archive
+            <TabsTrigger value="all">
+              <Search className="h-4 w-4 mr-2" />
+              All alerts
             </TabsTrigger>
           </TabsList>
 
-          {/* Active Alerts Tab */}
-          <TabsContent value="active" className="space-y-6">
-            {/* Filters */}
+          <TabsContent value="active" className="space-y-4">
+            <ListState
+              isPending={active.isPending}
+              error={active.error}
+              onRetry={() => active.refetch()}
+              empty={activeAlerts.length === 0}
+              emptyText="No active alerts"
+            />
+            {activeAlerts.map((a) => (
+              <AlertCard key={a.id} alert={a} onAcknowledge={handleAcknowledge} acknowledging={acknowledge.isPending} />
+            ))}
+          </TabsContent>
+
+          <TabsContent value="pending" className="space-y-4">
+            <ListState
+              isPending={unacknowledged.isPending}
+              error={unacknowledged.error}
+              onRetry={() => unacknowledged.refetch()}
+              empty={pending.length === 0}
+              emptyText="Every active alert has been acknowledged"
+            />
+            {pending.map((a) => (
+              <AlertCard key={a.id} alert={a} onAcknowledge={handleAcknowledge} acknowledging={acknowledge.isPending} />
+            ))}
+          </TabsContent>
+
+          <TabsContent value="bolo" className="space-y-4">
+            <ListState
+              isPending={active.isPending}
+              error={active.error}
+              onRetry={() => active.refetch()}
+              empty={bolos.length === 0}
+              emptyText="No active BOLO notices"
+            />
+            {bolos.map((a) => (
+              <AlertCard key={a.id} alert={a} onAcknowledge={handleAcknowledge} acknowledging={acknowledge.isPending} />
+            ))}
+          </TabsContent>
+
+          <TabsContent value="all" className="space-y-4">
             <Card>
               <CardContent className="p-4">
                 <div className="flex flex-col md:flex-row gap-4">
                   <div className="flex-1">
                     <Input
-                      placeholder="Search alerts..."
+                      placeholder="Search title or description…"
                       value={searchQuery}
-                      onChange={setSearchQuery}
+                      onChange={(v: string) => {
+                        setSearchQuery(v);
+                        setPage(1);
+                      }}
                       icon={<Search className="h-4 w-4" />}
                     />
                   </div>
                   <Select
-                    options={alertTypeOptions}
+                    options={[{ value: "", label: "All types" }, ...(Object.keys(typeLabels) as AlertType[]).map((t) => ({ value: t, label: typeLabels[t] }))]}
                     value={typeFilter}
-                    onChange={(value: string) => setTypeFilter(value as "" | AlertType)}
+                    onChange={(value: string) => {
+                      setTypeFilter(value as AlertType | "");
+                      setPage(1);
+                    }}
                     className="w-full md:w-40"
+                  />
+                  <Select
+                    options={[{ value: "", label: "All scopes" }, ...(Object.keys(scopeLabels) as AlertScope[]).map((s) => ({ value: s, label: scopeLabels[s] }))]}
+                    value={scopeFilter}
+                    onChange={(value: string) => {
+                      setScopeFilter(value as AlertScope | "");
+                      setPage(1);
+                    }}
+                    className="w-full md:w-40"
+                  />
+                  <Select
+                    options={[
+                      { value: "", label: "Any acknowledgement" },
+                      { value: "false", label: "Not acknowledged" },
+                      { value: "true", label: "Acknowledged" },
+                    ]}
+                    value={ackFilter}
+                    onChange={(value: string) => {
+                      setAckFilter(value as "" | "true" | "false");
+                      setPage(1);
+                    }}
+                    className="w-full md:w-48"
                   />
                 </div>
               </CardContent>
             </Card>
-
-            {/* Alerts List */}
-            <div className="space-y-4">
-              {filteredAlerts
-                .filter((a) => new Date(a.expiresAt) > new Date())
-                .sort((a, b) => a.priority - b.priority)
-                .map((alert) => (
-                  <Card key={alert.id} className={getAlertStyle(alert.type)}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <Badge variant={getAlertBadgeVariant(alert.type) as any}>
-                              {alert.type}
-                            </Badge>
-                            <Badge variant="secondary">{alert.scope}</Badge>
-                            <span className="text-xs text-foreground-muted">
-                              {formatTimeAgo(alert.issuedAt)}
-                            </span>
-                          </div>
-                          <h3 className="font-medium text-foreground">{alert.title}</h3>
-                          <p className="text-sm text-foreground-muted mt-1">
-                            {alert.description}
-                          </p>
-                          <div className="flex items-center gap-4 mt-3 text-xs text-foreground-muted">
-                            <span>From: {alert.issuedBy}</span>
-                            <span>
-                              Expires:{" "}
-                              {new Date(alert.expiresAt).toLocaleString("en-IN", {
-                                dateStyle: "short",
-                                timeStyle: "short",
-                              })}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="ml-4 flex flex-col items-end gap-2">
-                          {alert.acknowledged ? (
-                            <Badge variant="success">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Acknowledged
-                            </Badge>
-                          ) : (
-                            <Button
-                              size="sm"
-                              onClick={() => handleAcknowledge(alert)}
-                            >
-                              Acknowledge
-                            </Button>
-                          )}
-                          <Link href={`/alerts/${alert.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-4 w-4 mr-1" />
-                              Details
-                            </Button>
-                          </Link>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-            </div>
-          </TabsContent>
-
-          {/* BOLO Tab */}
-          <TabsContent value="bolo" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredAlerts
-                .filter((a) => a.type === "BOLO")
-                .map((bolo) => (
-                  <Card key={bolo.id} className="border-l-4 border-l-info">
-                    <CardContent className="p-4">
-                      <div className="flex gap-4">
-                        {bolo.hasImage && (
-                          <div className="h-24 w-24 bg-background-tertiary rounded-lg flex items-center justify-center flex-shrink-0">
-                            <Shield className="h-8 w-8 text-foreground-muted" />
-                          </div>
-                        )}
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="info">BOLO</Badge>
-                            <Badge variant="secondary">{bolo.scope}</Badge>
-                          </div>
-                          <h3 className="font-medium text-foreground">{bolo.title}</h3>
-                          <p className="text-sm text-foreground-muted mt-1 line-clamp-2">
-                            {bolo.description}
-                          </p>
-                          <div className="flex gap-2 mt-3">
-                            <Link href={`/alerts/${bolo.id}`}>
-                              <Button variant="secondary" size="sm">
-                                View Full Details
-                              </Button>
-                            </Link>
-                            <Button variant="ghost" size="sm" disabled title="Feature under development">
-                              Report Sighting (Soon)
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-            </div>
-          </TabsContent>
-
-          {/* Archive Tab */}
-          <TabsContent value="archive" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <p className="text-foreground-muted">
-                Showing expired alerts from the last 30 days
-              </p>
-              <Button variant="secondary" onClick={() => addToast({ type: "success", title: "Export Complete", message: "Alert archive exported to CSV" })}>
-                <Download className="h-4 w-4 mr-2" />
-                Export Archive
-              </Button>
-            </div>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-center text-foreground-muted py-8">
-                  No expired alerts in the selected period
-                </p>
-              </CardContent>
-            </Card>
+            <ListState
+              isPending={all.isPending}
+              error={all.error}
+              onRetry={() => all.refetch()}
+              empty={(all.data?.data.length ?? 0) === 0}
+              emptyText="No alerts match these filters"
+            />
+            {all.data?.data.map((a) => (
+              <AlertCard key={a.id} alert={a} onAcknowledge={handleAcknowledge} acknowledging={acknowledge.isPending} />
+            ))}
+            {(all.data?.totalPages ?? 0) > 1 && (
+              <div className="flex items-center justify-between text-sm text-foreground-muted">
+                <span>
+                  Page {page} of {all.data?.totalPages} · {all.data?.total} alerts
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                    Previous
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={page >= (all.data?.totalPages ?? 1)}
+                    onClick={() => setPage(page + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
-
-      <SightingReportDialog
-        alertId={sightingAlertId || ""}
-        isOpen={showSightingReport}
-        onClose={() => {
-          setShowSightingReport(false);
-          setSightingAlertId(null);
-        }}
-        onReport={(report) => {
-          addToast({
-            type: "success",
-            title: "Report Submitted",
-            message: "Sighting report submitted successfully",
-          });
-          // Backend integration pending - report data logged to console for now
-          console.info("[Sighting Report]", report);
-        }}
-      />
     </DashboardLayout>
   );
 }

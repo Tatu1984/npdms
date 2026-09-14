@@ -1,13 +1,15 @@
 "use client";
 
-import { forwardRef, TextareaHTMLAttributes, ChangeEvent } from "react";
+import { forwardRef, TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 export interface TextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'onChange'> {
   label?: string;
   error?: string | boolean;
   hint?: string;
-  onChange?: ((value: string) => void) | ((e: ChangeEvent<HTMLTextAreaElement>) => void);
+  /** Receives the new value, not the event. A union with the event signature let
+   *  handlers reading e.target.value typecheck and then throw on every keystroke. */
+  onChange?: (value: string) => void;
 }
 
 const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
@@ -36,7 +38,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           onChange={(e) => {
             if (onChange) {
-              (onChange as (value: string) => void)(e.target.value);
+              onChange(e.target.value);
             }
           }}
           {...props}
