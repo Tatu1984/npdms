@@ -1,311 +1,73 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import warrantsApi, {
+  type Warrant,
+  type WarrantInput,
+  type WarrantQuery,
+  type WarrantStatus,
+} from "@/lib/api/warrants";
+
 /**
- * Warrant Hooks - React Query + Offline Support
+ * React Query bindings for warrants.
+ *
+ * No local fallback: a failed request surfaces as an error, never as demo
+ * records or a write that only happened in the browser. Every mutation
+ * invalidates the whole warrants subtree so lists and stats cannot disagree
+ * with the record just changed.
  */
 
-'use client';
-
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { db, Warrant, WarrantStatus, WarrantType, FIRPriority } from '../lib/db/schema';
-import { queueCreate, queueUpdate, queueDelete, type QueueOptions } from '../lib/sync/queue-manager';
-import { networkMonitor } from '../lib/sync/network-monitor';
-import { v4 as uuidv4 } from 'uuid';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
-
-// Demo data for when API and IndexedDB are empty
-const DEMO_WARRANTS: Warrant[] = [
-  {
-    id: 'demo-warrant-001',
-    warrantNumber: 'WRN/2024/00045',
-    type: 'ARREST',
-    status: 'ACTIVE',
-    caseId: 'demo-case-001',
-    accusedId: 'demo-accused-001',
-    issuedFor: 'Ravi Shankar - Armed Robbery Suspect',
-    issuedBy: 'Hon. Justice Ramakrishna',
-    issuedByDesignation: 'Sessions Judge',
-    issuedDate: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
-    priority: 'HIGH',
-    courtName: 'Sessions Court, Bangalore',
-    executionAddress: '34, Wilson Garden, Bangalore',
-    judgeOrder: 'Non-bailable arrest warrant issued',
-    validUntil: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'demo-warrant-002',
-    warrantNumber: 'WRN/2024/00046',
-    type: 'SEARCH',
-    status: 'EXECUTED',
-    caseId: 'demo-case-002',
-    issuedFor: 'Search of premises for cyber fraud investigation',
-    issuedBy: 'Hon. Magistrate Vijay Kumar',
-    issuedByDesignation: 'Magistrate',
-    issuedDate: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
-    priority: 'MEDIUM',
-    courtName: 'Magistrate Court, Bangalore',
-    executionAddress: '567, Brigade Road, Bangalore',
-    validUntil: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    executedAt: new Date(Date.now() - 38 * 24 * 60 * 60 * 1000).toISOString(),
-    executedBy: 'SI Priya Sharma',
-    executionRemarks: 'Search completed, computers and documents seized',
-    createdAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 38 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'demo-warrant-003',
-    warrantNumber: 'WRN/2024/00047',
-    type: 'ARREST',
-    status: 'EXECUTED',
-    caseId: 'demo-case-005',
-    accusedId: 'demo-accused-004',
-    issuedFor: 'Sunil Kumar - NDPS Act Drug Trafficking',
-    issuedBy: 'Hon. Justice Suresh Reddy',
-    issuedByDesignation: 'Sessions Judge',
-    issuedDate: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
-    priority: 'HIGH',
-    courtName: 'Sessions Court, Bangalore',
-    executionAddress: '89, Whitefield, Bangalore',
-    validUntil: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
-    executedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    executedBy: 'Inspector Anil Desai',
-    executionRemarks: 'Accused arrested from residence',
-    createdAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'demo-warrant-004',
-    warrantNumber: 'WRN/2024/00048',
-    type: 'SUMMONS',
-    status: 'EXECUTED',
-    caseId: 'demo-case-003',
-    accusedId: 'demo-accused-003',
-    issuedFor: 'Vikram Singh - Assault Case Witness Appearance',
-    issuedBy: 'Hon. Magistrate Vijay Kumar',
-    issuedByDesignation: 'Magistrate',
-    issuedDate: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000).toISOString(),
-    priority: 'LOW',
-    courtName: 'Magistrate Court, Bangalore',
-    executionAddress: '23, Jayanagar, Bangalore',
-    validUntil: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
-    executedAt: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(),
-    executedBy: 'ASI Vijay Reddy',
-    executionRemarks: 'Summons served, accused appeared in court',
-    createdAt: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'demo-warrant-005',
-    warrantNumber: 'WRN/2024/00049',
-    type: 'NBW',
-    status: 'ACTIVE',
-    caseId: 'demo-case-001',
-    accusedId: 'demo-accused-001',
-    issuedFor: 'Ravi Shankar - Court Appearance for Robbery Case',
-    issuedBy: 'Hon. Justice Ramakrishna',
-    issuedByDesignation: 'Sessions Judge',
-    issuedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    priority: 'MEDIUM',
-    courtName: 'Sessions Court, Bangalore',
-    executionAddress: '34, Wilson Garden, Bangalore',
-    judgeOrder: 'Non-bailable warrant for failure to appear',
-    validUntil: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
-
-interface ListResponse<T> { data: T[]; total: number; page: number; pageSize: number; }
-interface WarrantFilters { status?: WarrantStatus; type?: WarrantType; priority?: FIRPriority; caseId?: string; search?: string; page?: number; pageSize?: number; }
-
-const warrantApi = {
-  list: async (filters: WarrantFilters = {}): Promise<ListResponse<Warrant>> => {
-    const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => { if (value !== undefined) params.append(key, String(value)); });
-    const response = await fetch(`${API_BASE}/warrants?${params}`, {
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
-  },
-  get: async (id: string): Promise<Warrant> => {
-    const response = await fetch(`${API_BASE}/warrants/${id}`, {
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
-  },
-  create: async (data: Partial<Warrant>): Promise<Warrant> => {
-    const response = await fetch(`${API_BASE}/warrants`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
-  },
-  update: async (id: string, data: Partial<Warrant>): Promise<Warrant> => {
-    const response = await fetch(`${API_BASE}/warrants/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
-  },
-  updateStatus: async (id: string, status: WarrantStatus): Promise<Warrant> => {
-    const response = await fetch(`${API_BASE}/warrants/${id}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
-      body: JSON.stringify({ status }),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
-  },
-};
-
 export const warrantKeys = {
-  all: ['warrants'] as const,
-  lists: () => [...warrantKeys.all, 'list'] as const,
-  list: (filters: WarrantFilters) => [...warrantKeys.lists(), filters] as const,
-  details: () => [...warrantKeys.all, 'detail'] as const,
-  detail: (id: string) => [...warrantKeys.details(), id] as const,
+  all: ["warrants"] as const,
+  list: (query: WarrantQuery) => ["warrants", "list", query] as const,
+  detail: (id: string) => ["warrants", "detail", id] as const,
+  stats: () => ["warrants", "stats"] as const,
 };
 
-export function useWarrants(filters: WarrantFilters = {}) {
-  const isOnline = networkMonitor.isOnline();
+export function useWarrants(query: WarrantQuery = {}) {
   return useQuery({
-    queryKey: warrantKeys.list(filters),
-    queryFn: async () => {
-      if (isOnline) {
-        try {
-          const response = await warrantApi.list(filters);
-          await Promise.all(response.data.map((w) => db.warrants.put({ ...w, _pending: false, _localOnly: false })));
-          return response;
-        } catch (error) { console.error('[useWarrants] Network error:', error); }
-      }
-      let results = await db.warrants.orderBy('issuedDate').reverse().toArray();
-      // If no data in IndexedDB, use demo data
-      if (results.length === 0) {
-        results = DEMO_WARRANTS;
-      }
-      const filtered = results.filter((w) => {
-        if (filters.status && w.status !== filters.status) return false;
-        if (filters.type && w.type !== filters.type) return false;
-        if (filters.priority && w.priority !== filters.priority) return false;
-        if (filters.caseId && w.caseId !== filters.caseId) return false;
-        if (filters.search && !w.warrantNumber.toLowerCase().includes(filters.search.toLowerCase())) return false;
-        return true;
-      });
-      const page = filters.page || 1;
-      const pageSize = filters.pageSize || 20;
-      const start = (page - 1) * pageSize;
-      return { data: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize };
-    },
-    staleTime: 30000,
+    queryKey: warrantKeys.list(query),
+    queryFn: () => warrantsApi.list(query),
   });
 }
 
-export function useWarrant(id: string | undefined) {
-  const isOnline = networkMonitor.isOnline();
+export function useWarrant(id: string) {
   return useQuery({
-    queryKey: warrantKeys.detail(id!),
-    queryFn: async () => {
-      if (!id) return null;
-      if (isOnline) {
-        try {
-          const w = await warrantApi.get(id);
-          await db.warrants.put({ ...w, _pending: false, _localOnly: false });
-          return w;
-        } catch (error) { console.error('[useWarrant] Network error:', error); }
-      }
-      return (await db.warrants.get(id)) || null;
-    },
-    enabled: !!id,
-    staleTime: 30000,
+    queryKey: warrantKeys.detail(id),
+    queryFn: () => warrantsApi.get(id),
+    enabled: Boolean(id),
   });
 }
 
-export function useCreateWarrant(options?: QueueOptions) {
-  const queryClient = useQueryClient();
-  const isOnline = networkMonitor.isOnline();
-  return useMutation({
-    mutationFn: async (data: Partial<Warrant>) => {
-      const tempId = uuidv4();
-      const temp: Warrant = { ...data, id: tempId, warrantNumber: `TEMP-${tempId.slice(0, 8)}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), _pending: !isOnline, _localOnly: !isOnline } as Warrant;
-      if (isOnline) {
-        try {
-          const created = await warrantApi.create(data);
-          await db.warrants.put({ ...created, _pending: false, _localOnly: false });
-          return created;
-        } catch (error) { console.error('[useCreateWarrant] Network error:', error); }
-      }
-      await db.warrants.put(temp);
-      await queueCreate('warrant', tempId, data, `${API_BASE}/warrants`, options);
-      return temp;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: warrantKeys.lists() }); },
-    onError: (error: Error) => {
-      console.error('[useCreateWarrant] Mutation error:', error.message);
-    },
+export function useWarrantStats() {
+  return useQuery({
+    queryKey: warrantKeys.stats(),
+    queryFn: warrantsApi.stats,
   });
 }
 
-export function useUpdateWarrant(options?: QueueOptions) {
-  const queryClient = useQueryClient();
-  const isOnline = networkMonitor.isOnline();
+export function useCreateWarrant() {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<Warrant> }) => {
-      if (isOnline) {
-        try {
-          const updated = await warrantApi.update(id, data);
-          await db.warrants.put({ ...updated, _pending: false, _localOnly: false });
-          return updated;
-        } catch (error) { console.error('[useUpdateWarrant] Network error:', error); }
-      }
-      const existing = await db.warrants.get(id);
-      if (!existing) throw new Error('Warrant not found');
-      const updated = { ...existing, ...data, updatedAt: new Date().toISOString(), _pending: true };
-      await db.warrants.put(updated);
-      await queueUpdate('warrant', id, data, `${API_BASE}/warrants/${id}`, options);
-      return updated;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: warrantKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: warrantKeys.detail(variables.id) });
-    },
-    onError: (error: Error) => {
-      console.error('[useUpdateWarrant] Mutation error:', error.message);
-    },
+    mutationFn: (input: WarrantInput) => warrantsApi.create(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: warrantKeys.all }),
   });
 }
 
-export function useUpdateWarrantStatus(options?: QueueOptions) {
-  const queryClient = useQueryClient();
-  const isOnline = networkMonitor.isOnline();
+export function useUpdateWarrant() {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: WarrantStatus }) => {
-      if (isOnline) {
-        try {
-          const updated = await warrantApi.updateStatus(id, status);
-          await db.warrants.put({ ...updated, _pending: false, _localOnly: false });
-          return updated;
-        } catch (error) { console.error('[useUpdateWarrantStatus] Network error:', error); }
-      }
-      const existing = await db.warrants.get(id);
-      if (!existing) throw new Error('Warrant not found');
-      const updated = { ...existing, status, updatedAt: new Date().toISOString(), _pending: true };
-      await db.warrants.put(updated);
-      await queueUpdate('warrant', id, { status }, `${API_BASE}/warrants/${id}/status`, options);
-      return updated;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: warrantKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: warrantKeys.detail(variables.id) });
-    },
-    onError: (error: Error) => {
-      console.error('[useUpdateWarrantStatus] Mutation error:', error.message);
-    },
+    mutationFn: ({ warrant, changes }: { warrant: Warrant; changes: Partial<WarrantInput> }) =>
+      warrantsApi.update(warrant, changes),
+    onSuccess: () => qc.invalidateQueries({ queryKey: warrantKeys.all }),
+  });
+}
+
+export function useSetWarrantStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status, executedBy }: { id: string; status: WarrantStatus; executedBy?: string }) =>
+      warrantsApi.setStatus(id, status, executedBy),
+    onSuccess: () => qc.invalidateQueries({ queryKey: warrantKeys.all }),
   });
 }

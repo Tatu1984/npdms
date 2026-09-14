@@ -29,8 +29,10 @@ const defaultOptions = {
 
     // Retry logic
     retry: (failureCount: number, error: any) => {
-      // Don't retry on 4xx errors
-      if (error?.status >= 400 && error?.status < 500) {
+      // Don't retry on 4xx errors. ApiClientError carries the HTTP status as
+      // `code`; checking only `status` let every 404 and 403 retry three times.
+      const status = error?.code ?? error?.status;
+      if (status >= 400 && status < 500) {
         return false;
       }
 
@@ -56,11 +58,11 @@ const defaultOptions = {
     // Network mode for mutations
     networkMode: 'offlineFirst' as const,
 
-    // Retry mutations on failure
-    retry: 1,
-
-    // Retry delay
-    retryDelay: 1000,
+    // Never retry writes automatically. A create is not idempotent: a request
+    // that reached the server but failed on the way back would be sent again
+    // and record the FIR, warrant or custody transfer twice. The officer sees
+    // the error and decides.
+    retry: 0,
 
     // On error, log to console
     onError: (error: any) => {

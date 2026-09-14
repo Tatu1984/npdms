@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -8,26 +9,27 @@ import {
   FileWarning,
   User,
   MapPin,
-  Calendar,
   Clock,
   Gavel,
-  Eye,
-  Edit,
   Printer,
   CheckCircle,
   XCircle,
   AlertTriangle,
   FileText,
-  Phone,
-  Share2,
+  Loader2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
-import { useWarrantStore } from "@/stores/warrantStore";
+import { useSetWarrantStatus, useWarrant } from "@/hooks/use-warrants";
+import type { WarrantStatus } from "@/lib/api/warrants";
+import { ApiClientError } from "@/lib/api/client";
+import { formatDate, formatDateTime } from "@/lib/utils";
+
 // Dynamic import for map to avoid SSR issues
 const InteractiveMap = dynamic(
   () => import("@/components/ui/Map").then((mod) => mod.InteractiveMap),
@@ -37,58 +39,9 @@ const InteractiveMap = dynamic(
       <div className="h-32 bg-background-tertiary rounded-lg flex items-center justify-center">
         <div className="text-foreground-muted">Loading map...</div>
       </div>
-    )
+    ),
   }
 );
-
-// Mock warrant data - would come from store in production
-const mockWarrants = [
-  {
-    id: "war-001",
-    warrantNumber: "WAR-2024-00045",
-    type: "ARREST",
-    status: "ACTIVE",
-    issuedFor: "Rajesh Kumar Singh",
-    age: 35,
-    gender: "Male",
-    address: "45, 2nd Cross, Marathahalli, Bangalore",
-    caseNumber: "CASE-2024-00156",
-    firNumber: "KOR/2024/00089",
-    issuedBy: "Sessions Court, Koramangala",
-    judgeName: "Hon. Justice A.K. Sharma",
-    issuedDate: "2024-01-20",
-    validUntil: "2024-04-20",
-    charges: ["IPC 392 - Robbery", "IPC 397 - Robbery with attempt to cause death"],
-    lastKnownLocation: "Marathahalli, Bangalore",
-    priority: "HIGH",
-    description: "Wanted in connection with armed robbery at jewelry store. Consider armed and dangerous.",
-    identifyingMarks: "Scar on left cheek, tattoo on right arm",
-    executionHistory: [
-      { date: "2024-01-25", action: "Search conducted at known address", officer: "SI Ramesh Kumar", result: "Not found" },
-      { date: "2024-01-28", action: "Informant tip received", officer: "HC Mohan", result: "Under investigation" },
-    ],
-  },
-  {
-    id: "war-002",
-    warrantNumber: "WAR-2024-00044",
-    type: "SEARCH",
-    status: "EXECUTED",
-    issuedFor: "Premises at 45, MG Road",
-    caseNumber: "CASE-2024-00148",
-    firNumber: "KOR/2024/00075",
-    issuedBy: "Magistrate Court, Koramangala",
-    judgeName: "Hon. Magistrate S.P. Rao",
-    issuedDate: "2024-01-18",
-    validUntil: "2024-01-25",
-    executedDate: "2024-01-19",
-    executedBy: "Inspector Venkatesh",
-    charges: ["NDPS Act 20 - Possession of controlled substances"],
-    priority: "MEDIUM",
-    description: "Search warrant for premises suspected of being used for drug trafficking.",
-    searchScope: "All rooms, storage areas, and vehicles on premises",
-    itemsSeized: ["500g suspected narcotics", "Cash Rs. 2,50,000", "Mobile phones (3)"],
-  },
-];
 
 const warrantTypes = {
   ARREST: { label: "Arrest Warrant", color: "error" },
@@ -104,91 +57,117 @@ const statusConfig = {
   CANCELLED: { label: "Cancelled", color: "error", icon: XCircle },
 };
 
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-sm text-foreground-muted">{label}</p>
+      <p className="text-foreground">{value ?? <span className="text-foreground-muted">Not recorded</span>}</p>
+    </div>
+  );
+}
+
 export default function WarrantDetailPage() {
-  const params = useParams();
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuthStore();
-  const { warrants, markExecuted, cancelWarrant } = useWarrantStore();
+  const { data: warrant, isPending, isError, error, refetch } = useWarrant(params.id);
+  const setStatus = useSetWarrantStatus();
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
-  // First check store, then fallback to mock data
-  const storeWarrant = warrants.find((w) => w.id === params.id);
-  const mockWarrant = mockWarrants.find((w) => w.id === params.id);
-  const warrant = storeWarrant || mockWarrant;
+  const canAct = user && hasMinimumRole(user.role, "SI");
 
-  const canEdit = user && hasMinimumRole(user.role, "SI");
-  const canExecute = user && hasMinimumRole(user.role, "SI");
-
-  if (!warrant) {
+  if (isPending) {
     return (
       <DashboardLayout>
-        <div className="flex flex-col items-center justify-center h-96">
-          <AlertTriangle className="h-12 w-12 text-warning mb-4" />
-          <h2 className="text-xl font-bold text-foreground">Warrant Not Found</h2>
-          <p className="text-foreground-muted mb-4">The requested warrant does not exist.</p>
-          <Link href="/warrant">
-            <Button>Back to Warrants</Button>
-          </Link>
+        <div className="flex items-center justify-center h-96 gap-3 text-foreground-muted">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading warrant…
         </div>
       </DashboardLayout>
     );
   }
 
-  const typeConfig = warrantTypes[warrant.type as keyof typeof warrantTypes];
-  const status = statusConfig[warrant.status as keyof typeof statusConfig];
+  if (isError) {
+    const notFound = error instanceof ApiClientError && error.code === 404;
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center h-96 gap-2">
+          <AlertTriangle className="h-12 w-12 text-warning mb-2" />
+          <h2 className="text-xl font-bold text-foreground">
+            {notFound ? "Warrant Not Found" : "Warrant could not be loaded"}
+          </h2>
+          <p className="text-foreground-muted mb-2">
+            {notFound ? "The requested warrant does not exist." : error.message}
+          </p>
+          <div className="flex gap-2">
+            {!notFound && (
+              <Button variant="secondary" onClick={() => refetch()}>
+                Try again
+              </Button>
+            )}
+            <Link href="/warrant">
+              <Button>Back to Warrants</Button>
+            </Link>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const typeConfig = warrantTypes[warrant.type];
+  const status = statusConfig[warrant.status];
   const StatusIcon = status.icon;
+  const hasLocation = warrant.latitude !== null && warrant.longitude !== null;
+  const lapsed = warrant.validUntil !== null && new Date(warrant.validUntil) < new Date();
 
-  const handleMarkExecuted = async () => {
-    if (!user) return;
-    await markExecuted(warrant.id, user.name);
-    toast.success("Warrant Executed", `Warrant ${warrant.warrantNumber} has been marked as executed`);
-    router.refresh();
-  };
-
-  const handleCancelWarrant = async () => {
-    await cancelWarrant(warrant.id);
-    toast.success("Warrant Cancelled", `Warrant ${warrant.warrantNumber} has been cancelled`);
-    router.refresh();
-  };
-
-  const handlePrint = () => {
-    toast.info("Print", "Opening print dialog...");
-    window.print();
+  const changeStatus = async (next: WarrantStatus, done: string) => {
+    try {
+      await setStatus.mutateAsync({
+        id: warrant.id,
+        status: next,
+        executedBy: next === "EXECUTED" ? user?.id : undefined,
+      });
+      toast.success(done, `Warrant ${warrant.warrantNumber} has been updated`);
+    } catch (err) {
+      toast.error("Warrant not updated", err instanceof Error ? err.message : "The server rejected the request");
+    }
   };
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" onClick={() => router.back()}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
             <div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-2xl font-bold text-foreground">{warrant.warrantNumber}</h1>
                 <Badge variant={typeConfig.color as any}>{typeConfig.label}</Badge>
                 <Badge variant={status.color as any}>
                   <StatusIcon className="h-3 w-3 mr-1" />
                   {status.label}
                 </Badge>
-                {warrant.priority === "HIGH" && <Badge variant="error">High Priority</Badge>}
+                {(warrant.priority === "HIGH" || warrant.priority === "CRITICAL") && (
+                  <Badge variant="error">{warrant.priority === "CRITICAL" ? "Critical" : "High"} Priority</Badge>
+                )}
               </div>
               <p className="text-foreground-muted">Issued for: {warrant.issuedFor}</p>
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={handlePrint}>
+            <Button variant="secondary" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" />
               Print
             </Button>
-            <Button variant="secondary" onClick={() => toast.success("Shared", "Warrant shared to field officers")}>
-              <Share2 className="h-4 w-4 mr-2" />
-              Share
-            </Button>
-            {canEdit && warrant.status === "ACTIVE" && (
-              <Button onClick={handleMarkExecuted}>
+            {canAct && warrant.status === "ACTIVE" && (
+              <Button
+                onClick={() => changeStatus("EXECUTED", "Warrant Executed")}
+                disabled={setStatus.isPending}
+              >
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Mark Executed
               </Button>
@@ -199,7 +178,6 @@ export default function WarrantDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Warrant Details */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -209,7 +187,7 @@ export default function WarrantDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {warrant.type === "ARREST" && (
+                  {(warrant.type === "ARREST" || warrant.type === "NBW") && (
                     <div className="flex gap-6">
                       <div className="h-32 w-24 bg-background-tertiary rounded-lg flex items-center justify-center flex-shrink-0">
                         <User className="h-12 w-12 text-foreground-muted" />
@@ -217,57 +195,61 @@ export default function WarrantDetailPage() {
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold text-foreground">{warrant.issuedFor}</h3>
                         <div className="grid grid-cols-2 gap-4 mt-3">
-                          <div>
-                            <p className="text-sm text-foreground-muted">Age</p>
-                            <p className="text-foreground">{warrant.age} years</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-foreground-muted">Gender</p>
-                            <p className="text-foreground">{warrant.gender}</p>
+                          <Field label="Age" value={warrant.age !== null ? `${warrant.age} years` : null} />
+                          <Field label="Gender" value={warrant.gender} />
+                          <div className="col-span-2">
+                            <Field label="Address" value={warrant.address} />
                           </div>
                           <div className="col-span-2">
-                            <p className="text-sm text-foreground-muted">Address</p>
-                            <p className="text-foreground">{warrant.address}</p>
-                          </div>
-                          <div className="col-span-2">
-                            <p className="text-sm text-foreground-muted">Identifying Marks</p>
-                            <p className="text-foreground">{warrant.identifyingMarks || "None recorded"}</p>
+                            <Field label="Identifying Marks" value={warrant.identifyingMarks} />
                           </div>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  <div className="pt-4 border-t border-border">
-                    <h4 className="font-medium text-foreground mb-2">Description</h4>
-                    <p className="text-foreground-muted">{warrant.description}</p>
-                  </div>
+                  {warrant.description && (
+                    <div className="pt-4 border-t border-border">
+                      <h4 className="font-medium text-foreground mb-2">Description</h4>
+                      <p className="text-foreground-muted">{warrant.description}</p>
+                    </div>
+                  )}
 
                   <div className="pt-4 border-t border-border">
                     <h4 className="font-medium text-foreground mb-2">Charges</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {warrant.charges.map((charge, index) => (
-                        <span
-                          key={index}
-                          className="px-3 py-1 text-sm rounded-full bg-error/10 text-error"
-                        >
-                          {charge}
-                        </span>
-                      ))}
-                    </div>
+                    {warrant.charges.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {warrant.charges.map((charge) => (
+                          <span key={charge} className="px-3 py-1 text-sm rounded-full bg-error/10 text-error">
+                            {charge}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-foreground-muted">No charges recorded</p>
+                    )}
                   </div>
 
-                  {warrant.type === "SEARCH" && warrant.searchScope && (
-                    <div className="pt-4 border-t border-border">
-                      <h4 className="font-medium text-foreground mb-2">Search Scope</h4>
-                      <p className="text-foreground-muted">{warrant.searchScope}</p>
+                  {warrant.type === "SEARCH" && (warrant.searchPremises || warrant.searchScope) && (
+                    <div className="pt-4 border-t border-border grid gap-4">
+                      {warrant.searchPremises && <Field label="Premises" value={warrant.searchPremises} />}
+                      {warrant.searchScope && <Field label="Search Scope" value={warrant.searchScope} />}
+                    </div>
+                  )}
+
+                  {warrant.type === "SUMMONS" && (warrant.summonsPurpose || warrant.hearingDate) && (
+                    <div className="pt-4 border-t border-border grid grid-cols-2 gap-4">
+                      <Field label="Purpose" value={warrant.summonsPurpose} />
+                      <Field
+                        label="Hearing Date"
+                        value={warrant.hearingDate ? formatDateTime(warrant.hearingDate) : null}
+                      />
                     </div>
                   )}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Linked Case */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -276,75 +258,38 @@ export default function WarrantDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-background-tertiary rounded-lg">
-                    <p className="text-sm text-foreground-muted">FIR Number</p>
-                    <Link href={`/fir/${warrant.firNumber}`} className="text-accent hover:underline font-mono">
-                      {warrant.firNumber}
-                    </Link>
+                {warrant.caseId || warrant.firId ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-background-tertiary rounded-lg">
+                      <p className="text-sm text-foreground-muted">FIR Number</p>
+                      {warrant.firId ? (
+                        <Link href={`/fir/${warrant.firId}`} className="text-accent hover:underline font-mono">
+                          {warrant.firNumber || "View FIR"}
+                        </Link>
+                      ) : (
+                        <p className="text-foreground-muted">Not linked</p>
+                      )}
+                    </div>
+                    <div className="p-4 bg-background-tertiary rounded-lg">
+                      <p className="text-sm text-foreground-muted">Case Number</p>
+                      {warrant.caseId ? (
+                        <Link href={`/cases/${warrant.caseId}`} className="text-accent hover:underline font-mono">
+                          {warrant.caseNumber || "View case"}
+                        </Link>
+                      ) : (
+                        <p className="text-foreground-muted">Not linked</p>
+                      )}
+                    </div>
                   </div>
-                  <div className="p-4 bg-background-tertiary rounded-lg">
-                    <p className="text-sm text-foreground-muted">Case Number</p>
-                    <Link href={`/cases/${warrant.caseNumber}`} className="text-accent hover:underline font-mono">
-                      {warrant.caseNumber}
-                    </Link>
-                  </div>
-                </div>
+                ) : (
+                  <p className="text-foreground-muted">This warrant is not linked to a case or FIR.</p>
+                )}
               </CardContent>
             </Card>
-
-            {/* Execution History */}
-            {warrant.executionHistory && warrant.executionHistory.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="h-5 w-5" />
-                    Execution History
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {warrant.executionHistory.map((entry, index) => (
-                      <div key={index} className="p-4 bg-background-tertiary rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium text-foreground">{entry.action}</span>
-                          <span className="text-sm text-foreground-muted">{entry.date}</span>
-                        </div>
-                        <p className="text-sm text-foreground-muted">Officer: {entry.officer}</p>
-                        <Badge variant="secondary" className="mt-2">{entry.result}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Seized Items (for executed search warrants) */}
-            {warrant.status === "EXECUTED" && warrant.itemsSeized && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-success" />
-                    Items Seized
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {warrant.itemsSeized.map((item, index) => (
-                      <li key={index} className="flex items-center gap-2 text-foreground">
-                        <div className="h-2 w-2 rounded-full bg-success"></div>
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Court Information */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -353,35 +298,33 @@ export default function WarrantDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm text-foreground-muted">Issued By</p>
-                  <p className="text-foreground font-medium">{warrant.issuedBy}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-foreground-muted">Judge</p>
-                  <p className="text-foreground">{warrant.judgeName}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-foreground-muted">Issue Date</p>
-                  <p className="text-foreground">{warrant.issuedDate}</p>
-                </div>
+                <Field label="Issued By" value={warrant.issuedBy || null} />
+                <Field label="Judge" value={warrant.judgeName} />
+                <Field label="Issue Date" value={formatDate(warrant.issuedDate)} />
                 <div>
                   <p className="text-sm text-foreground-muted">Valid Until</p>
-                  <p className={`font-medium ${new Date(warrant.validUntil) < new Date() ? "text-error" : "text-foreground"}`}>
-                    {warrant.validUntil}
-                  </p>
+                  {warrant.validUntil ? (
+                    <p className={`font-medium ${lapsed && warrant.status === "ACTIVE" ? "text-error" : "text-foreground"}`}>
+                      {formatDate(warrant.validUntil)}
+                      {lapsed && warrant.status === "ACTIVE" && " — validity has lapsed"}
+                    </p>
+                  ) : (
+                    <p className="text-foreground-muted">No expiry recorded</p>
+                  )}
                 </div>
                 {warrant.executedDate && (
                   <div>
-                    <p className="text-sm text-foreground-muted">Executed On</p>
-                    <p className="text-success font-medium">{warrant.executedDate}</p>
+                    <p className="text-sm text-foreground-muted">Executed</p>
+                    <p className="text-success font-medium">
+                      {formatDateTime(warrant.executedDate)}
+                      {warrant.executedByName && ` by ${warrant.executedByName}`}
+                    </p>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Last Known Location (for arrest warrants) */}
-            {warrant.type === "ARREST" && warrant.lastKnownLocation && (
+            {warrant.lastKnownLocation && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -391,74 +334,83 @@ export default function WarrantDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-foreground mb-3">{warrant.lastKnownLocation}</p>
-                  <div className="h-48 rounded-lg overflow-hidden">
-                    <InteractiveMap
-                      markers={[
-                        {
-                          id: warrant.id,
-                          lat: 12.9716,
-                          lng: 77.5946,
-                          title: "Last Known Location",
-                          description: warrant.lastKnownLocation,
-                          type: "alert",
-                        },
-                      ]}
-                      center={[12.9716, 77.5946]}
-                      zoom={14}
-                      height="192px"
-                    />
-                  </div>
+                  {hasLocation ? (
+                    <div className="h-48 rounded-lg overflow-hidden">
+                      <InteractiveMap
+                        markers={[
+                          {
+                            id: warrant.id,
+                            lat: warrant.latitude!,
+                            lng: warrant.longitude!,
+                            title: "Last Known Location",
+                            description: warrant.lastKnownLocation,
+                            type: "alert",
+                          },
+                        ]}
+                        center={[warrant.latitude!, warrant.longitude!]}
+                        zoom={14}
+                        height="192px"
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-sm text-foreground-muted">No coordinates recorded for this location.</p>
+                  )}
                 </CardContent>
               </Card>
             )}
 
-            {/* Quick Actions */}
-            {warrant.status === "ACTIVE" && (
+            {canAct && warrant.status === "ACTIVE" && (
               <Card className="border-warning/30 bg-warning/5">
                 <CardHeader>
-                  <CardTitle className="text-warning">Quick Actions</CardTitle>
+                  <CardTitle className="text-warning">Actions</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {canExecute && (
-                    <Button className="w-full" onClick={handleMarkExecuted}>
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Mark as Executed
-                    </Button>
-                  )}
-                  <Button variant="secondary" className="w-full" onClick={() => toast.success("Activity Logged", "Activity has been logged successfully")}>
-                    <Clock className="h-4 w-4 mr-2" />
-                    Log Activity
+                  <Button
+                    className="w-full"
+                    onClick={() => changeStatus("EXECUTED", "Warrant Executed")}
+                    disabled={setStatus.isPending}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Mark as Executed
                   </Button>
-                  <Button variant="secondary" className="w-full" onClick={() => toast.success("Extension Requested", "Warrant extension request has been submitted to court")}>
-                    Request Extension
+                  <Button
+                    variant="ghost"
+                    className="w-full text-error"
+                    onClick={() => setConfirmCancel(true)}
+                    disabled={setStatus.isPending}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancel Warrant
                   </Button>
-                  {canExecute && (
-                    <Button variant="ghost" className="w-full text-error" onClick={handleCancelWarrant}>
-                      <XCircle className="h-4 w-4 mr-2" />
-                      Cancel Warrant
-                    </Button>
-                  )}
                 </CardContent>
               </Card>
             )}
-
-            {/* Contact */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Phone className="h-5 w-5" />
-                  Contact Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-foreground-muted text-sm mb-2">For warrant-related queries:</p>
-                <p className="font-medium text-foreground">{warrant.issuedBy}</p>
-                <p className="text-foreground-muted">+91 80-2553-0000</p>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </div>
+
+      <Modal
+        isOpen={confirmCancel}
+        onClose={() => setConfirmCancel(false)}
+        title="Cancel this warrant?"
+        description={`${warrant.warrantNumber} will be marked cancelled. The change is recorded in the audit trail.`}
+      >
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setConfirmCancel(false)}>
+            Keep Active
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={setStatus.isPending}
+            onClick={async () => {
+              await changeStatus("CANCELLED", "Warrant Cancelled");
+              setConfirmCancel(false);
+            }}
+          >
+            Cancel Warrant
+          </Button>
+        </ModalFooter>
+      </Modal>
     </DashboardLayout>
   );
 }
