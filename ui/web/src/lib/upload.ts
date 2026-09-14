@@ -1,6 +1,7 @@
 // File upload utility for MinIO/S3 compatible storage
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+// Includes the /api/v1 prefix, matching every other caller of NEXT_PUBLIC_API_URL.
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
 export interface UploadResponse {
   success: boolean;
@@ -27,7 +28,7 @@ export async function getPresignedUploadUrl(
 ): Promise<{ uploadUrl: string; objectKey: string } | null> {
   try {
     const token = localStorage.getItem('accessToken');
-    const response = await fetch(`${API_BASE_URL}/api/v1/upload/presigned`, {
+    const response = await fetch(`${API_BASE_URL}/upload/presigned`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -89,7 +90,7 @@ export async function uploadToMinIO(
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve({
             success: true,
-            url: `${API_BASE_URL}/api/v1/files/${presignedData.objectKey}`,
+            url: `${API_BASE_URL}/files/${presignedData.objectKey}`,
             key: presignedData.objectKey,
           });
         } else {
@@ -156,7 +157,7 @@ export async function uploadViaAPI(
         reject(new Error('Network error'));
       });
 
-      xhr.open('POST', `${API_BASE_URL}/api/v1/upload`);
+      xhr.open('POST', `${API_BASE_URL}/upload`);
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       xhr.send(formData);
     });
