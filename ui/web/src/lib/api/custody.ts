@@ -73,12 +73,20 @@ export interface CustodyEvent {
   signedAt?: string;
   signature?: string;
   hashAtTransfer?: string;
+  /**
+   * Re-derived by the server on every read. `legacy` legs were signed before
+   * signatures became checkable and cannot be re-derived; they are not intact.
+   */
+  signatureStatus: SignatureStatus;
   transferDate: string;
 }
+
+export type SignatureStatus = "valid" | "invalid" | "legacy" | "unsigned";
 
 export interface AccessLogEntry {
   id: string;
   action:
+    | "registered"
     | "viewed"
     | "downloaded"
     | "verified"
@@ -129,6 +137,10 @@ export interface CourtVerification {
   lastVerifiedAt?: string;
   custodyEvents: number;
   custodyChain: CustodyEvent[];
+  /** True only when every leg's signature re-derives. */
+  chainIntact: boolean;
+  invalidLegs: number;
+  unverifiedLegs: number;
   sealIntact: boolean;
   verifiedAt: string;
 }
@@ -229,10 +241,43 @@ export const custodyApi = {
     return response.json();
   },
 
-  /** Absolute URL for downloading the stored file. */
-  downloadUrl: (id: string, purpose?: string) => {
+  /** Registers an item with a signed first custody leg. */
+  register: (body: {
+    description: string;
+    evidenceType: EvidenceType;
+    caseId?: string;
+    firId?: string;
+    collectionLocation?: string;
+    storageLocation?: string;
+    sealNumber?: string;
+  }) => apiClient.post<EvidenceRecord>("/custody", body),
+
+  /**
+   * Downloads the stored file with the officer's credentials — a plain link
+   * cannot carry the bearer token — and recomputes the SHA-256 of the bytes
+   * received, so the copy is checked against the register on arrival.
+   */
+  download: async (
+    id: string,
+    purpose?: string,
+  ): Promise<{ blob: Blob; filename: string; recordedHash: string | null; receivedHash: string }> => {
     const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
-    return `${base}/custody/${id}/file${purpose ? `?purpose=${encodeURIComponent(purpose)}` : ""}`;
+    const token =
+      typeof window !== "undefined" ? window.localStorage.getItem("accessToken") : null;
+    const response = await fetch(
+      `${base}/custody/${id}/file${purpose ? `?purpose=${encodeURIComponent(purpose)}` : ""}`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : undefined },
+    );
+    if (!response.ok) {
+      const problem = await response.json().catch(() => null);
+      throw new Error(problem?.message ?? `Download failed with status ${response.status}`);
+    }
+    const blob = await response.blob();
+    const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+    const receivedHash = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const filename = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? `${id}.bin`;
+    return { blob, filename, recordedHash: response.headers.get("X-Evidence-SHA256"), receivedHash };
   },
 };
 

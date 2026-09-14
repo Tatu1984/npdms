@@ -1,3 +1,5 @@
+import { custodyEn } from "./custody.en";
+
 /**
  * English dictionary — the source of truth for translation keys.
  *
@@ -5,6 +7,8 @@
  * Keys are grouped by area, flattened to dot paths at lookup time.
  */
 export const en = {
+  custodyScreen: custodyEn,
+
   common: {
     appName: "Kolkata Police Digital Intelligence Platform",
     appNameShort: "KP Intelligence",
@@ -103,7 +107,7 @@ export const en = {
       "AI-assisted case workspace: evidence ingestion, entity extraction, timeline, contradictions and gaps",
     custody: "Evidence & Chain of Custody",
     custodyDesc:
-      "Tamper-evident digital evidence with cryptographic hashing and a blockchain-anchored custody ledger",
+      "Tamper-evident digital evidence: SHA-256 taken on storage, re-verified on demand, and a signed, append-only chain of custody",
     videoIntelligence: "Video Intelligence",
     videoIntelligenceDesc:
       "AI layer over existing CCTV: event detection, natural-language search and multi-camera tracking",

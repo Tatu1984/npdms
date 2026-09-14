@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useI18n } from "@/lib/i18n";
-import custodyApi, { type VerificationResult } from "@/lib/api/custody";
+import custodyApi, { type SignatureStatus, type VerificationResult } from "@/lib/api/custody";
 import {
   useAccessLog,
   useAttachEvidenceFile,
@@ -54,14 +54,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { IntegrityBadge } from "../page";
+import { IntegrityBadge } from "../integrity-badge";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { OfficerPicker } from "@/components/platform/pickers";
 import { ForensicRequestDialog } from "@/components/ui/ForensicRequestDialog";
 import { casesApi } from "@/lib/api/cases";
 import { firsApi } from "@/lib/api/firs";
 import { toast } from "@/stores/toastStore";
+import { custodyKeys } from "@/hooks/use-custody";
 
 function formatBytes(bytes?: number) {
   if (!bytes) return "—";
@@ -69,6 +70,17 @@ function formatBytes(bytes?: number) {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+const signatureTone: Record<SignatureStatus, "success" | "danger" | "warning"> = {
+  valid: "success",
+  invalid: "danger",
+  legacy: "warning",
+  unsigned: "warning",
+};
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
 export default function EvidenceDetailPage() {
@@ -93,6 +105,7 @@ export default function EvidenceDetailPage() {
   const [verifyOpen, setVerifyOpen] = React.useState(search.get("verify") === "1");
   const [transferOpen, setTransferOpen] = React.useState(false);
   const [uploadOpen, setUploadOpen] = React.useState(false);
+  const [downloadOpen, setDownloadOpen] = React.useState(false);
   const [forensicOpen, setForensicOpen] = React.useState(false);
 
   const caseId = item.data?.caseId;
@@ -126,16 +139,11 @@ export default function EvidenceDetailPage() {
         <Alert variant="danger">
           <ShieldAlert />
           <div>
-            <AlertTitle>Evidence not available</AlertTitle>
+            <AlertTitle>{t("custodyScreen.detail.notAvailable")}</AlertTitle>
             <AlertDescription>
-              {item.error instanceof Error ? item.error.message : "This item could not be loaded."}
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                onClick={() => router.push("/custody")}
-              >
-                Back to the register
+              {errorMessage(item.error, t("custodyScreen.detail.notLoaded"))}
+              <Button variant="outline" size="sm" className="mt-2" onClick={() => router.push("/custody")}>
+                {t("custodyScreen.detail.back")}
               </Button>
             </AlertDescription>
           </div>
@@ -146,13 +154,16 @@ export default function EvidenceDetailPage() {
 
   const e = item.data;
   const hasFile = Boolean(e.file.objectKey);
+  const legs = chain.data ?? [];
+  const invalidLegs = legs.filter((leg) => leg.signatureStatus === "invalid").length;
+  const unverifiableLegs = legs.filter(
+    (leg) => leg.signatureStatus === "legacy" || leg.signatureStatus === "unsigned",
+  ).length;
 
   const screenMenu: Action[] = [
-    act.link("investigation", "Investigation workspaces", "/investigation", {
-      icon: ClipboardList,
-    }),
-    act.link("malkhana", "Seized property register", "/malkhana", { icon: ClipboardList }),
-    act.link("audit", "Platform audit trail", "/audit", { icon: Fingerprint }),
+    act.link("investigation", t("custodyScreen.list.workspaces"), "/investigation", { icon: ClipboardList }),
+    act.link("malkhana", t("custodyScreen.list.seizedProperty"), "/malkhana", { icon: ClipboardList }),
+    act.link("audit", t("custodyScreen.list.auditTrail"), "/audit", { icon: Fingerprint }),
   ];
 
   return (
@@ -160,29 +171,26 @@ export default function EvidenceDetailPage() {
       <div className="flex flex-col gap-5">
         <PageHeader
           title={e.description}
-          description={`${e.evidenceNumber} · ${e.evidenceType}`}
+          description={`${e.evidenceNumber} · ${t(`custodyScreen.types.${e.evidenceType}`)}`}
           icon={ShieldCheck}
           badge={<PhaseBadge phase={2} />}
-          breadcrumb={[
-            { label: t("modules.custody"), href: "/custody" },
-            { label: e.evidenceNumber },
-          ]}
+          breadcrumb={[{ label: t("modules.custody"), href: "/custody" }, { label: e.evidenceNumber }]}
           actions={
             <>
               {hasFile ? (
                 <Button variant="outline" onClick={() => setVerifyOpen(true)}>
                   <ScanLine className="h-4 w-4" />
-                  Verify integrity
+                  {t("custodyScreen.verify.title")}
                 </Button>
               ) : (
                 <Button variant="outline" onClick={() => setUploadOpen(true)}>
                   <Upload className="h-4 w-4" />
-                  Attach file
+                  {t("custodyScreen.detail.attachFile")}
                 </Button>
               )}
               <Button variant="outline" onClick={() => setForensicOpen(true)}>
                 <FlaskConical className="h-4 w-4" />
-                Request forensic analysis
+                {t("custodyScreen.detail.requestForensic")}
               </Button>
               <Button
                 onClick={() => {
@@ -191,7 +199,7 @@ export default function EvidenceDetailPage() {
                 }}
               >
                 <ArrowLeftRight className="h-4 w-4" />
-                Record transfer
+                {t("custodyScreen.detail.recordTransfer")}
               </Button>
             </>
           }
@@ -202,12 +210,18 @@ export default function EvidenceDetailPage() {
           <Alert variant="danger">
             <ShieldAlert />
             <div>
-              <AlertTitle>Integrity mismatch detected</AlertTitle>
-              <AlertDescription>
-                The stored file no longer matches the digest recorded when it was registered. Do not
-                rely on this item until the discrepancy is investigated, and record what is found.
-                The access log below shows everyone who has handled it.
-              </AlertDescription>
+              <AlertTitle>{t("custodyScreen.detail.brokenTitle")}</AlertTitle>
+              <AlertDescription>{t("custodyScreen.detail.brokenBody")}</AlertDescription>
+            </div>
+          </Alert>
+        )}
+
+        {invalidLegs > 0 && (
+          <Alert variant="danger">
+            <ShieldAlert />
+            <div>
+              <AlertTitle>{t("custodyScreen.chain.brokenTitle", { n: invalidLegs })}</AlertTitle>
+              <AlertDescription>{t("custodyScreen.signature.explainInvalid")}</AlertDescription>
             </div>
           </Alert>
         )}
@@ -216,62 +230,59 @@ export default function EvidenceDetailPage() {
           <Alert variant="warning">
             <ShieldQuestion />
             <div>
-              <AlertTitle>No file attached</AlertTitle>
-              <AlertDescription>
-                This item is registered but carries no file, so there is nothing to verify. Its
-                integrity reads as <em>not yet verified</em> rather than intact.
-              </AlertDescription>
+              <AlertTitle>{t("custodyScreen.detail.noFileTitle")}</AlertTitle>
+              <AlertDescription>{t("custodyScreen.detail.noFileBody")}</AlertDescription>
             </div>
           </Alert>
         )}
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
-            <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="custody">Chain of custody ({chain.data?.length ?? 0})</TabsTrigger>
-            <TabsTrigger value="access">Access log</TabsTrigger>
-            <TabsTrigger value="court">Court verification</TabsTrigger>
+            <TabsTrigger value="details">{t("custodyScreen.detail.tabDetails")}</TabsTrigger>
+            <TabsTrigger value="custody">{t("custodyScreen.detail.tabCustody", { n: legs.length })}</TabsTrigger>
+            <TabsTrigger value="access">{t("custodyScreen.detail.tabAccess")}</TabsTrigger>
+            <TabsTrigger value="court">{t("custodyScreen.detail.tabCourt")}</TabsTrigger>
           </TabsList>
 
           {/* ------------------------------------------------------ details */}
           <TabsContent value="details">
             <div className="grid gap-4 lg:grid-cols-3">
-              <Panel title="Evidence record" className="lg:col-span-2">
+              <Panel title={t("custodyScreen.detail.record")} className="lg:col-span-2">
                 <dl className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Evidence number" value={e.evidenceNumber} mono />
-                  <Field label="Type" value={e.evidenceType} />
-                  <Field label="Collected by" value={e.collectedByName || "—"} />
-                  <Field label="Place of collection" value={e.collectionLocation || "—"} />
-                  <Field label="Storage location" value={e.storageLocation || "—"} />
-                  <Field label="Seal number" value={e.sealNumber || "—"} mono />
-                  <Field label="Condition" value={e.condition || "—"} />
-                  <Field label="Currently held by" value={e.currentHolder || "—"} />
+                  <Field label={t("custodyScreen.detail.number")} value={e.evidenceNumber} mono />
+                  <Field label={t("custodyScreen.register.type")} value={t(`custodyScreen.types.${e.evidenceType}`)} />
+                  <Field label={t("custodyScreen.detail.collectedBy")} value={e.collectedByName || "—"} />
+                  <Field label={t("custodyScreen.register.collectedAt")} value={e.collectionLocation || "—"} />
+                  <Field label={t("custodyScreen.register.storage")} value={e.storageLocation || "—"} />
+                  <Field label={t("custodyScreen.register.seal")} value={e.sealNumber || "—"} mono />
+                  <Field label={t("custodyScreen.detail.condition")} value={e.condition || "—"} />
+                  <Field label={t("custodyScreen.detail.heldBy")} value={e.currentHolder || "—"} />
                   <Field
-                    label="Case"
+                    label={t("custodyScreen.detail.case")}
                     value={
                       caseId ? (
                         <Link href={`/cases/${caseId}`} className="font-mono text-accent hover:underline">
-                          {linkedCase.data?.caseNumber ?? "View case"}
+                          {linkedCase.data?.caseNumber ?? t("custodyScreen.detail.viewCase")}
                         </Link>
                       ) : (
-                        "Not linked"
+                        t("custodyScreen.detail.notLinked")
                       )
                     }
                   />
                   <Field
-                    label="FIR"
+                    label={t("custodyScreen.detail.fir")}
                     value={
                       firId ? (
                         <Link href={`/fir/${firId}`} className="font-mono text-accent hover:underline">
-                          {linkedFir.data?.firNumber ?? "View FIR"}
+                          {linkedFir.data?.firNumber ?? t("custodyScreen.detail.viewFir")}
                         </Link>
                       ) : (
-                        "Not linked"
+                        t("custodyScreen.detail.notLinked")
                       )
                     }
                   />
                   <Field
-                    label="Registered"
+                    label={t("custodyScreen.detail.registered")}
                     value={new Date(e.createdAt).toLocaleString("en-IN")}
                     className="sm:col-span-2"
                   />
@@ -279,7 +290,7 @@ export default function EvidenceDetailPage() {
               </Panel>
 
               <div className="flex flex-col gap-4">
-                <Panel title="Integrity">
+                <Panel title={t("custodyScreen.detail.integrity")}>
                   <div className="flex flex-col gap-3">
                     <IntegrityBadge state={e.integrityState} />
 
@@ -289,76 +300,65 @@ export default function EvidenceDetailPage() {
                           <p className="text-xs uppercase tracking-wide text-foreground-subtle">
                             {e.file.hashAlgorithm ?? "SHA-256"}
                           </p>
-                          <p className="mt-1 break-all font-mono text-xs text-foreground">
+                          <p data-testid="recorded-sha256" className="mt-1 break-all font-mono text-xs text-foreground">
                             {e.file.sha256}
                           </p>
                         </div>
                         <dl className="grid grid-cols-2 gap-3">
-                          <Field label="File" value={e.file.originalFilename || "—"} />
-                          <Field label="Size" value={formatBytes(e.file.fileSize)} />
-                          <Field label="Stored in" value={e.file.storageBackend || "—"} />
+                          <Field label={t("custodyScreen.detail.fileName")} value={e.file.originalFilename || "—"} />
+                          <Field label={t("custodyScreen.detail.size")} value={formatBytes(e.file.fileSize)} />
+                          <Field label={t("custodyScreen.detail.storedIn")} value={e.file.storageBackend || "—"} />
                           <Field
-                            label="Uploaded"
-                            value={
-                              e.file.uploadedAt
-                                ? new Date(e.file.uploadedAt).toLocaleString("en-IN")
-                                : "—"
-                            }
+                            label={t("custodyScreen.detail.uploaded")}
+                            value={e.file.uploadedAt ? new Date(e.file.uploadedAt).toLocaleString("en-IN") : "—"}
                           />
                         </dl>
 
                         <Button variant="outline" size="sm" onClick={() => setVerifyOpen(true)}>
                           <ScanLine className="h-3.5 w-3.5" />
-                          Verify integrity
+                          {t("custodyScreen.verify.title")}
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => window.open(custodyApi.downloadUrl(id), "_blank")}
-                        >
+                        <Button variant="ghost" size="sm" onClick={() => setDownloadOpen(true)}>
                           <Download className="h-3.5 w-3.5" />
-                          Download the file
+                          {t("custodyScreen.detail.download")}
                         </Button>
                       </>
                     ) : (
                       <Button size="sm" onClick={() => setUploadOpen(true)}>
                         <Upload className="h-3.5 w-3.5" />
-                        Attach the file
+                        {t("custodyScreen.upload.title")}
                       </Button>
                     )}
 
                     <p className="rounded-md border border-border bg-surface-sunken px-2.5 py-2 text-xs text-foreground-muted">
-                      The digest was taken as the file streamed into storage. Verification re-reads
-                      the stored bytes and recomputes it — it measures the file as it is now.
+                      {t("custodyScreen.detail.digestNote")}
                     </p>
 
                     {e.blockchainAnchorTx ? (
-                      <Field label="Anchored" value={e.blockchainAnchorTx} mono />
+                      <Field label={t("custodyScreen.detail.anchored")} value={e.blockchainAnchorTx} mono />
                     ) : (
-                      <p className="text-xs text-foreground-subtle">
-                        External anchoring is a later phase. The record is already tamper-evident
-                        without it.
-                      </p>
+                      <p className="text-xs text-foreground-subtle">{t("custodyScreen.detail.anchoringLater")}</p>
                     )}
                   </div>
                 </Panel>
 
                 {(history.data ?? []).length > 0 && (
-                  <Panel title="Verification history" bodyClassName="flex flex-col gap-2">
+                  <Panel title={t("custodyScreen.detail.history")} bodyClassName="flex flex-col gap-2">
                     {(history.data ?? []).slice(0, 6).map((check) => (
-                      <div key={check.id} className="flex items-start justify-between gap-2">
+                      <div key={check.id} data-testid="verification-check" className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <StatusPill tone={check.matched ? "success" : "danger"}>
-                            {check.matched ? "Match" : "Mismatch"}
+                            {check.matched ? t("custodyScreen.detail.match") : t("custodyScreen.detail.mismatch")}
                           </StatusPill>
-                          {check.note && (
-                            <p className="mt-1 truncate text-xs text-foreground-muted">
-                              {check.note}
+                          {!check.matched && check.computedHash && (
+                            <p className="mt-1 break-all font-mono text-[0.65rem] text-danger">
+                              {check.computedHash.slice(0, 24)}…
                             </p>
                           )}
+                          {check.note && <p className="mt-1 truncate text-xs text-foreground-muted">{check.note}</p>}
                         </div>
                         <span className="shrink-0 text-xs text-foreground-subtle">
-                          {new Date(check.createdAt).toLocaleDateString("en-IN")}
+                          {new Date(check.createdAt).toLocaleString("en-IN")}
                         </span>
                       </div>
                     ))}
@@ -371,12 +371,12 @@ export default function EvidenceDetailPage() {
           {/* ------------------------------------------------------ custody */}
           <TabsContent value="custody">
             <Panel
-              title="Chain of custody"
-              description="Every movement is signed, and carries the file's digest at that moment"
+              title={t("custodyScreen.chain.title")}
+              description={t("custodyScreen.chain.description")}
               actions={
                 <Button size="sm" onClick={() => setTransferOpen(true)}>
                   <ArrowLeftRight className="h-3.5 w-3.5" />
-                  Record transfer
+                  {t("custodyScreen.detail.recordTransfer")}
                 </Button>
               }
               bodyClassName="p-0"
@@ -385,53 +385,61 @@ export default function EvidenceDetailPage() {
                 <div className="p-4">
                   <Skeleton className="h-32 w-full" />
                 </div>
+              ) : chain.isError ? (
+                <p className="p-6 text-sm text-danger">{errorMessage(chain.error, t("custodyScreen.detail.notLoaded"))}</p>
               ) : (
-                <ol className="divide-y divide-border">
-                  {(chain.data ?? []).map((event, i) => (
-                    <li key={event.id} className="flex gap-4 p-4">
-                      <div className="flex flex-col items-center">
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-xs font-semibold text-accent">
-                          {event.sequenceNumber}
-                        </span>
-                        {i < (chain.data ?? []).length - 1 && (
-                          <span className="mt-1 w-px flex-1 bg-border" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-medium text-foreground">
-                            {event.fromName || event.fromLocation || "Origin"} →{" "}
-                            {event.toName || event.toLocation}
-                          </p>
-                          <StatusPill tone={event.sealIntact ? "success" : "danger"}>
-                            {event.sealIntact ? "Seal intact" : "Seal broken"}
-                          </StatusPill>
+                <>
+                  {unverifiableLegs > 0 && (
+                    <p className="border-b border-border px-4 py-2 text-xs text-warning">
+                      {t("custodyScreen.chain.unverifiedNote", { n: unverifiableLegs })}
+                    </p>
+                  )}
+                  <ol className="divide-y divide-border">
+                    {legs.map((event, i) => (
+                      <li key={event.id} data-testid="custody-leg" className="flex gap-4 p-4">
+                        <div className="flex flex-col items-center">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-xs font-semibold text-accent">
+                            {event.sequenceNumber}
+                          </span>
+                          {i < legs.length - 1 && <span className="mt-1 w-px flex-1 bg-border" />}
                         </div>
-                        {event.purpose && (
-                          <p className="mt-1 text-sm text-foreground-muted">{event.purpose}</p>
-                        )}
-                        {event.conditionNote && (
-                          <p className="mt-1 text-xs text-foreground-muted">
-                            {event.conditionNote}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-foreground">
+                              {event.fromName || event.fromLocation || t("custodyScreen.chain.origin")} →{" "}
+                              {event.toName || event.toLocation}
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              <StatusPill tone={signatureTone[event.signatureStatus]}>
+                                {t(`custodyScreen.signature.${event.signatureStatus}`)}
+                              </StatusPill>
+                              <StatusPill tone={event.sealIntact ? "success" : "danger"}>
+                                {event.sealIntact ? t("custodyScreen.chain.sealIntact") : t("custodyScreen.chain.sealBroken")}
+                              </StatusPill>
+                            </div>
+                          </div>
+                          {event.purpose && <p className="mt-1 text-sm text-foreground-muted">{event.purpose}</p>}
+                          {event.conditionNote && (
+                            <p className="mt-1 text-xs text-foreground-muted">{event.conditionNote}</p>
+                          )}
+                          <p className="mt-1 text-xs text-foreground-subtle">
+                            {event.signedByName ? `${t("custodyScreen.chain.signedBy", { name: event.signedByName })} · ` : ""}
+                            {new Date(event.transferDate).toLocaleString("en-IN")}
+                            {event.sealNumber ? ` · ${t("custodyScreen.chain.seal", { seal: event.sealNumber })}` : ""}
                           </p>
-                        )}
-                        <p className="mt-1 text-xs text-foreground-subtle">
-                          {event.signedByName ? `Signed by ${event.signedByName} · ` : ""}
-                          {new Date(event.transferDate).toLocaleString("en-IN")}
-                          {event.sealNumber ? ` · seal ${event.sealNumber}` : ""}
-                        </p>
-                        {event.signature && (
-                          <p className="mt-1 break-all font-mono text-[0.65rem] text-foreground-subtle">
-                            signature {event.signature.slice(0, 32)}…
-                            {event.hashAtTransfer
-                              ? ` · file ${event.hashAtTransfer.slice(0, 16)}…`
-                              : ""}
-                          </p>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ol>
+                          {event.signature && (
+                            <p className="mt-1 break-all font-mono text-[0.65rem] text-foreground-subtle">
+                              {t("custodyScreen.chain.signature")} {event.signature.slice(0, 32)}…
+                              {event.hashAtTransfer
+                                ? ` · ${t("custodyScreen.chain.file")} ${event.hashAtTransfer.slice(0, 16)}…`
+                                : ""}
+                            </p>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </>
               )}
             </Panel>
           </TabsContent>
@@ -439,36 +447,38 @@ export default function EvidenceDetailPage() {
           {/* ------------------------------------------------------- access */}
           <TabsContent value="access">
             <Panel
-              title="Access log"
-              description="Who viewed, downloaded, verified or moved this item — including attempts that failed"
+              title={t("custodyScreen.access.title")}
+              description={t("custodyScreen.access.description")}
               bodyClassName="p-0"
             >
               {accessLog.isLoading ? (
                 <div className="p-4">
                   <Skeleton className="h-32 w-full" />
                 </div>
-              ) : (accessLog.data ?? []).length === 0 ? (
-                <p className="p-6 text-center text-sm text-foreground-muted">
-                  Nothing recorded yet.
+              ) : accessLog.isError ? (
+                <p className="p-6 text-sm text-danger">
+                  {errorMessage(accessLog.error, t("custodyScreen.detail.notLoaded"))}
                 </p>
+              ) : (accessLog.data ?? []).length === 0 ? (
+                <p className="p-6 text-center text-sm text-foreground-muted">{t("custodyScreen.access.empty")}</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[38rem] text-sm">
                     <thead>
                       <tr className="border-b border-border bg-surface-sunken">
-                        {["When", "Who", "Action", "Purpose", "Outcome"].map((h) => (
+                        {(["when", "who", "action", "purpose", "outcome"] as const).map((h) => (
                           <th
                             key={h}
                             className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-foreground-subtle"
                           >
-                            {h}
+                            {t(`custodyScreen.access.${h}`)}
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {(accessLog.data ?? []).map((entry) => (
-                        <tr key={entry.id} className="border-b border-border last:border-0">
+                        <tr key={entry.id} data-testid="access-entry" className="border-b border-border last:border-0">
                           <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">
                             {new Date(entry.createdAt).toLocaleString("en-IN")}
                           </td>
@@ -485,21 +495,16 @@ export default function EvidenceDetailPage() {
                             >
                               {entry.action === "viewed" && <Eye className="h-3 w-3" />}
                               {entry.action === "downloaded" && <Download className="h-3 w-3" />}
-                              {entry.action === "transferred" && (
-                                <ArrowLeftRight className="h-3 w-3" />
-                              )}
+                              {entry.action === "transferred" && <ArrowLeftRight className="h-3 w-3" />}
                               {entry.action === "verified" && <ScanLine className="h-3 w-3" />}
                               {entry.action === "uploaded" && <Upload className="h-3 w-3" />}
+                              {entry.action === "court_verified" && <FileCheck2 className="h-3 w-3" />}
                               {entry.action}
                             </StatusPill>
                           </td>
-                          <td className="px-4 py-2.5 text-foreground-muted">
-                            {entry.purpose || "—"}
-                          </td>
+                          <td className="px-4 py-2.5 text-foreground-muted">{entry.purpose || "—"}</td>
                           <td className="px-4 py-2.5">
-                            <StatusPill
-                              tone={entry.outcome === "success" ? "success" : "danger"}
-                            >
+                            <StatusPill tone={entry.outcome === "success" ? "success" : "danger"}>
                               {entry.outcome}
                             </StatusPill>
                           </td>
@@ -514,59 +519,76 @@ export default function EvidenceDetailPage() {
 
           {/* -------------------------------------------------------- court */}
           <TabsContent value="court">
-            <Panel
-              title="Court verification"
-              description="What an authorised court or forensic user sees — identity and integrity, with nothing about the investigation"
-            >
+            <Panel title={t("custodyScreen.court.title")} description={t("custodyScreen.court.description")}>
               {court.isLoading ? (
                 <Skeleton className="h-48 w-full" />
+              ) : court.isError ? (
+                <p className="text-sm text-danger">{errorMessage(court.error, t("custodyScreen.detail.notLoaded"))}</p>
               ) : court.data ? (
                 <div className="flex flex-col gap-4">
                   <dl className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Evidence number" value={court.data.evidenceNumber} mono />
-                    <Field label="Type" value={court.data.evidenceType} />
+                    <Field label={t("custodyScreen.detail.number")} value={court.data.evidenceNumber} mono />
+                    <Field label={t("custodyScreen.register.type")} value={court.data.evidenceType} />
                     <Field
-                      label="Captured"
-                      value={
-                        court.data.capturedAt
-                          ? new Date(court.data.capturedAt).toLocaleString("en-IN")
-                          : "—"
-                      }
+                      label={t("custodyScreen.court.captured")}
+                      value={court.data.capturedAt ? new Date(court.data.capturedAt).toLocaleString("en-IN") : "—"}
                     />
-                    <Field label="Captured by" value={court.data.capturedBy || "—"} />
-                    <Field label="Custody movements" value={court.data.custodyEvents} />
+                    <Field label={t("custodyScreen.court.capturedBy")} value={court.data.capturedBy || "—"} />
+                    <Field label={t("custodyScreen.court.movements")} value={court.data.custodyEvents} />
                     <Field
-                      label="Seal intact throughout"
+                      label={t("custodyScreen.court.sealThroughout")}
                       value={
                         <StatusPill tone={court.data.sealIntact ? "success" : "danger"}>
-                          {court.data.sealIntact ? "Yes" : "No"}
+                          {court.data.sealIntact ? t("custodyScreen.court.yes") : t("custodyScreen.court.no")}
                         </StatusPill>
                       }
                     />
                     <Field
-                      label="Integrity"
+                      label={t("custodyScreen.court.signaturesIntact")}
+                      value={
+                        <span data-testid="court-signatures" className="flex flex-wrap gap-1.5">
+                          {court.data.chainIntact ? (
+                            <StatusPill tone="success">{t("custodyScreen.court.allValid")}</StatusPill>
+                          ) : (
+                            <>
+                              {court.data.invalidLegs > 0 && (
+                                <StatusPill tone="danger">
+                                  {t("custodyScreen.court.invalidLegs", { n: court.data.invalidLegs })}
+                                </StatusPill>
+                              )}
+                              {court.data.unverifiedLegs > 0 && (
+                                <StatusPill tone="warning">
+                                  {t("custodyScreen.court.unverifiedLegs", { n: court.data.unverifiedLegs })}
+                                </StatusPill>
+                              )}
+                            </>
+                          )}
+                        </span>
+                      }
+                    />
+                    <Field
+                      label={t("custodyScreen.detail.integrity")}
                       value={<IntegrityBadge state={court.data.integrityState} />}
-                      className="sm:col-span-2"
                     />
                   </dl>
 
                   {court.data.sha256 && (
                     <div className="rounded-md border border-border bg-surface-sunken p-3">
                       <p className="text-xs uppercase tracking-wide text-foreground-subtle">
-                        {court.data.hashAlgorithm} — compare against your copy
+                        {t("custodyScreen.court.compare", { algorithm: court.data.hashAlgorithm || "SHA-256" })}
                       </p>
                       <p className="mt-1 break-all font-mono text-xs">{court.data.sha256}</p>
                     </div>
                   )}
 
                   <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" onClick={() => setVerifyOpen(true)}>
+                    <Button variant="outline" onClick={() => setVerifyOpen(true)} disabled={!hasFile}>
                       <ScanLine className="h-4 w-4" />
-                      Verify now
+                      {t("custodyScreen.court.verifyNow")}
                     </Button>
                     <Button variant="outline" onClick={() => router.push("/court")}>
                       <FileCheck2 className="h-4 w-4" />
-                      Attach to a court submission
+                      {t("custodyScreen.court.courtDiary")}
                     </Button>
                   </div>
                 </div>
@@ -581,43 +603,43 @@ export default function EvidenceDetailPage() {
         open={verifyOpen}
         onOpenChange={(open) => {
           setVerifyOpen(open);
-          if (!open) setResult(null);
+          if (!open) {
+            setResult(null);
+            verify.reset();
+          }
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Verify integrity</DialogTitle>
-            <DialogDescription>
-              {e.evidenceNumber} — the stored file is read again and its digest recomputed.
-            </DialogDescription>
+            <DialogTitle>{t("custodyScreen.verify.title")}</DialogTitle>
+            <DialogDescription>{t("custodyScreen.verify.description", { number: e.evidenceNumber })}</DialogDescription>
           </DialogHeader>
 
           {result ? (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3" data-testid="verify-result">
               <Alert variant={result.matched ? "success" : "danger"}>
                 {result.matched ? <ShieldCheck /> : <ShieldAlert />}
                 <div>
-                  <AlertTitle>{result.matched ? "Match" : "Mismatch"}</AlertTitle>
+                  <AlertTitle>{result.matched ? t("custodyScreen.detail.match") : t("custodyScreen.detail.mismatch")}</AlertTitle>
                   <AlertDescription>{result.message}</AlertDescription>
                 </div>
               </Alert>
               <div className="rounded-md border border-border bg-surface-sunken p-3">
-                <p className="text-xs uppercase tracking-wide text-foreground-subtle">
-                  Recorded at registration
-                </p>
-                <p className="mt-1 break-all font-mono text-xs">{result.expectedHash || "—"}</p>
+                <p className="text-xs uppercase tracking-wide text-foreground-subtle">{t("custodyScreen.verify.recorded")}</p>
+                <p data-testid="expected-hash" className="mt-1 break-all font-mono text-xs">{result.expectedHash || "—"}</p>
               </div>
               <div className="rounded-md border border-border bg-surface-sunken p-3">
-                <p className="text-xs uppercase tracking-wide text-foreground-subtle">
-                  Computed just now
-                </p>
-                <p className="mt-1 break-all font-mono text-xs">{result.computedHash || "—"}</p>
+                <p className="text-xs uppercase tracking-wide text-foreground-subtle">{t("custodyScreen.verify.computed")}</p>
+                <p data-testid="computed-hash" className="mt-1 break-all font-mono text-xs">{result.computedHash || "—"}</p>
               </div>
             </div>
           ) : (
-            <p className="text-sm text-foreground-muted">
-              This reads the whole file, so a large export may take a moment. The result is kept
-              whatever it shows.
+            <p className="text-sm text-foreground-muted">{t("custodyScreen.verify.intro")}</p>
+          )}
+
+          {verify.isError && (
+            <p role="alert" className="rounded-md border border-danger/25 bg-danger-subtle px-3 py-2 text-xs text-danger">
+              {t("custodyScreen.verify.failed")}: {errorMessage(verify.error, "")}
             </p>
           )}
 
@@ -627,6 +649,7 @@ export default function EvidenceDetailPage() {
               onClick={() => {
                 setVerifyOpen(false);
                 setResult(null);
+                verify.reset();
               }}
             >
               {t("common.close")}
@@ -634,11 +657,17 @@ export default function EvidenceDetailPage() {
             {!result && (
               <Button
                 isLoading={verify.isPending}
-                disabled={verify.isPending}
-                onClick={async () => setResult(await verify.mutateAsync(undefined))}
+                disabled={verify.isPending || !hasFile}
+                onClick={async () => {
+                  try {
+                    setResult(await verify.mutateAsync(undefined));
+                  } catch {
+                    // shown in the dialog
+                  }
+                }}
               >
                 <ScanLine className="h-4 w-4" />
-                Verify
+                {t("custodyScreen.verify.run")}
               </Button>
             )}
           </DialogFooter>
@@ -669,21 +698,37 @@ export default function EvidenceDetailPage() {
         caseId={e.caseId}
         isOpen={forensicOpen}
         onClose={() => setForensicOpen(false)}
-        onSuccess={() => toast.success("Forensic request recorded", `${e.evidenceNumber} sent for analysis`)}
+        onSuccess={() =>
+          toast.success(
+            t("custodyScreen.detail.forensicRecorded"),
+            t("custodyScreen.detail.forensicSent", { number: e.evidenceNumber }),
+          )
+        }
       />
 
       {/* ------------------------------------------------------ upload ---- */}
       <UploadDialog
         open={uploadOpen}
-        onOpenChange={setUploadOpen}
+        onOpenChange={(open) => {
+          setUploadOpen(open);
+          if (!open) attach.reset();
+        }}
         evidenceNumber={e.evidenceNumber}
         pending={attach.isPending}
         error={attach.error}
         onUpload={async (file) => {
-          await attach.mutateAsync(file);
+          try {
+            await attach.mutateAsync(file);
+          } catch {
+            return; // shown in the dialog
+          }
           setUploadOpen(false);
+          // The digest the server just computed is on the details tab.
+          setTab("details");
         }}
       />
+
+      <DownloadDialog open={downloadOpen} onOpenChange={setDownloadOpen} evidenceId={e.id} />
     </DashboardLayout>
   );
 }
@@ -735,83 +780,80 @@ function TransferDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Record custody transfer</DialogTitle>
+          <DialogTitle>{t("custodyScreen.transfer.title")}</DialogTitle>
           <DialogDescription>
             {evidenceNumber}
-            {currentHolder ? ` — currently with ${currentHolder}` : ""}
+            {currentHolder ? ` — ${t("custodyScreen.transfer.currentlyWith", { holder: currentHolder })}` : ""}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-3">
           <div className="grid gap-1.5">
-            <Label>Receiving officer</Label>
+            <Label>{t("custodyScreen.transfer.officer")}</Label>
             {toOfficer ? (
               <div className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
                 <span className="text-foreground">{toOfficer.name}</span>
                 <button type="button" className="text-xs text-accent hover:underline" onClick={() => setToOfficer(null)}>
-                  Change
+                  {t("custodyScreen.transfer.change")}
                 </button>
               </div>
             ) : (
               <OfficerPicker
                 onChange={(id, name) => setToOfficer({ id, name })}
-                emptyLabel="Leave empty when handing to a laboratory or court"
+                emptyLabel={t("custodyScreen.transfer.officerEmpty")}
               />
             )}
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="tr-to">Destination</Label>
+            <Label htmlFor="tr-to">{t("custodyScreen.transfer.destination")}</Label>
             <Input
               id="tr-to"
               value={toLocation}
               onChange={(v: string) => setToLocation(v)}
-              placeholder={toOfficer ? "e.g. Malkhana, Bhowanipore PS" : "Laboratory, court or storage location"}
+              placeholder={
+                toOfficer ? t("custodyScreen.transfer.destinationOfficer") : t("custodyScreen.transfer.destinationPlace")
+              }
             />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="tr-purpose">Purpose</Label>
+            <Label htmlFor="tr-purpose">{t("custodyScreen.transfer.purpose")}</Label>
             <Textarea
               id="tr-purpose"
               rows={2}
               value={purpose}
               onChange={(v: string) => setPurpose(v)}
-              placeholder="Why the item is moving"
+              placeholder={t("custodyScreen.transfer.purposePlaceholder")}
             />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="tr-seal">Seal number</Label>
-            <Input
-              id="tr-seal"
-              value={sealNumber}
-              onChange={(v: string) => setSealNumber(v)}
-            />
+            <Label htmlFor="tr-seal">{t("custodyScreen.transfer.seal")}</Label>
+            <Input id="tr-seal" value={sealNumber} onChange={(v: string) => setSealNumber(v)} />
           </div>
           <label className="flex items-center gap-2 text-sm text-foreground-muted">
             <input
               type="checkbox"
               checked={sealIntact}
-              onChange={(e) => setSealIntact(e.target.checked)}
+              onChange={(event) => setSealIntact(event.target.checked)}
               className="accent-[var(--accent)]"
             />
-            Seal verified intact at handover
+            {t("custodyScreen.transfer.sealVerified")}
           </label>
-          {error instanceof Error && (
-            <p className="rounded-md border border-danger/25 bg-danger-subtle px-3 py-2 text-xs text-danger">
-              {error.message}
-            </p>
-          )}
           {!sealIntact && (
             <div className="grid gap-1.5">
-              <Label htmlFor="tr-cond">Condition note</Label>
+              <Label htmlFor="tr-cond">{t("custodyScreen.transfer.conditionNote")}</Label>
               <Textarea
                 id="tr-cond"
                 rows={2}
                 value={conditionNote}
-                onChange={(v: string) => setConditionNote(v)
-                }
-                placeholder="A broken seal is recorded against the item — describe what was found"
+                onChange={(v: string) => setConditionNote(v)}
+                placeholder={t("custodyScreen.transfer.conditionPlaceholder")}
               />
             </div>
+          )}
+          {error instanceof Error && (
+            <p role="alert" className="rounded-md border border-danger/25 bg-danger-subtle px-3 py-2 text-xs text-danger">
+              {error.message}
+            </p>
           )}
         </div>
 
@@ -833,7 +875,7 @@ function TransferDialog({
               })
             }
           >
-            Sign and record
+            {t("custodyScreen.transfer.submit")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -868,11 +910,8 @@ function UploadDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Attach the file</DialogTitle>
-          <DialogDescription>
-            {evidenceNumber} — the SHA-256 is computed by the server as the file is stored. A file
-            can be attached once; a correction is registered as a new item with its own history.
-          </DialogDescription>
+          <DialogTitle>{t("custodyScreen.upload.title")}</DialogTitle>
+          <DialogDescription>{t("custodyScreen.upload.description", { number: evidenceNumber })}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
@@ -884,15 +923,16 @@ function UploadDialog({
                 <p className="text-xs text-foreground-muted">{formatBytes(file.size)}</p>
               </>
             ) : (
-              <p className="text-sm text-foreground">No file chosen</p>
+              <p className="text-sm text-foreground">{t("custodyScreen.upload.noFile")}</p>
             )}
             <Button variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
-              Browse files
+              {t("custodyScreen.upload.browse")}
             </Button>
             <input
               ref={inputRef}
               type="file"
               hidden
+              data-testid="evidence-file-input"
               onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
                 setFile(event.target.files?.[0] ?? null);
                 event.target.value = "";
@@ -901,7 +941,7 @@ function UploadDialog({
           </div>
 
           {error instanceof Error && (
-            <p className="rounded-md border border-danger/25 bg-danger-subtle px-3 py-2 text-xs text-danger">
+            <p role="alert" className="rounded-md border border-danger/25 bg-danger-subtle px-3 py-2 text-xs text-danger">
               {error.message}
             </p>
           )}
@@ -911,14 +951,123 @@ function UploadDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button
-            disabled={!file || pending}
-            isLoading={pending}
-            onClick={() => file && onUpload(file)}
-          >
+          <Button disabled={!file || pending} isLoading={pending} onClick={() => file && onUpload(file)}>
             <Lock className="h-4 w-4" />
-            Store and hash
+            {t("custodyScreen.upload.submit")}
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Downloads with the officer's credentials, records the purpose in the access
+ * log, and recomputes the SHA-256 of the copy received so a corrupted or
+ * substituted copy is caught on arrival rather than in court.
+ */
+function DownloadDialog({
+  open,
+  onOpenChange,
+  evidenceId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  evidenceId: string;
+}) {
+  const { t } = useI18n();
+  const qc = useQueryClient();
+  const [purpose, setPurpose] = React.useState("");
+  const [pending, setPending] = React.useState(false);
+  const [failure, setFailure] = React.useState<string | null>(null);
+  const [outcome, setOutcome] = React.useState<{ recorded: string | null; received: string } | null>(null);
+
+  React.useEffect(() => {
+    if (open) {
+      setPurpose("");
+      setFailure(null);
+      setOutcome(null);
+    }
+  }, [open]);
+
+  const run = async () => {
+    setPending(true);
+    setFailure(null);
+    try {
+      const { blob, filename, recordedHash, receivedHash } = await custodyApi.download(
+        evidenceId,
+        purpose.trim() || undefined,
+      );
+      setOutcome({ recorded: recordedHash, received: receivedHash });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      qc.invalidateQueries({ queryKey: custodyKeys.accessLog(evidenceId) });
+    } catch (error) {
+      setFailure(errorMessage(error, t("custodyScreen.download.failed")));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const matched = outcome !== null && outcome.recorded === outcome.received;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("custodyScreen.download.title")}</DialogTitle>
+          <DialogDescription>{t("custodyScreen.download.description")}</DialogDescription>
+        </DialogHeader>
+
+        {outcome ? (
+          <div className="flex flex-col gap-3" data-testid="download-result">
+            <Alert variant={matched ? "success" : "danger"}>
+              {matched ? <ShieldCheck /> : <ShieldAlert />}
+              <div>
+                <AlertTitle>{matched ? t("custodyScreen.download.matched") : t("custodyScreen.download.mismatched")}</AlertTitle>
+              </div>
+            </Alert>
+            <div className="rounded-md border border-border bg-surface-sunken p-3">
+              <p className="text-xs uppercase tracking-wide text-foreground-subtle">{t("custodyScreen.download.recorded")}</p>
+              <p className="mt-1 break-all font-mono text-xs">{outcome.recorded ?? "—"}</p>
+            </div>
+            <div className="rounded-md border border-border bg-surface-sunken p-3">
+              <p className="text-xs uppercase tracking-wide text-foreground-subtle">{t("custodyScreen.download.received")}</p>
+              <p data-testid="received-hash" className="mt-1 break-all font-mono text-xs">{outcome.received}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-1.5">
+            <Label htmlFor="dl-purpose">{t("custodyScreen.download.purpose")}</Label>
+            <Input
+              id="dl-purpose"
+              value={purpose}
+              onChange={(v: string) => setPurpose(v)}
+              placeholder={t("custodyScreen.download.purposePlaceholder")}
+            />
+          </div>
+        )}
+
+        {failure && (
+          <p role="alert" className="rounded-md border border-danger/25 bg-danger-subtle px-3 py-2 text-xs text-danger">
+            {failure}
+          </p>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {t("common.close")}
+          </Button>
+          {!outcome && (
+            <Button isLoading={pending} disabled={pending} onClick={run}>
+              <Download className="h-4 w-4" />
+              {t("custodyScreen.download.submit")}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

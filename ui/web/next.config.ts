@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
   turbopack: {}, // Explicitly set empty turbopack config to silence build warnings
+  // Lets a second dev server run from the same checkout (e.g. against another
+  // API) without contending for the .next lock. Defaults to .next.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
 };
 
 export default withPWA({

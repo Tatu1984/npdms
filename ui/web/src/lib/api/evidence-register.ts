@@ -68,6 +68,7 @@ export const evidenceApi = {
 
   get: (id: string) => apiClient.get<EvidenceRecord>(`/evidence/${id}`),
 
+  /** Registers through the custody register, which signs the first leg. */
   create: (body: {
     description: string;
     evidenceType: EvidenceType;
@@ -76,12 +77,9 @@ export const evidenceApi = {
     storageLocation?: string;
     containerType?: string;
     sealNumber?: string;
-    condition?: string;
-    status?: EvidenceStatus;
     caseId?: string;
     firId?: string;
-    requiresForensic?: boolean;
-  }) => apiClient.post<EvidenceRecord>("/evidence", body),
+  }) => apiClient.post<EvidenceRecord>("/custody", body),
 };
 
 export default evidenceApi;

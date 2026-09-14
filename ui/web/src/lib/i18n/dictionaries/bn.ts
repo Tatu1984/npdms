@@ -1,4 +1,5 @@
 import type { Dictionary } from "./en";
+import { custodyBn } from "./custody.bn";
 
 /**
  * Bengali dictionary.
@@ -12,6 +13,8 @@ import type { Dictionary } from "./en";
 type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] };
 
 export const bn: DeepPartial<Dictionary> = {
+  custodyScreen: custodyBn,
+
   common: {
     appName: "কলকাতা পুলিশ ডিজিটাল ইন্টেলিজেন্স প্ল্যাটফর্ম",
     appNameShort: "কেপি ইন্টেলিজেন্স",
@@ -110,7 +113,7 @@ export const bn: DeepPartial<Dictionary> = {
       "এআই-সহায়ক মামলা কর্মক্ষেত্র: সাক্ষ্য সংগ্রহ, তথ্য নিষ্কাশন, সময়রেখা, অসঙ্গতি ও ঘাটতি চিহ্নিতকরণ",
     custody: "সাক্ষ্যপ্রমাণ ও হেফাজত শৃঙ্খল",
     custodyDesc:
-      "ক্রিপ্টোগ্রাফিক হ্যাশ ও ব্লকচেইন-নোঙরকৃত হেফাজত খতিয়ান সহ অপরিবর্তনীয় ডিজিটাল সাক্ষ্য",
+      "পরিবর্তন-প্রমাণযোগ্য ডিজিটাল সাক্ষ্য: সংরক্ষণের সময় SHA-256, চাহিদামতো পুনর্যাচাই, এবং স্বাক্ষরিত ও কেবল-সংযোজনযোগ্য হেফাজত শৃঙ্খল",
     videoIntelligence: "ভিডিও ইন্টেলিজেন্স",
     videoIntelligenceDesc:
       "বিদ্যমান সিসিটিভির উপর এআই স্তর: ঘটনা শনাক্তকরণ, স্বাভাবিক ভাষায় অনুসন্ধান ও বহু-ক্যামেরা অনুসরণ",

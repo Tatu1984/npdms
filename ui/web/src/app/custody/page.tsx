@@ -16,10 +16,10 @@ import {
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useI18n } from "@/lib/i18n";
-import type { EvidenceRecord, IntegrityState } from "@/lib/api/custody";
+import custodyApi, { type EvidenceRecord, type EvidenceType } from "@/lib/api/custody";
 import { useCustodyStats, useEvidenceRegister } from "@/hooks/use-custody";
-import { evidenceApi, type EvidenceType } from "@/lib/api/evidence-register";
 import { DataTable, type Column } from "@/components/platform/data-table";
+import { IntegrityBadge } from "./integrity-badge";
 import { act, type Action } from "@/components/platform/actions";
 import {
   EmptyState,
@@ -48,34 +48,7 @@ import { RecordLinkPicker, type RecordLink } from "@/components/platform/pickers
 import { casesApi } from "@/lib/api/cases";
 import { firsApi } from "@/lib/api/firs";
 
-/**
- * Integrity is shown with three distinct states, never two. "Not yet checked"
- * must never be presented as "intact".
- */
-export function IntegrityBadge({ state }: { state: IntegrityState }) {
-  if (state === "verified") {
-    return (
-      <StatusPill tone="success">
-        <ShieldCheck className="h-3 w-3" />
-        Hash verified
-      </StatusPill>
-    );
-  }
-  if (state === "broken") {
-    return (
-      <StatusPill tone="danger">
-        <ShieldAlert className="h-3 w-3" />
-        Integrity mismatch
-      </StatusPill>
-    );
-  }
-  return (
-    <StatusPill tone="warning">
-      <ShieldQuestion className="h-3 w-3" />
-      Not yet verified
-    </StatusPill>
-  );
-}
+const EVIDENCE_TYPES: EvidenceType[] = ["DIGITAL", "DOCUMENTARY", "PHYSICAL", "BIOLOGICAL", "TRACE", "TESTIMONIAL"];
 
 function formatBytes(bytes?: number) {
   if (!bytes) return "—";
@@ -112,8 +85,9 @@ export default function CustodyPage() {
   const columns: Column<EvidenceRecord>[] = [
     {
       id: "evidence",
-      header: "Evidence",
+      header: t("custodyScreen.list.evidence"),
       sortValue: (e) => e.evidenceNumber,
+      searchValue: (e) => [e.evidenceNumber, e.description, e.sealNumber].filter(Boolean).join(" "),
       cell: (e) => (
         <div className="min-w-0">
           <p className="truncate font-medium text-foreground">{e.description}</p>
@@ -123,14 +97,14 @@ export default function CustodyPage() {
     },
     {
       id: "type",
-      header: "Type",
+      header: t("custodyScreen.list.type"),
       hideBelow: "sm",
       sortValue: (e) => e.evidenceType,
-      cell: (e) => <StatusPill>{e.evidenceType}</StatusPill>,
+      cell: (e) => <StatusPill>{t(`custodyScreen.types.${e.evidenceType}`)}</StatusPill>,
     },
     {
       id: "file",
-      header: "File",
+      header: t("custodyScreen.list.file"),
       hideBelow: "lg",
       sortValue: (e) => e.file.fileSize ?? 0,
       cell: (e) =>
@@ -143,26 +117,27 @@ export default function CustodyPage() {
             </p>
           </div>
         ) : (
-          <span className="text-xs text-foreground-subtle">No file attached</span>
+          <span className="text-xs text-foreground-subtle">{t("custodyScreen.list.noFile")}</span>
         ),
     },
     {
       id: "custody",
-      header: "Held by",
+      header: t("custodyScreen.list.heldBy"),
       hideBelow: "md",
       sortValue: (e) => e.currentHolder ?? "",
       cell: (e) => (
         <div className="min-w-0">
           <p className="truncate text-sm">{e.currentHolder || "—"}</p>
           <p className="text-xs text-foreground-subtle">
-            {e.transferCount} {e.transferCount === 1 ? "movement" : "movements"}
+            {e.transferCount}{" "}
+            {e.transferCount === 1 ? t("custodyScreen.list.movement") : t("custodyScreen.list.movements")}
           </p>
         </div>
       ),
     },
     {
       id: "integrity",
-      header: "Integrity",
+      header: t("custodyScreen.list.integrity"),
       sortValue: (e) => e.integrityState,
       cell: (e) => (
         <div className="flex flex-col items-start gap-1">
@@ -179,14 +154,14 @@ export default function CustodyPage() {
 
   const rowActions = (e: EvidenceRecord): Action[] => [
     act.label("h", e.evidenceNumber),
-    act.link("open", "Open evidence record", `/custody/${e.id}`, { icon: ShieldCheck }),
-    act.link("chain", "Chain of custody", `/custody/${e.id}?tab=custody`, { icon: ArrowLeftRight }),
-    act.link("access", "Access log", `/custody/${e.id}?tab=access`, { icon: Fingerprint }),
+    act.link("open", t("custodyScreen.list.openRecord"), `/custody/${e.id}`, { icon: ShieldCheck }),
+    act.link("chain", t("custodyScreen.list.chain"), `/custody/${e.id}?tab=custody`, { icon: ArrowLeftRight }),
+    act.link("access", t("custodyScreen.list.accessLog"), `/custody/${e.id}?tab=access`, { icon: Fingerprint }),
     act.sep("s1"),
-    act.link("verify", "Verify integrity", `/custody/${e.id}?verify=1`, { icon: ScanLine }),
-    act.link("court", "Court verification", `/custody/${e.id}?tab=court`, { icon: FileCheck2 }),
+    act.link("verify", t("custodyScreen.list.verify"), `/custody/${e.id}?verify=1`, { icon: ScanLine }),
+    act.link("court", t("custodyScreen.list.court"), `/custody/${e.id}?tab=court`, { icon: FileCheck2 }),
     act.sep("s2"),
-    act.link("malkhana", "Seized property register", "/malkhana", { icon: ClipboardList }),
+    act.link("malkhana", t("custodyScreen.list.seizedProperty"), "/malkhana", { icon: ClipboardList }),
   ];
 
   return (
@@ -202,19 +177,19 @@ export default function CustodyPage() {
             <>
               <Button variant="outline" onClick={() => router.push("/malkhana")}>
                 <ClipboardList className="h-4 w-4" />
-                Malkhana
+                {t("custodyScreen.list.malkhana")}
               </Button>
               <Button onClick={() => setRegisterOpen(true)}>
                 <FileUp className="h-4 w-4" />
-                Register evidence
+                {t("custodyScreen.register.title")}
               </Button>
             </>
           }
           menu={[
-            act.link("investigation", "Investigation workspaces", "/investigation", {
+            act.link("investigation", t("custodyScreen.list.workspaces"), "/investigation", {
               icon: ClipboardList,
             }),
-            act.link("audit", "Platform audit trail", "/audit", { icon: Fingerprint }),
+            act.link("audit", t("custodyScreen.list.auditTrail"), "/audit", { icon: Fingerprint }),
           ]}
         />
 
@@ -222,13 +197,8 @@ export default function CustodyPage() {
           <Alert variant="danger">
             <ShieldAlert />
             <div>
-              <AlertTitle>
-                {broken} {broken === 1 ? "item fails" : "items fail"} integrity verification
-              </AlertTitle>
-              <AlertDescription>
-                The stored file no longer matches the digest recorded when it was registered. Open
-                the record to see when the mismatch was first detected and who handled the item.
-              </AlertDescription>
+              <AlertTitle>{t("custodyScreen.list.brokenTitle", { n: broken })}</AlertTitle>
+              <AlertDescription>{t("custodyScreen.list.brokenBody")}</AlertDescription>
             </div>
           </Alert>
         )}
@@ -237,9 +207,9 @@ export default function CustodyPage() {
           <Alert variant="danger">
             <ShieldAlert />
             <div>
-              <AlertTitle>Could not load the evidence register</AlertTitle>
+              <AlertTitle>{t("custodyScreen.list.loadFailed")}</AlertTitle>
               <AlertDescription>
-                {error instanceof Error ? error.message : "The API did not respond."}
+                {error instanceof Error ? error.message : t("custodyScreen.list.noResponse")}
                 <Button variant="outline" size="sm" className="mt-2" onClick={() => refetch()}>
                   {t("common.retry")}
                 </Button>
@@ -249,22 +219,22 @@ export default function CustodyPage() {
         )}
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <StatTile label="Evidence items" value={stats.data?.total ?? 0} icon={ShieldCheck} />
-          <StatTile label="With a file" value={stats.data?.withFile ?? 0} icon={HardDrive} />
+          <StatTile label={t("custodyScreen.list.statItems")} value={stats.data?.total ?? 0} icon={ShieldCheck} />
+          <StatTile label={t("custodyScreen.list.statWithFile")} value={stats.data?.withFile ?? 0} icon={HardDrive} />
           <StatTile
-            label="Hash verified"
+            label={t("custodyScreen.list.statVerified")}
             value={stats.data?.verified ?? 0}
             icon={ShieldCheck}
             tone="success"
           />
           <StatTile
-            label="Not yet verified"
+            label={t("custodyScreen.list.statPending")}
             value={stats.data?.pending ?? 0}
             icon={ShieldQuestion}
             tone="warning"
           />
           <StatTile
-            label="Integrity mismatch"
+            label={t("custodyScreen.list.statBroken")}
             value={stats.data?.broken ?? 0}
             icon={ShieldAlert}
             tone="danger"
@@ -277,15 +247,15 @@ export default function CustodyPage() {
               <Skeleton key={i} className="h-16 w-full" />
             ))}
           </div>
-        ) : items.length === 0 ? (
+        ) : items.length === 0 && !isError ? (
           <EmptyState
-            title="The evidence register is empty"
-            description="Register an item, then attach its file. The digest is taken as the file is stored, and every later check compares against it."
+            title={t("custodyScreen.list.emptyTitle")}
+            description={t("custodyScreen.list.emptyBody")}
             icon={FileUp}
             action={
               <Button onClick={() => setRegisterOpen(true)}>
                 <FileUp className="h-4 w-4" />
-                Register evidence
+                {t("custodyScreen.register.title")}
               </Button>
             }
           />
@@ -296,7 +266,7 @@ export default function CustodyPage() {
             rowKey={(e) => e.id}
             rowHref={(e) => `/custody/${e.id}`}
             rowActions={rowActions}
-            searchPlaceholder="Search by evidence number, description or seal…"
+            searchPlaceholder={t("custodyScreen.list.search")}
           />
         )}
       </div>
@@ -380,19 +350,18 @@ function RegisterEvidenceDialog({
     setPending(true);
     setFailure(null);
     try {
-      const created = await evidenceApi.create({
+      const created = await custodyApi.register({
         description: description.trim(),
         evidenceType,
         collectionLocation: collectionLocation.trim() || undefined,
         storageLocation: storageLocation.trim() || undefined,
         sealNumber: sealNumber.trim() || undefined,
-        status: "IN_CUSTODY",
         caseId: link?.kind === "case" ? link.id : undefined,
         firId: link?.kind === "case" ? link.firId || undefined : link?.id,
       });
       onRegistered(created.id);
     } catch (e) {
-      setFailure(e instanceof Error ? e.message : "Registration failed");
+      setFailure(e instanceof Error ? e.message : t("custodyScreen.register.failed"));
     } finally {
       setPending(false);
     }
@@ -402,76 +371,65 @@ function RegisterEvidenceDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Register evidence</DialogTitle>
-          <DialogDescription>
-            Creates the register entry. Attach the file on the next screen — its SHA-256 is computed
-            as it is stored.
-          </DialogDescription>
+          <DialogTitle>{t("custodyScreen.register.title")}</DialogTitle>
+          <DialogDescription>{t("custodyScreen.register.description")}</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-3">
           <div className="grid gap-1.5">
-            <Label>Case or FIR</Label>
+            <Label>{t("custodyScreen.register.link")}</Label>
             <RecordLinkPicker value={link} onChange={setLink} />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="ev-desc">Description</Label>
+            <Label htmlFor="ev-desc">{t("custodyScreen.register.itemDescription")}</Label>
             <Textarea
               id="ev-desc"
               rows={2}
               value={description}
               onChange={(v: string) => setDescription(v)}
-              placeholder="What the item is"
+              placeholder={t("custodyScreen.register.itemDescriptionPlaceholder")}
             />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="ev-type">Type</Label>
+            <Label htmlFor="ev-type">{t("custodyScreen.register.type")}</Label>
             <select
               id="ev-type"
               value={evidenceType}
               onChange={(e) => setEvidenceType(e.target.value as EvidenceType)}
               className="h-10 rounded-md border border-border bg-surface px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <option value="DIGITAL">Digital</option>
-              <option value="DOCUMENTARY">Documentary</option>
-              <option value="PHYSICAL">Physical</option>
-              <option value="BIOLOGICAL">Biological</option>
-              <option value="TRACE">Trace</option>
-              <option value="TESTIMONIAL">Testimonial</option>
+              {EVIDENCE_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {t(`custodyScreen.types.${type}`)}
+                </option>
+              ))}
             </select>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="grid gap-1.5">
-              <Label htmlFor="ev-where">Place of collection</Label>
-              <Input
-                id="ev-where"
-                value={collectionLocation}
-                onChange={(v: string) => setCollectionLocation(v)
-                }
-              />
+              <Label htmlFor="ev-where">{t("custodyScreen.register.collectedAt")}</Label>
+              <Input id="ev-where" value={collectionLocation} onChange={(v: string) => setCollectionLocation(v)} />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="ev-store">Storage location</Label>
+              <Label htmlFor="ev-store">{t("custodyScreen.register.storage")}</Label>
               <Input
                 id="ev-store"
                 value={storageLocation}
-                onChange={(v: string) => setStorageLocation(v)
-                }
-                placeholder="e.g. Malkhana — Bhowanipore PS"
+                onChange={(v: string) => setStorageLocation(v)}
+                placeholder={t("custodyScreen.register.storagePlaceholder")}
               />
             </div>
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="ev-seal">Seal number</Label>
-            <Input
-              id="ev-seal"
-              value={sealNumber}
-              onChange={(v: string) => setSealNumber(v)}
-            />
+            <Label htmlFor="ev-seal">{t("custodyScreen.register.seal")}</Label>
+            <Input id="ev-seal" value={sealNumber} onChange={(v: string) => setSealNumber(v)} />
           </div>
 
           {failure && (
-            <p className="rounded-md border border-danger/25 bg-danger-subtle px-3 py-2 text-xs text-danger">
+            <p
+              role="alert"
+              className="rounded-md border border-danger/25 bg-danger-subtle px-3 py-2 text-xs text-danger"
+            >
               {failure}
             </p>
           )}
@@ -482,7 +440,7 @@ function RegisterEvidenceDialog({
             {t("common.cancel")}
           </Button>
           <Button disabled={!description.trim() || !link || pending} isLoading={pending} onClick={submit}>
-            Register
+            {t("custodyScreen.register.submit")}
           </Button>
         </DialogFooter>
       </DialogContent>

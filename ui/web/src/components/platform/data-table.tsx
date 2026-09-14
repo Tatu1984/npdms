@@ -14,8 +14,10 @@ export interface Column<T> {
   header: string;
   /** Cell renderer. Keep it presentational — row clicks are handled by the table. */
   cell: (row: T) => React.ReactNode;
-  /** Value used for sorting and the built-in search filter. */
+  /** Value used for sorting and, unless `searchValue` is given, the built-in search filter. */
   sortValue?: (row: T) => string | number;
+  /** Text the built-in search matches, when it should cover more than the sort value. */
+  searchValue?: (row: T) => string;
   className?: string;
   headerClassName?: string;
   align?: "left" | "right" | "center";
@@ -75,7 +77,7 @@ export function DataTable<T>({
       const q = query.trim().toLowerCase();
       out = out.filter((row) =>
         columns.some((col) => {
-          const value = col.sortValue?.(row);
+          const value = col.searchValue?.(row) ?? col.sortValue?.(row);
           return value !== undefined && String(value).toLowerCase().includes(q);
         }),
       );
