@@ -1,386 +1,455 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+import { useParams, useRouter } from "next/navigation";
 import {
-  ArrowLeft,
-  User,
-  Car,
-  MapPin,
-  Calendar,
-  FileText,
-  Flag,
-  Eye,
-  Edit,
-  Clock,
   AlertTriangle,
+  ArrowLeft,
   CheckCircle,
-  Camera,
-  Phone,
-  Printer,
-  Share2,
+  Clock,
+  FileText,
+  Loader2,
+  MapPin,
+  Plus,
+  ShieldCheck,
+  User,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { useLookoutStore } from "@/stores/lookoutStore";
-import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { hasMinimumRole, useAuthStore } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
+import {
+  useLookout,
+  useLookoutSightings,
+  useReportSighting,
+  useResolveLookout,
+  useVerifySighting,
+} from "@/hooks/use-lookouts";
+import { ApiClientError } from "@/lib/api/client";
+import type { Lookout, LookoutSighting } from "@/lib/api/lookouts";
+import { formatDateTime } from "@/lib/utils";
+import { lookoutStatusConfig, lookoutTypeLabel, priorityVariant } from "../labels";
 
-function getTypeBadgeVariant(type: string) {
-  const variants: Record<string, string> = {
-    WANTED: "error",
-    MISSING: "warning",
-    STOLEN_VEHICLE: "info",
-    SUSPECT: "secondary",
-    WITNESS: "success",
-  };
-  return variants[type] || "secondary";
-}
+const InteractiveMap = dynamic(() => import("@/components/ui/Map").then((mod) => mod.InteractiveMap), {
+  ssr: false,
+  loading: () => <div className="h-64 bg-background-tertiary rounded-lg" />,
+});
 
-function getPriorityBadgeVariant(priority: string) {
-  const variants: Record<string, string> = {
-    LOW: "low",
-    NORMAL: "normal",
-    HIGH: "high",
-    CRITICAL: "critical",
-  };
-  return variants[priority] || "secondary";
-}
+const message = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
 export default function LookoutDetailPage() {
-  const params = useParams();
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuthStore();
-  const { lookouts, sightings, reportSighting, updateLookout } = useLookoutStore();
+  const lookout = useLookout(params.id);
+  const sightings = useLookoutSightings(params.id);
+  const verify = useVerifySighting();
+  const [showReport, setShowReport] = useState(false);
+  const [showResolve, setShowResolve] = useState(false);
 
-  const lookout = lookouts.find((l) => l.id === params.id);
-  const lookoutSightings = sightings.filter((s) => s.lookoutId === lookout?.lookoutId);
+  // Role floors match the routes: resolve SI+, verify ASI+, report any officer.
+  const canResolve = Boolean(user && hasMinimumRole(user.role, "SI"));
+  const canVerify = Boolean(user && hasMinimumRole(user.role, "ASI"));
 
-  const canEdit = user && hasMinimumRole(user.role, "SI");
-  const canClose = user && hasMinimumRole(user.role, "SHO");
-
-  if (!lookout) {
+  if (lookout.isPending) {
     return (
       <DashboardLayout>
-        <div className="flex flex-col items-center justify-center h-96">
-          <AlertTriangle className="h-12 w-12 text-warning mb-4" />
-          <h2 className="text-xl font-bold text-foreground">Lookout Not Found</h2>
-          <p className="text-foreground-muted mb-4">The requested lookout notice does not exist.</p>
-          <Link href="/lookout">
-            <Button>Back to Lookouts</Button>
-          </Link>
+        <div className="flex items-center justify-center h-96 gap-3 text-foreground-muted">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading notice…
         </div>
       </DashboardLayout>
     );
   }
 
-  const handleReportSighting = async () => {
-    if (user) {
-      await reportSighting({
-        lookoutId: lookout.lookoutId,
-        reportedBy: user.name,
-        location: "Location to be specified",
-        details: "Sighting reported from detail page",
-      });
-      toast.success("Sighting Reported", "Your sighting has been recorded and will be verified");
+  if (lookout.isError) {
+    const notFound = lookout.error instanceof ApiClientError && lookout.error.code === 404;
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center h-96 gap-2">
+          <AlertTriangle className="h-12 w-12 text-warning mb-2" />
+          <h2 className="text-xl font-bold text-foreground">{notFound ? "Notice Not Found" : "Notice could not be loaded"}</h2>
+          <p className="text-foreground-muted mb-2">
+            {notFound ? "The requested lookout notice does not exist." : lookout.error.message}
+          </p>
+          <div className="flex gap-2">
+            {!notFound && (
+              <Button variant="secondary" onClick={() => lookout.refetch()}>
+                Try again
+              </Button>
+            )}
+            <Link href="/lookout">
+              <Button>Back to Notices</Button>
+            </Link>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const l = lookout.data;
+  const active = l.status === "ACTIVE";
+  const located = (sightings.data ?? []).filter((s) => s.latitude !== null && s.longitude !== null);
+  const detailEntries = Object.entries(l.details);
+
+  const verifySighting = async (s: LookoutSighting) => {
+    try {
+      await verify.mutateAsync({ id: l.id, sightingId: s.id });
+      toast.success("Sighting Verified", `Sighting at ${s.location} verified`);
+    } catch (err) {
+      toast.error("Sighting not verified", message(err, "The server rejected the request"));
     }
-  };
-
-  const handleMarkLocated = async () => {
-    await updateLookout(lookout.id, { status: "LOCATED" });
-    toast.success("Status Updated", `${lookout.name} has been marked as located`);
-  };
-
-  const handleCloseLookout = async () => {
-    await updateLookout(lookout.id, { status: "CLOSED" });
-    toast.success("Lookout Closed", `Lookout ${lookout.lookoutId} has been closed`);
   };
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" onClick={() => router.back()}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground">{lookout.name}</h1>
-                <Badge variant={getTypeBadgeVariant(lookout.type) as any}>
-                  {lookout.type.replace(/_/g, " ")}
-                </Badge>
-                <Badge variant={getPriorityBadgeVariant(lookout.priority) as any}>
-                  {lookout.priority}
-                </Badge>
-                <Badge variant={lookout.status === "ACTIVE" ? "warning" : lookout.status === "LOCATED" ? "success" : "secondary"}>
-                  {lookout.status}
-                </Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-bold text-foreground font-mono">{l.lookoutNumber}</h1>
+                <Badge variant="secondary">{lookoutTypeLabel[l.type]}</Badge>
+                <Badge variant={priorityVariant[l.priority]}>{l.priority}</Badge>
+                <Badge variant={lookoutStatusConfig[l.status].variant}>{lookoutStatusConfig[l.status].label}</Badge>
               </div>
-              <p className="text-foreground-muted font-mono">{lookout.lookoutId}</p>
+              <p className="text-foreground-muted">{l.subject}</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => { toast.info("Print", "Opening print dialog..."); window.print(); }}>
-              <Printer className="h-4 w-4 mr-2" />
-              Print
-            </Button>
-            <Button variant="secondary" onClick={() => toast.success("Shared", "Lookout notice shared to nearby stations")}>
-              <Share2 className="h-4 w-4 mr-2" />
-              Share
-            </Button>
-            {canEdit && (
-              <Button onClick={() => toast.info("Edit Lookout", "Edit form opening...")}>
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
+          {active && (
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setShowReport(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Report Sighting
               </Button>
-            )}
-          </div>
+              {canResolve && (
+                <Button onClick={() => setShowResolve(true)}>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Resolve
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Photo and Details */}
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex gap-6">
-                  <div className="h-48 w-36 bg-background-tertiary rounded-lg flex items-center justify-center flex-shrink-0">
-                    {lookout.type === "STOLEN_VEHICLE" ? (
-                      <Car className="h-16 w-16 text-foreground-muted" />
-                    ) : (
-                      <User className="h-16 w-16 text-foreground-muted" />
-                    )}
-                  </div>
-                  <div className="flex-1 space-y-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground mb-2">Description</h3>
-                      <p className="text-foreground-muted">{lookout.description}</p>
-                    </div>
-                    {lookout.type !== "STOLEN_VEHICLE" && (
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-foreground-muted">Age</p>
-                          <p className="text-foreground font-medium">{lookout.details?.age || "Unknown"} years</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-foreground-muted">Gender</p>
-                          <p className="text-foreground font-medium">{lookout.details?.gender || "Unknown"}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-foreground-muted">Height</p>
-                          <p className="text-foreground font-medium">{lookout.details?.height || "Unknown"}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-foreground-muted">Identifying Marks</p>
-                          <p className="text-foreground font-medium">{lookout.details?.identifyingMarks || "None recorded"}</p>
-                        </div>
-                      </div>
-                    )}
-                    {lookout.type === "STOLEN_VEHICLE" && (
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-foreground-muted">Vehicle Number</p>
-                          <p className="text-foreground font-medium font-mono">{lookout.details?.vehicleNumber || "Unknown"}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-foreground-muted">Vehicle Type</p>
-                          <p className="text-foreground font-medium">{lookout.details?.vehicleType || "Unknown"}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-foreground-muted">Color</p>
-                          <p className="text-foreground font-medium">{lookout.details?.vehicleColor || "Unknown"}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-foreground-muted">Make/Model</p>
-                          <p className="text-foreground font-medium">{lookout.details?.vehicleMake || "Unknown"}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        {!active && (
+          <Card className="border-success/40 bg-success/5">
+            <CardContent className="p-4 text-sm">
+              <p className="font-medium text-foreground">
+                {lookoutStatusConfig[l.status].label} {l.resolvedAt && `on ${formatDateTime(l.resolvedAt)}`}
+                {l.resolvedByName && ` by ${l.resolvedByName}`}
+              </p>
+              {l.resolutionNote && <p className="text-foreground-muted">{l.resolutionNote}</p>}
+            </CardContent>
+          </Card>
+        )}
 
-            {/* Linked FIR */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Linked Case Information
+                  <User className="h-5 w-5" />
+                  Subject
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between p-4 bg-background-tertiary rounded-lg">
-                  <div>
-                    <p className="text-foreground font-medium">FIR: {lookout.linkedFIR}</p>
-                    <p className="text-sm text-foreground-muted">PS Koramangala</p>
-                  </div>
-                  <Link href={`/fir/${lookout.linkedFIR}`}>
-                    <Button variant="secondary" size="sm">
-                      <Eye className="h-4 w-4 mr-1" />
-                      View FIR
-                    </Button>
-                  </Link>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-lg font-semibold text-foreground">{l.subject}</p>
+                  <p className="text-foreground-muted whitespace-pre-line">{l.description}</p>
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Sightings */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Eye className="h-5 w-5" />
-                    Sightings ({lookoutSightings.length})
-                  </span>
-                  <Button size="sm" onClick={handleReportSighting}>
-                    <Flag className="h-4 w-4 mr-1" />
-                    Report Sighting
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {lookoutSightings.length > 0 ? (
-                  <div className="space-y-4">
-                    {lookoutSightings.map((sighting) => (
-                      <div key={sighting.id} className="p-4 bg-background-tertiary rounded-lg">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <MapPin className="h-4 w-4 text-foreground-muted" />
-                              <span className="font-medium text-foreground">{sighting.location}</span>
-                              {sighting.verified ? (
-                                <Badge variant="success">
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Verified
-                                </Badge>
-                              ) : (
-                                <Badge variant="warning">
-                                  <Clock className="h-3 w-3 mr-1" />
-                                  Pending
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-foreground-muted">{sighting.details}</p>
-                            <p className="text-xs text-foreground-muted mt-2">
-                              Reported by {sighting.reportedBy} on{" "}
-                              {new Date(sighting.time).toLocaleString("en-IN")}
-                            </p>
-                          </div>
-                        </div>
+                {detailEntries.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-border">
+                    {detailEntries.map(([key, value]) => (
+                      <div key={key}>
+                        <p className="text-sm text-foreground-muted">{key}</p>
+                        <p className="text-foreground">{value}</p>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <div className="text-center py-8 text-foreground-muted">
-                    <Eye className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>No sightings reported yet</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button className="w-full" onClick={handleReportSighting}>
-                  <Flag className="h-4 w-4 mr-2" />
-                  Report Sighting
-                </Button>
-                {lookout.status === "ACTIVE" && canClose && (
-                  <>
-                    <Button variant="secondary" className="w-full" onClick={handleMarkLocated}>
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Mark as Located
-                    </Button>
-                    <Button variant="ghost" className="w-full" onClick={handleCloseLookout}>
-                      Close Lookout
-                    </Button>
-                  </>
                 )}
               </CardContent>
             </Card>
 
-            {/* Last Known Location */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <MapPin className="h-5 w-5" />
-                  Last Known Location
+                  Sightings ({l.sightingCount}, {l.verifiedCount} verified)
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-foreground mb-2">{lookout.details?.lastKnownLocation || "Not specified"}</p>
-                <div className="h-32 bg-background-tertiary rounded-lg flex items-center justify-center">
-                  <MapPin className="h-8 w-8 text-foreground-muted" />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Timeline */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5" />
-                  Timeline
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex gap-3">
-                    <div className="h-2 w-2 mt-2 rounded-full bg-accent"></div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Lookout Issued</p>
-                      <p className="text-xs text-foreground-muted">
-                        {new Date(lookout.issuedAt).toLocaleString("en-IN")}
-                      </p>
-                    </div>
+              <CardContent className="space-y-3">
+                {sightings.isPending ? (
+                  <p className="text-foreground-muted flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading sightings…
+                  </p>
+                ) : sightings.isError ? (
+                  <div className="space-y-2">
+                    <p className="text-error">Sightings could not be loaded: {sightings.error.message}</p>
+                    <Button variant="secondary" size="sm" onClick={() => sightings.refetch()}>
+                      Try again
+                    </Button>
                   </div>
-                  {lookoutSightings.map((sighting, index) => (
-                    <div key={index} className="flex gap-3">
-                      <div className="h-2 w-2 mt-2 rounded-full bg-warning"></div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">Sighting Reported</p>
-                        <p className="text-xs text-foreground-muted">
-                          {sighting.location} - {new Date(sighting.time).toLocaleString("en-IN")}
-                        </p>
+                ) : sightings.data.length === 0 ? (
+                  <p className="text-foreground-muted">No sightings have been reported.</p>
+                ) : (
+                  sightings.data.map((s) => {
+                    const ownReport = user?.id === s.reportedBy;
+                    return (
+                      <div key={s.id} className="p-4 rounded-lg bg-background-tertiary" data-testid="sighting">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-foreground">{s.location}</p>
+                            <p className="text-sm text-foreground-muted flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              Sighted {formatDateTime(s.sightedAt)} · reported by {s.reportedByName}
+                            </p>
+                            {s.latitude !== null && s.longitude !== null && (
+                              <p className="text-xs text-foreground-muted font-mono">
+                                {s.latitude.toFixed(5)}, {s.longitude.toFixed(5)}
+                              </p>
+                            )}
+                            {s.details && <p className="text-sm text-foreground mt-1">{s.details}</p>}
+                          </div>
+                          <div className="text-right">
+                            {s.verifiedAt ? (
+                              <Badge variant="success">
+                                <ShieldCheck className="h-3 w-3 mr-1" />
+                                Verified by {s.verifiedByName}
+                              </Badge>
+                            ) : (
+                              <>
+                                <Badge variant="warning">Unverified</Badge>
+                                {canVerify && (
+                                  <div className="mt-2">
+                                    {ownReport ? (
+                                      <p className="text-xs text-foreground-muted max-w-[14rem]">
+                                        You reported this sighting; another officer must verify it.
+                                      </p>
+                                    ) : (
+                                      <Button size="sm" onClick={() => verifySighting(s)} disabled={verify.isPending}>
+                                        Verify
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    );
+                  })
+                )}
               </CardContent>
             </Card>
 
-            {/* Contact */}
-            {lookout.type === "MISSING" && (
-              <Card className="border-warning/30 bg-warning/5">
+            {located.length > 0 && (
+              <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-warning">
-                    <Phone className="h-5 w-5" />
-                    Emergency Contact
-                  </CardTitle>
+                  <CardTitle>Sighting Locations</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-foreground">If found, contact:</p>
-                  <p className="text-lg font-bold text-foreground mt-2">PS Koramangala</p>
-                  <p className="text-foreground-muted">+91 80-2553-0000</p>
+                  <InteractiveMap
+                    markers={located.map((s) => ({
+                      id: s.id,
+                      lat: s.latitude!,
+                      lng: s.longitude!,
+                      title: s.location,
+                      description: `${formatDateTime(s.sightedAt)}${s.verifiedAt ? " · verified" : " · unverified"}`,
+                      type: "alert" as const,
+                    }))}
+                    center={[located[0].latitude!, located[0].longitude!]}
+                    zoom={13}
+                    height="280px"
+                  />
+                  {located.length < (sightings.data?.length ?? 0) && (
+                    <p className="text-xs text-foreground-muted mt-2">Sightings without coordinates are not shown on the map.</p>
+                  )}
                 </CardContent>
               </Card>
             )}
           </div>
+
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Notice
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <Field label="Issued" value={`${formatDateTime(l.issuedAt)} by ${l.issuedByName}`} />
+                <Field label="Station" value={l.stationName} />
+                <div>
+                  <p className="text-foreground-muted">Linked FIR</p>
+                  {l.firId ? (
+                    <Link href={`/fir/${l.firId}`} className="text-accent hover:underline font-mono">
+                      {l.firNumber || "View FIR"}
+                    </Link>
+                  ) : (
+                    <p className="text-foreground-muted">None</p>
+                  )}
+                </div>
+                {l.lastSightedAt && <Field label="Last Sighted" value={formatDateTime(l.lastSightedAt)} />}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
+
+      {showReport && <ReportSightingDialog lookout={l} onClose={() => setShowReport(false)} />}
+      {showResolve && <ResolveDialog lookout={l} onClose={() => setShowResolve(false)} />}
     </DashboardLayout>
+  );
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-foreground-muted">{label}</p>
+      <p className="text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function ReportSightingDialog({ lookout, onClose }: { lookout: Lookout; onClose: () => void }) {
+  const report = useReportSighting();
+  const [form, setForm] = useState({ location: "", sightedAt: "", latitude: "", longitude: "", details: "" });
+
+  const submit = async () => {
+    if (!form.location.trim() || !form.sightedAt) {
+      toast.error("Validation Error", "Location and time of sighting are required");
+      return;
+    }
+    const hasLat = form.latitude.trim() !== "";
+    const hasLng = form.longitude.trim() !== "";
+    if (hasLat !== hasLng) {
+      toast.error("Validation Error", "Give both latitude and longitude, or neither");
+      return;
+    }
+    const latitude = hasLat ? Number(form.latitude) : null;
+    const longitude = hasLng ? Number(form.longitude) : null;
+    if ((latitude !== null && Number.isNaN(latitude)) || (longitude !== null && Number.isNaN(longitude))) {
+      toast.error("Validation Error", "Coordinates must be numbers");
+      return;
+    }
+    try {
+      await report.mutateAsync({
+        id: lookout.id,
+        input: {
+          location: form.location.trim(),
+          sightedAt: new Date(form.sightedAt).toISOString(),
+          latitude,
+          longitude,
+          details: form.details.trim(),
+        },
+      });
+      toast.success("Sighting Reported", "Awaiting verification by another officer");
+      onClose();
+    } catch (err) {
+      toast.error("Sighting not reported", message(err, "The server rejected the request"));
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title="Report Sighting" description={`${lookout.lookoutNumber} — ${lookout.subject}`}>
+      <div className="space-y-4">
+        <Input
+          label="Location *"
+          placeholder="Where the subject was seen"
+          value={form.location}
+          onChange={(v: string) => setForm({ ...form, location: v })}
+        />
+        <Input
+          label="Sighted At *"
+          type="datetime-local"
+          value={form.sightedAt}
+          onChange={(v: string) => setForm({ ...form, sightedAt: v })}
+        />
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Latitude" placeholder="22.5726" value={form.latitude} onChange={(v: string) => setForm({ ...form, latitude: v })} />
+          <Input label="Longitude" placeholder="88.3639" value={form.longitude} onChange={(v: string) => setForm({ ...form, longitude: v })} />
+        </div>
+        <Textarea
+          label="Details"
+          placeholder="What was seen, direction of travel, companions"
+          value={form.details}
+          onChange={(v: string) => setForm({ ...form, details: v })}
+          rows={3}
+        />
+      </div>
+      <ModalFooter>
+        <Button variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button onClick={submit} disabled={report.isPending}>
+          {report.isPending ? "Reporting…" : "Report Sighting"}
+        </Button>
+      </ModalFooter>
+    </Modal>
+  );
+}
+
+function ResolveDialog({ lookout, onClose }: { lookout: Lookout; onClose: () => void }) {
+  const resolve = useResolveLookout();
+  const [status, setStatus] = useState<"LOCATED" | "CLOSED">("LOCATED");
+  const [note, setNote] = useState("");
+
+  const submit = async () => {
+    if (!note.trim()) {
+      toast.error("Validation Error", "Record how the notice was resolved");
+      return;
+    }
+    try {
+      const updated = await resolve.mutateAsync({ id: lookout.id, input: { status, note: note.trim() } });
+      toast.success("Notice Resolved", `${updated.lookoutNumber} marked ${lookoutStatusConfig[updated.status].label.toLowerCase()}`);
+      onClose();
+    } catch (err) {
+      toast.error("Notice not resolved", message(err, "The server rejected the request"));
+    }
+  };
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Resolve Notice"
+      description="A resolved notice accepts no further sightings. The resolution is recorded in the audit trail."
+    >
+      <div className="space-y-4">
+        <Select
+          label="Outcome *"
+          value={status}
+          onChange={(v: string) => setStatus(v as "LOCATED" | "CLOSED")}
+          options={[
+            { value: "LOCATED", label: "Located — subject found" },
+            { value: "CLOSED", label: "Closed — withdrawn or no longer sought" },
+          ]}
+        />
+        <Textarea label="Resolution Note *" value={note} onChange={(v: string) => setNote(v)} rows={3} />
+      </div>
+      <ModalFooter>
+        <Button variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button onClick={submit} disabled={resolve.isPending}>
+          {resolve.isPending ? "Saving…" : "Resolve Notice"}
+        </Button>
+      </ModalFooter>
+    </Modal>
   );
 }
