@@ -12,11 +12,10 @@ interface DutyAssignmentDialogProps {
   officerName: string;
 }
 
+// Duty types only. Named beats need a beat register per station, which does
+// not exist yet; the previous list named Bangalore localities.
 const dutyOptions = [
-  { value: "Patrol - Beat A", label: "Patrol - Beat A (Koramangala 4th Block)" },
-  { value: "Patrol - Beat B", label: "Patrol - Beat B (Koramangala 5th-8th Block)" },
-  { value: "Patrol - Beat C", label: "Patrol - Beat C (HSR Layout Sector 1-3)" },
-  { value: "Patrol - Beat D", label: "Patrol - Beat D (BTM Layout 1st Stage)" },
+  { value: "Beat Patrol", label: "Beat Patrol" },
   { value: "Station Duty", label: "Station Duty" },
   { value: "PCR Mobile", label: "PCR Mobile Response" },
   { value: "Traffic Control", label: "Traffic Control" },

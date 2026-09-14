@@ -1,460 +1,211 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Car,
-  User,
-  MapPin,
-  Calendar,
-  Clock,
-  Fuel,
-  Wrench,
-  Navigation,
-  Edit,
-  History,
-  CheckCircle,
-  AlertTriangle,
-} from "lucide-react";
+import dynamic from "next/dynamic";
+import { useParams, useRouter } from "next/navigation";
+import { AlertTriangle, ArrowLeft, Car, Fuel, Gauge, Loader2, MapPin, User, Wrench } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
-import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
-import { useState } from "react";
+import { useVehicle } from "@/hooks/use-vehicles";
+import { ApiClientError } from "@/lib/api/client";
+import { formatDate, formatDateTime } from "@/lib/utils";
 
-// Mock vehicle data
-const mockVehicles: Record<string, {
-  id: string;
-  regNumber: string;
-  type: string;
-  make: string;
-  model: string;
-  year: number;
-  status: string;
-  driver: string | null;
-  fuelLevel: number;
-  kmToday: number;
-  totalKm: number;
-  lastService: string;
-  nextService: string;
-  gpsLocation: string;
-  currentBeat: string | null;
-  insuranceExpiry: string;
-  fitnessExpiry: string;
-  condition: string;
-}> = {
-  "v-001": {
-    id: "v-001",
-    regNumber: "KA-01-P-1234",
-    type: "Patrol",
-    make: "Maruti Suzuki",
-    model: "Swift Dzire",
-    year: 2022,
-    status: "ON_DUTY",
-    driver: "HC Mohan",
-    fuelLevel: 78,
-    kmToday: 45,
-    totalKm: 45678,
-    lastService: "2024-01-01",
-    nextService: "2024-04-01",
-    gpsLocation: "12.9352, 77.6245",
-    currentBeat: "Beat A - Koramangala 4th Block",
-    insuranceExpiry: "2024-12-31",
-    fitnessExpiry: "2025-01-15",
-    condition: "GOOD",
-  },
-  "v-002": {
-    id: "v-002",
-    regNumber: "KA-01-P-1235",
-    type: "Patrol",
-    make: "Maruti Suzuki",
-    model: "Swift Dzire",
-    year: 2022,
-    status: "ON_DUTY",
-    driver: "Const. Ravi",
-    fuelLevel: 65,
-    kmToday: 32,
-    totalKm: 38921,
-    lastService: "2024-01-05",
-    nextService: "2024-04-05",
-    gpsLocation: "12.9421, 77.6189",
-    currentBeat: "Beat B - Koramangala 5th Block",
-    insuranceExpiry: "2024-12-31",
-    fitnessExpiry: "2025-02-20",
-    condition: "GOOD",
-  },
-};
+const InteractiveMap = dynamic(() => import("@/components/ui/Map").then((mod) => mod.InteractiveMap), {
+  ssr: false,
+  loading: () => <div className="h-48 bg-background-tertiary rounded-lg" />,
+});
 
-// Mock trip history
-const mockTripHistory = [
-  {
-    id: "t-001",
-    date: "2024-01-18",
-    driver: "HC Mohan",
-    purpose: "Patrol Beat A",
-    startTime: "06:00",
-    endTime: "14:00",
-    kmStart: 45633,
-    kmEnd: 45678,
-    fuelUsed: "5L",
-  },
-  {
-    id: "t-002",
-    date: "2024-01-17",
-    driver: "Const. Ravi",
-    purpose: "Court Escort",
-    startTime: "09:00",
-    endTime: "13:00",
-    kmStart: 45598,
-    kmEnd: 45633,
-    fuelUsed: "4L",
-  },
-  {
-    id: "t-003",
-    date: "2024-01-16",
-    driver: "HC Mohan",
-    purpose: "Patrol Beat A",
-    startTime: "06:00",
-    endTime: "14:00",
-    kmStart: 45553,
-    kmEnd: 45598,
-    fuelUsed: "5L",
-  },
-];
+const statusConfig = {
+  ON_DUTY: { label: "On Duty", variant: "success" },
+  AVAILABLE: { label: "Available", variant: "info" },
+  MAINTENANCE: { label: "Maintenance", variant: "warning" },
+  RESERVED: { label: "Reserved", variant: "secondary" },
+} as const;
 
-// Mock maintenance history
-const mockMaintenanceHistory = [
-  {
-    id: "m-001",
-    date: "2024-01-01",
-    type: "Regular Service",
-    description: "Oil change, filter replacement, general inspection",
-    cost: 5500,
-    vendor: "Govt. Workshop",
-    odometer: 45000,
-  },
-  {
-    id: "m-002",
-    date: "2023-10-15",
-    type: "Tyre Replacement",
-    description: "Front tyres replaced",
-    cost: 8000,
-    vendor: "MRF Authorized",
-    odometer: 42000,
-  },
-];
-
-function getStatusBadgeVariant(status: string) {
-  const variants: Record<string, string> = {
-    ON_DUTY: "info",
-    AVAILABLE: "success",
-    MAINTENANCE: "warning",
-    RESERVED: "secondary",
-  };
-  return variants[status] || "secondary";
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-sm text-foreground-muted">{label}</p>
+      <p className="text-foreground">{value ?? <span className="text-foreground-muted">Not recorded</span>}</p>
+    </div>
+  );
 }
 
-function getFuelColor(level: number) {
-  if (level >= 50) return "text-success";
-  if (level >= 25) return "text-warning";
-  return "text-error";
-}
-
+/**
+ * Read-only view of one fleet vehicle. Allocation, return, maintenance and
+ * readings are recorded from the fleet register at /vehicles.
+ */
 export default function VehicleDetailPage() {
-  const params = useParams();
+  const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState("overview");
+  const { data: vehicle, isPending, isError, error, refetch } = useVehicle(params.id);
 
-  const vehicleId = params.id as string;
-  const vehicle = mockVehicles[vehicleId] || mockVehicles["v-001"];
+  if (isPending) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96 gap-3 text-foreground-muted">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading vehicle…
+        </div>
+      </DashboardLayout>
+    );
+  }
 
-  const canEdit = user && hasMinimumRole(user.role, "SHO");
+  if (isError) {
+    const notFound = error instanceof ApiClientError && error.code === 404;
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center h-96 gap-2">
+          <AlertTriangle className="h-12 w-12 text-warning mb-2" />
+          <h2 className="text-xl font-bold text-foreground">
+            {notFound ? "Vehicle Not Found" : "Vehicle could not be loaded"}
+          </h2>
+          <p className="text-foreground-muted mb-2">
+            {notFound ? "The requested vehicle does not exist." : error.message}
+          </p>
+          <div className="flex gap-2">
+            {!notFound && (
+              <Button variant="secondary" onClick={() => refetch()}>
+                Try again
+              </Button>
+            )}
+            <Link href="/vehicles">
+              <Button>Back to Fleet</Button>
+            </Link>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const status = statusConfig[vehicle.status];
+  const hasPosition = vehicle.gpsLatitude !== null && vehicle.gpsLongitude !== null;
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/vehicles">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Fleet
+        <div className="flex flex-wrap items-center gap-4">
+          <Button variant="ghost" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-bold text-foreground font-mono">{vehicle.registrationNumber}</h1>
+              <Badge variant={status.variant as any}>{status.label}</Badge>
+            </div>
+            <p className="text-foreground-muted">
+              {vehicle.type} · {vehicle.make}
+              {vehicle.stationName && ` · ${vehicle.stationName}`}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Car className="h-5 w-5" />
+                  Current Assignment
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field
+                  label="Driver"
+                  value={
+                    vehicle.currentDriver ? (
+                      <span className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-foreground-muted" />
+                        {vehicle.currentDriver}
+                      </span>
+                    ) : null
+                  }
+                />
+                <Field label="Duty" value={vehicle.currentDuty} />
+                {vehicle.status === "RESERVED" && <Field label="Reserved For" value={vehicle.reservedFor} />}
+                {vehicle.status === "MAINTENANCE" && (
+                  <Field
+                    label="Maintenance Note"
+                    value={
+                      vehicle.maintenanceNote ? (
+                        <span className="flex items-center gap-2">
+                          <Wrench className="h-4 w-4 text-warning" />
+                          {vehicle.maintenanceNote}
+                        </span>
+                      ) : null
+                    }
+                  />
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  Last Reported Position
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {hasPosition ? (
+                  <InteractiveMap
+                    markers={[
+                      {
+                        id: vehicle.id,
+                        lat: vehicle.gpsLatitude!,
+                        lng: vehicle.gpsLongitude!,
+                        title: vehicle.registrationNumber,
+                        description: vehicle.currentDuty ?? vehicle.status,
+                        type: "vehicle",
+                      },
+                    ]}
+                    center={[vehicle.gpsLatitude!, vehicle.gpsLongitude!]}
+                    zoom={14}
+                    height="240px"
+                  />
+                ) : (
+                  <p className="text-foreground-muted">No position has been recorded for this vehicle.</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Gauge className="h-5 w-5" />
+                  Readings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-sm text-foreground-muted flex items-center gap-2">
+                    <Fuel className="h-4 w-4" /> Fuel
+                  </p>
+                  <div className="mt-1 h-2 rounded-full bg-background-tertiary overflow-hidden">
+                    <div
+                      className={`h-full ${vehicle.fuelLevel < 25 ? "bg-error" : vehicle.fuelLevel < 50 ? "bg-warning" : "bg-success"}`}
+                      style={{ width: `${vehicle.fuelLevel}%` }}
+                    />
+                  </div>
+                  <p className="text-foreground text-sm mt-1">{vehicle.fuelLevel}%</p>
+                </div>
+                <Field label="Odometer" value={`${vehicle.odometerReading.toLocaleString("en-IN")} km`} />
+                <Field label="Last Service" value={formatDate(vehicle.lastService)} />
+                <Field label="Record Updated" value={formatDateTime(vehicle.updatedAt)} />
+              </CardContent>
+            </Card>
+            <Link href="/vehicles" className="block">
+              <Button variant="secondary" className="w-full">
+                Manage in Fleet Register
               </Button>
             </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-                <Car className="h-6 w-6" />
-                {vehicle.regNumber}
-              </h1>
-              <p className="text-foreground-muted">
-                {vehicle.make} {vehicle.model} ({vehicle.year})
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant={getStatusBadgeVariant(vehicle.status) as any} className="text-sm px-3 py-1">
-              {vehicle.status.replace(/_/g, " ")}
-            </Badge>
-            {canEdit && (
-              <Button variant="secondary">
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
-            )}
           </div>
         </div>
-
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Fuel Level</p>
-                  <p className={`text-2xl font-bold ${getFuelColor(vehicle.fuelLevel)}`}>
-                    {vehicle.fuelLevel}%
-                  </p>
-                </div>
-                <Fuel className={`h-8 w-8 opacity-50 ${getFuelColor(vehicle.fuelLevel)}`} />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">KM Today</p>
-                  <p className="text-2xl font-bold text-foreground">{vehicle.kmToday} km</p>
-                </div>
-                <Navigation className="h-8 w-8 text-accent opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Total Odometer</p>
-                  <p className="text-2xl font-bold text-foreground">{vehicle.totalKm.toLocaleString()} km</p>
-                </div>
-                <Clock className="h-8 w-8 text-info opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Condition</p>
-                  <p className="text-2xl font-bold text-success">{vehicle.condition}</p>
-                </div>
-                <CheckCircle className="h-8 w-8 text-success opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Current Assignment */}
-        {vehicle.driver && (
-          <Card className="border-accent/30">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-accent/20 flex items-center justify-center">
-                    <User className="h-6 w-6 text-accent" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">Current Driver: {vehicle.driver}</p>
-                    <p className="text-sm text-foreground-muted">{vehicle.currentBeat}</p>
-                  </div>
-                </div>
-                {vehicle.gpsLocation && (
-                  <div className="flex items-center gap-2 text-foreground-muted">
-                    <MapPin className="h-4 w-4" />
-                    <span className="font-mono text-sm">{vehicle.gpsLocation}</span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="overview">
-              <Car className="h-4 w-4 mr-2" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="trips">
-              <History className="h-4 w-4 mr-2" />
-              Trip History
-            </TabsTrigger>
-            <TabsTrigger value="maintenance">
-              <Wrench className="h-4 w-4 mr-2" />
-              Maintenance
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Vehicle Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-foreground-muted">Registration</p>
-                      <p className="font-mono text-foreground">{vehicle.regNumber}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Type</p>
-                      <p className="text-foreground">{vehicle.type}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Make</p>
-                      <p className="text-foreground">{vehicle.make}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Model</p>
-                      <p className="text-foreground">{vehicle.model}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Year</p>
-                      <p className="text-foreground">{vehicle.year}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Condition</p>
-                      <Badge variant="success">{vehicle.condition}</Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Compliance Status</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between p-3 rounded-md bg-background-tertiary">
-                    <div>
-                      <p className="font-medium text-foreground">Insurance</p>
-                      <p className="text-sm text-foreground-muted">
-                        Expires: {new Date(vehicle.insuranceExpiry).toLocaleDateString("en-IN")}
-                      </p>
-                    </div>
-                    <Badge variant="success">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Valid
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-md bg-background-tertiary">
-                    <div>
-                      <p className="font-medium text-foreground">Fitness Certificate</p>
-                      <p className="text-sm text-foreground-muted">
-                        Expires: {new Date(vehicle.fitnessExpiry).toLocaleDateString("en-IN")}
-                      </p>
-                    </div>
-                    <Badge variant="success">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Valid
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-md bg-background-tertiary">
-                    <div>
-                      <p className="font-medium text-foreground">Next Service</p>
-                      <p className="text-sm text-foreground-muted">
-                        Due: {new Date(vehicle.nextService).toLocaleDateString("en-IN")}
-                      </p>
-                    </div>
-                    <Badge variant="info">
-                      <Calendar className="h-3 w-3 mr-1" />
-                      Scheduled
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Trip History Tab */}
-          <TabsContent value="trips" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Trips</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Driver</TableHead>
-                      <TableHead>Purpose</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead>Distance</TableHead>
-                      <TableHead>Fuel Used</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mockTripHistory.map((trip) => (
-                      <TableRow key={trip.id}>
-                        <TableCell>{new Date(trip.date).toLocaleDateString("en-IN")}</TableCell>
-                        <TableCell>{trip.driver}</TableCell>
-                        <TableCell>{trip.purpose}</TableCell>
-                        <TableCell>{trip.startTime} - {trip.endTime}</TableCell>
-                        <TableCell>{trip.kmEnd - trip.kmStart} km</TableCell>
-                        <TableCell>{trip.fuelUsed}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Maintenance Tab */}
-          <TabsContent value="maintenance" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Maintenance History</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Odometer</TableHead>
-                      <TableHead>Cost</TableHead>
-                      <TableHead>Vendor</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mockMaintenanceHistory.map((record) => (
-                      <TableRow key={record.id}>
-                        <TableCell>{new Date(record.date).toLocaleDateString("en-IN")}</TableCell>
-                        <TableCell>{record.type}</TableCell>
-                        <TableCell>{record.description}</TableCell>
-                        <TableCell>{record.odometer.toLocaleString()} km</TableCell>
-                        <TableCell>Rs. {record.cost.toLocaleString()}</TableCell>
-                        <TableCell>{record.vendor}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
       </div>
     </DashboardLayout>
   );

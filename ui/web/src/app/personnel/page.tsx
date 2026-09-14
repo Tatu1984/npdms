@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useDeferredValue, useState } from "react";
 import Link from "next/link";
 import {
   Users,
   Search,
-  Filter,
   Plus,
   Eye,
   Edit,
@@ -15,10 +14,6 @@ import {
   UserX,
   UserMinus,
   Briefcase,
-  Phone,
-  Mail,
-  MapPin,
-  Award,
   Download,
   Trash2,
   RefreshCw,
@@ -36,12 +31,14 @@ import { Avatar } from "@/components/ui/Avatar";
 import { useAuthStore, hasMinimumRole, getRoleDisplayName } from "@/stores/authStore";
 import { useToastStore } from "@/stores/toastStore";
 import { usePersonnel, useDeletePersonnel, useAssignDuty } from "@/hooks/use-personnel";
-import type { PersonnelRank, DutyStatus } from "@/lib/db/schema";
+import type { Personnel, PersonnelRank, PersonnelStatus } from "@/lib/api/personnel";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DutyAssignmentDialog } from "@/components/ui/DutyAssignmentDialog";
-import { DatePicker } from "@/components/ui/DatePicker";
-import { DutyScheduleEditor } from "@/components/ui/DutyScheduleEditor";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
+
+const PAGE_SIZE = 20;
+/** The duty board reads on-duty officers in one request; beyond this it says so. */
+const DUTY_BOARD_LIMIT = 200;
 
 const rankOptions = [
   { value: "", label: "All Ranks" },
@@ -51,6 +48,8 @@ const rankOptions = [
   { value: "SI", label: "SI" },
   { value: "INSPECTOR", label: "Inspector" },
   { value: "SHO", label: "SHO" },
+  { value: "DSP", label: "DSP" },
+  { value: "SP", label: "SP" },
 ];
 
 const statusOptions = [
@@ -61,48 +60,6 @@ const statusOptions = [
   { value: "TRAINING", label: "Training" },
   { value: "SUSPENDED", label: "Suspended" },
 ];
-
-// Helper function to group personnel by shift from their current assignment
-function groupPersonnelByShift(personnelList: any[]) {
-  const shifts: { [key: string]: any[] } = {
-    "Day (0600-1400)": [],
-    "Evening (1400-2200)": [],
-    "Night (2200-0600)": [],
-  };
-
-  personnelList.forEach((person) => {
-    if (person.currentAssignment && person.dutyStatus === "ON_DUTY") {
-      // Try to extract shift from assignment if it contains shift info
-      const assignment = person.currentAssignment.toLowerCase();
-      if (assignment.includes("day") || assignment.includes("0600") || assignment.includes("06:00")) {
-        shifts["Day (0600-1400)"].push(person);
-      } else if (assignment.includes("evening") || assignment.includes("1400") || assignment.includes("14:00")) {
-        shifts["Evening (1400-2200)"].push(person);
-      } else if (assignment.includes("night") || assignment.includes("2200") || assignment.includes("22:00")) {
-        shifts["Night (2200-0600)"].push(person);
-      } else {
-        // Default to day shift if no clear indication
-        shifts["Day (0600-1400)"].push(person);
-      }
-    }
-  });
-
-  return Object.entries(shifts).map(([shift, officers]) => ({
-    shift,
-    officers: officers.map(o => o.name),
-  }));
-}
-
-// Calculate attendance from real personnel data
-function calculateAttendance(personnelList: any[]) {
-  return {
-    date: new Date().toISOString().split('T')[0],
-    present: personnelList.filter(p => p.dutyStatus === "ON_DUTY").length,
-    onLeave: personnelList.filter(p => p.dutyStatus === "ON_LEAVE").length,
-    absent: personnelList.filter(p => p.dutyStatus === "SUSPENDED").length,
-    total: personnelList.length,
-  };
-}
 
 function getStatusBadgeVariant(status: string) {
   const variants: Record<string, string> = {
@@ -130,143 +87,116 @@ function getStatusIcon(status: string) {
   }
 }
 
+/** Groups on-duty officers by the shift recorded on their record. Nothing is inferred from free text. */
+function groupByShift(officers: Personnel[]) {
+  const groups = new Map<string, Personnel[]>();
+  for (const officer of officers) {
+    const key = officer.shift || "No shift recorded";
+    groups.set(key, [...(groups.get(key) ?? []), officer]);
+  }
+  return [...groups.entries()].map(([shift, list]) => ({ shift, officers: list }));
+}
+
+function StatValue({ value, isError }: { value: number | undefined; isError: boolean }) {
+  if (isError) return <>—</>;
+  if (value === undefined) return <Loader2 className="h-5 w-5 animate-spin" />;
+  return <>{value}</>;
+}
+
 export default function PersonnelPage() {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
   const [activeTab, setActiveTab] = useState("roster");
   const [searchQuery, setSearchQuery] = useState("");
+  const search = useDeferredValue(searchQuery.trim());
   const [rankFilter, setRankFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [personnelToDelete, setPersonnelToDelete] = useState<string | null>(null);
-  const [dutyDialogOpen, setDutyDialogOpen] = useState(false);
-  const [selectedPersonnelForDuty, setSelectedPersonnelForDuty] = useState<string | null>(null);
-  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
-  const [showScheduleEditor, setShowScheduleEditor] = useState(false);
+  const [page, setPage] = useState(1);
+  const [personnelToDelete, setPersonnelToDelete] = useState<Personnel | null>(null);
+  const [personnelForDuty, setPersonnelForDuty] = useState<Personnel | null>(null);
 
+  // Mirrors the API: create, update and assign-duty need SHO; delete needs DSP.
   const canManage = user && hasMinimumRole(user.role, "SHO");
-  const canEdit = user && hasMinimumRole(user.role, "SP");
+  const canDelete = user && hasMinimumRole(user.role, "DSP");
 
-  // Fetch personnel data using React Query
-  const { data: personnelResponse, isLoading, error, refetch } = usePersonnel({
+  const roster = usePersonnel({
+    page,
+    pageSize: PAGE_SIZE,
     rank: (rankFilter || undefined) as PersonnelRank | undefined,
-    dutyStatus: (statusFilter || undefined) as DutyStatus | undefined,
-    search: searchQuery || undefined,
+    status: (statusFilter || undefined) as PersonnelStatus | undefined,
+    search: search || undefined,
   });
 
-  // Get mutations for delete and assign duty
+  // Counts come from the server's totals, not from the page of rows loaded.
+  const totalCount = usePersonnel({ pageSize: 1 });
+  const onDutyCount = usePersonnel({ pageSize: 1, status: "ON_DUTY" });
+  const onLeaveCount = usePersonnel({ pageSize: 1, status: "ON_LEAVE" });
+  const offDutyCount = usePersonnel({ pageSize: 1, status: "OFF_DUTY" });
+
+  const dutyBoard = usePersonnel({ pageSize: DUTY_BOARD_LIMIT, status: "ON_DUTY" });
+
   const deletePersonnelMutation = useDeletePersonnel();
   const assignDutyMutation = useAssignDuty();
 
-  const personnel = personnelResponse?.data || [];
-
-  // Stats based on real data
-  const stats = {
-    total: personnel.length,
-    onDuty: personnel.filter((p) => p.dutyStatus === "ON_DUTY").length,
-    onLeave: personnel.filter((p) => p.dutyStatus === "ON_LEAVE").length,
-    offDuty: personnel.filter((p) => p.dutyStatus === "OFF_DUTY").length,
-  };
-
-  // Calculate duty roster and attendance from real data
-  const dutyRoster = groupPersonnelByShift(personnel);
-  const attendanceData = calculateAttendance(personnel);
-
-  const handleDeleteClick = (id: string) => {
-    setPersonnelToDelete(id);
-    setDeleteDialogOpen(true);
-  };
+  const personnel = roster.data?.data ?? [];
+  const totalPages = roster.data?.totalPages ?? 0;
+  const shifts = groupByShift(dutyBoard.data?.data ?? []);
 
   const handleDeleteConfirm = async () => {
-    if (personnelToDelete) {
-      try {
-        await deletePersonnelMutation.mutateAsync(personnelToDelete);
-        addToast({
-          type: "success",
-          title: "Personnel Deleted",
-          message: "Personnel record has been removed",
-        });
-        setDeleteDialogOpen(false);
-        setPersonnelToDelete(null);
-      } catch (error) {
-        addToast({
-          type: "error",
-          title: "Delete Failed",
-          message: error instanceof Error ? error.message : "Failed to delete personnel",
-        });
-      }
+    if (!personnelToDelete) return;
+    try {
+      await deletePersonnelMutation.mutateAsync(personnelToDelete.id);
+      addToast({
+        type: "success",
+        title: "Personnel Record Deleted",
+        message: `${personnelToDelete.name}'s service record has been removed`,
+      });
+      setPersonnelToDelete(null);
+    } catch (error) {
+      addToast({
+        type: "error",
+        title: "Delete Failed",
+        message: error instanceof Error ? error.message : "The server rejected the request",
+      });
     }
-  };
-
-  const handleAssignDuty = (id: string) => {
-    setSelectedPersonnelForDuty(id);
-    setDutyDialogOpen(true);
   };
 
   const handleDutyAssignment = async (duty: string, shift: string) => {
-    if (selectedPersonnelForDuty) {
-      try {
-        // Combine duty and shift into assignment string
-        const assignment = `${duty} - ${shift}`;
-        await assignDutyMutation.mutateAsync({
-          id: selectedPersonnelForDuty,
-          assignment,
-        });
-        const person = personnel.find(p => p.id === selectedPersonnelForDuty);
-        addToast({
-          type: "success",
-          title: "Duty Assigned",
-          message: `${person?.name || "Officer"} assigned to ${duty} (${shift})`,
-        });
-        setDutyDialogOpen(false);
-        setSelectedPersonnelForDuty(null);
-      } catch (error) {
-        addToast({
-          type: "error",
-          title: "Assignment Failed",
-          message: error instanceof Error ? error.message : "Failed to assign duty",
-        });
-      }
+    if (!personnelForDuty) return;
+    try {
+      await assignDutyMutation.mutateAsync({ id: personnelForDuty.id, duty, shift });
+      addToast({
+        type: "success",
+        title: "Duty Assigned",
+        message: `${personnelForDuty.name} assigned to ${duty} (${shift})`,
+      });
+      setPersonnelForDuty(null);
+    } catch (error) {
+      addToast({
+        type: "error",
+        title: "Assignment Failed",
+        message: error instanceof Error ? error.message : "The server rejected the request",
+      });
     }
   };
 
-  // Show error state
-  if (error) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Card className="max-w-md w-full">
-            <CardContent className="p-6 text-center">
-              <div className="text-error mb-4">
-                <UserX className="h-12 w-12 mx-auto" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">Failed to Load Personnel</h3>
-              <p className="text-foreground-muted mb-4">
-                {error instanceof Error ? error.message : "An error occurred while loading personnel data"}
-              </p>
-              <Button onClick={() => refetch()}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Retry
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
-    );
-  }
+  const statCards = [
+    { label: "Total Strength", query: totalCount, icon: Users, valueClass: "text-foreground", iconClass: "text-accent" },
+    { label: "On Duty", query: onDutyCount, icon: UserCheck, valueClass: "text-success", iconClass: "text-success" },
+    { label: "On Leave", query: onLeaveCount, icon: Calendar, valueClass: "text-warning", iconClass: "text-warning" },
+    { label: "Off Duty", query: offDutyCount, icon: UserMinus, valueClass: "text-foreground-muted", iconClass: "text-foreground-muted" },
+  ];
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Personnel Management</h1>
-            <p className="text-foreground-muted">
-              Manage duty roster, attendance, and officer assignments
-            </p>
+            <p className="text-foreground-muted">Service records, duty assignments and current status of officers</p>
           </div>
-          {canEdit && (
+          {canManage && (
             <Link href="/personnel/new">
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
@@ -277,51 +207,22 @@ export default function PersonnelPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Total Strength</p>
-                  <p className="text-2xl font-bold text-foreground">{stats.total}</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {statCards.map(({ label, query, icon: Icon, valueClass, iconClass }) => (
+            <Card key={label}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-foreground-muted">{label}</p>
+                    <p className={`text-2xl font-bold ${valueClass}`}>
+                      <StatValue value={query.data?.total} isError={query.isError} />
+                    </p>
+                  </div>
+                  <Icon className={`h-8 w-8 opacity-50 ${iconClass}`} />
                 </div>
-                <Users className="h-8 w-8 text-accent opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">On Duty</p>
-                  <p className="text-2xl font-bold text-success">{stats.onDuty}</p>
-                </div>
-                <UserCheck className="h-8 w-8 text-success opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">On Leave</p>
-                  <p className="text-2xl font-bold text-warning">{stats.onLeave}</p>
-                </div>
-                <Calendar className="h-8 w-8 text-warning opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Off Duty</p>
-                  <p className="text-2xl font-bold text-foreground-muted">{stats.offDuty}</p>
-                </div>
-                <UserMinus className="h-8 w-8 text-foreground-muted opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
         {/* Tabs */}
@@ -333,21 +234,12 @@ export default function PersonnelPage() {
             </TabsTrigger>
             <TabsTrigger value="duty">
               <Clock className="h-4 w-4 mr-2" />
-              Duty Schedule
-            </TabsTrigger>
-            <TabsTrigger value="attendance">
-              <Calendar className="h-4 w-4 mr-2" />
-              Attendance
-            </TabsTrigger>
-            <TabsTrigger value="performance">
-              <Award className="h-4 w-4 mr-2" />
-              Performance
+              On Duty Now
             </TabsTrigger>
           </TabsList>
 
           {/* Personnel Roster Tab */}
           <TabsContent value="roster" className="space-y-6">
-            {/* Filters */}
             <Card>
               <CardContent className="p-4">
                 <div className="flex flex-col md:flex-row gap-4">
@@ -355,20 +247,29 @@ export default function PersonnelPage() {
                     <Input
                       placeholder="Search by name, badge number, or phone..."
                       value={searchQuery}
-                      onChange={setSearchQuery}
+                      onChange={(v: string) => {
+                        setSearchQuery(v);
+                        setPage(1);
+                      }}
                       icon={<Search className="h-4 w-4" />}
                     />
                   </div>
                   <Select
                     options={rankOptions}
                     value={rankFilter}
-                    onChange={setRankFilter}
+                    onChange={(v: string) => {
+                      setRankFilter(v);
+                      setPage(1);
+                    }}
                     className="w-full md:w-40"
                   />
                   <Select
                     options={statusOptions}
                     value={statusFilter}
-                    onChange={setStatusFilter}
+                    onChange={(v: string) => {
+                      setStatusFilter(v);
+                      setPage(1);
+                    }}
                     className="w-full md:w-40"
                   />
                   <Button
@@ -377,22 +278,21 @@ export default function PersonnelPage() {
                       exportToCSV(personnel, "personnel", exportConfigs.personnel);
                       addToast({
                         type: "success",
-                        title: "Export successful",
-                        message: "Personnel data exported to CSV",
+                        title: "Export ready",
+                        message: `${personnel.length} rows on this page exported to CSV`,
                       });
                     }}
-                    disabled={isLoading || personnel.length === 0}
+                    disabled={roster.isPending || personnel.length === 0}
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    Export
+                    Export Page
                   </Button>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Personnel Table */}
             <Card>
-              <CardContent className="p-0">
+              <CardContent className="p-0 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -401,23 +301,39 @@ export default function PersonnelPage() {
                       <TableHead>Rank</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Current Duty</TableHead>
-                      <TableHead>Cases</TableHead>
+                      <TableHead>Station</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoading ? (
+                    {roster.isPending ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-12">
                           <Loader2 className="h-8 w-8 animate-spin mx-auto text-accent mb-2" />
-                          <p className="text-foreground-muted">Loading personnel data...</p>
+                          <p className="text-foreground-muted">Loading personnel…</p>
+                        </TableCell>
+                      </TableRow>
+                    ) : roster.isError ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-12">
+                          <UserX className="h-12 w-12 mx-auto text-error mb-2" />
+                          <p className="text-foreground font-medium">Personnel could not be loaded</p>
+                          <p className="text-foreground-muted mb-4">{roster.error.message}</p>
+                          <Button variant="secondary" onClick={() => roster.refetch()}>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Try again
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ) : personnel.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-12">
                           <Users className="h-12 w-12 mx-auto text-foreground-muted opacity-50 mb-2" />
-                          <p className="text-foreground-muted">No personnel found</p>
+                          <p className="text-foreground-muted">
+                            {search || rankFilter || statusFilter
+                              ? "No personnel match these filters"
+                              : "No personnel records yet"}
+                          </p>
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -428,7 +344,7 @@ export default function PersonnelPage() {
                               <Avatar fallback={person.name} size="sm" />
                               <div>
                                 <p className="font-medium text-foreground">{person.name}</p>
-                                <p className="text-xs text-foreground-muted">{person.phone}</p>
+                                {person.phone && <p className="text-xs text-foreground-muted">{person.phone}</p>}
                               </div>
                             </div>
                           </TableCell>
@@ -436,272 +352,64 @@ export default function PersonnelPage() {
                             <span className="font-mono text-accent">{person.badgeNumber}</span>
                           </TableCell>
                           <TableCell>
-                            <span className="text-foreground">{getRoleDisplayName(person.rank as any)}</span>
+                            <span className="text-foreground">{getRoleDisplayName(person.rank as any) ?? person.rank}</span>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={getStatusBadgeVariant(person.dutyStatus) as any}>
+                            <Badge variant={getStatusBadgeVariant(person.status) as any}>
                               <span className="flex items-center gap-1">
-                                {getStatusIcon(person.dutyStatus)}
-                                {person.dutyStatus.replace(/_/g, " ")}
+                                {getStatusIcon(person.status)}
+                                {person.status.replace(/_/g, " ")}
                               </span>
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {person.currentAssignment ? (
-                              <span className="text-foreground">{person.currentAssignment}</span>
+                            {person.currentDuty ? (
+                              <div>
+                                <span className="text-foreground">{person.currentDuty}</span>
+                                {person.shift && <p className="text-xs text-foreground-muted">{person.shift}</p>}
+                              </div>
                             ) : (
                               <span className="text-foreground-muted">-</span>
                             )}
                           </TableCell>
                           <TableCell>
-                            <span className="text-foreground">{person.casesAssigned || 0}</span>
+                            <span className="text-foreground">{person.stationName || "-"}</span>
                           </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Link href={`/personnel/${person.id}`}>
-                              <Button variant="ghost" size="sm" title="View">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </Link>
-                            {canManage && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title="Assign Duty"
-                                onClick={() => handleAssignDuty(person.id)}
-                              >
-                                <Briefcase className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {canEdit && (
-                              <Link href={`/personnel/${person.id}?edit=true`}>
-                                <Button variant="ghost" size="sm" title="Edit">
-                                  <Edit className="h-4 w-4" />
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Link href={`/personnel/${person.id}`}>
+                                <Button variant="ghost" size="sm" title="View">
+                                  <Eye className="h-4 w-4" />
                                 </Button>
                               </Link>
-                            )}
-                            {canEdit && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title="Delete"
-                                onClick={() => handleDeleteClick(person.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-error" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Duty Schedule Tab */}
-          <TabsContent value="duty" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-foreground">Today&apos;s Duty Schedule</h3>
-              {canManage && (
-                <Button onClick={() => setShowScheduleEditor(true)}>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit Schedule
-                </Button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {isLoading ? (
-                <div className="col-span-3 flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-accent" />
-                </div>
-              ) : dutyRoster.length === 0 || dutyRoster.every(s => s.officers.length === 0) ? (
-                <div className="col-span-3 text-center py-12">
-                  <Clock className="h-12 w-12 mx-auto text-foreground-muted opacity-50 mb-2" />
-                  <p className="text-foreground-muted">No duty assignments found</p>
-                  <p className="text-sm text-foreground-muted mt-1">Assign personnel to duties to see them here</p>
-                </div>
-              ) : (
-                dutyRoster.map((shift, index) => (
-                  <Card key={index}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Clock className="h-5 w-5" />
-                        {shift.shift}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {shift.officers.length === 0 ? (
-                        <p className="text-sm text-foreground-muted text-center py-4">No officers assigned</p>
-                      ) : (
-                        <div className="space-y-3">
-                          {shift.officers.map((officer, i) => (
-                            <div
-                              key={i}
-                              className="flex items-center gap-3 p-2 rounded-md bg-background-tertiary"
-                            >
-                              <Avatar fallback={officer} size="sm" />
-                              <span className="text-foreground">{officer}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
-          </TabsContent>
-
-          {/* Attendance Tab */}
-          <TabsContent value="attendance" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-foreground">
-                Attendance - {new Date(attendanceDate).toLocaleDateString("en-IN")}
-              </h3>
-              <div className="flex gap-2">
-                <DatePicker
-                  value={attendanceDate}
-                  onChange={(date) => {
-                    setAttendanceDate(date);
-                    addToast({ type: "info", title: "Date Selected", message: `Attendance data for ${new Date(date).toLocaleDateString('en-IN')} will be loaded` });
-                  }}
-                  label="Select Date"
-                  className="w-48"
-                />
-                <Button variant="secondary" onClick={() => addToast({ type: "success", title: "Export Complete", message: "Attendance report exported to CSV" })}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Report
-                </Button>
-              </div>
-            </div>
-
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-accent" />
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <p className="text-3xl font-bold text-success">{attendanceData.present}</p>
-                      <p className="text-sm text-foreground-muted">Present</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <p className="text-3xl font-bold text-warning">{attendanceData.onLeave}</p>
-                      <p className="text-sm text-foreground-muted">On Leave</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <p className="text-3xl font-bold text-error">{attendanceData.absent}</p>
-                      <p className="text-sm text-foreground-muted">Absent</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <p className="text-3xl font-bold text-accent">{attendanceData.total}</p>
-                      <p className="text-sm text-foreground-muted">Total Strength</p>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Attendance percentage visualization */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Attendance Overview</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-4 bg-background-tertiary rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-success"
-                        style={{
-                          width: attendanceData.total > 0
-                            ? `${(attendanceData.present / attendanceData.total) * 100}%`
-                            : '0%'
-                        }}
-                      />
-                    </div>
-                    <p className="text-sm text-foreground-muted mt-2">
-                      {attendanceData.total > 0
-                        ? `${((attendanceData.present / attendanceData.total) * 100).toFixed(1)}% attendance rate`
-                        : 'No attendance data available'
-                      }
-                    </p>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </TabsContent>
-
-          {/* Performance Tab */}
-          <TabsContent value="performance" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Performance Metrics</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Officer</TableHead>
-                      <TableHead>Rank</TableHead>
-                      <TableHead>Cases Assigned</TableHead>
-                      <TableHead>Experience (Years)</TableHead>
-                      <TableHead>Specializations</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-12">
-                          <Loader2 className="h-8 w-8 animate-spin mx-auto text-accent mb-2" />
-                          <p className="text-foreground-muted">Loading performance data...</p>
-                        </TableCell>
-                      </TableRow>
-                    ) : personnel.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-12">
-                          <Award className="h-12 w-12 mx-auto text-foreground-muted opacity-50 mb-2" />
-                          <p className="text-foreground-muted">No performance data available</p>
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      personnel.slice(0, 10).map((person) => (
-                        <TableRow key={person.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <Avatar fallback={person.name} size="sm" />
-                              <span className="font-medium text-foreground">{person.name}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>{getRoleDisplayName(person.rank as any)}</TableCell>
-                          <TableCell>{person.casesAssigned || 0}</TableCell>
-                          <TableCell>{person.experience || 0} years</TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {person.specializations && person.specializations.length > 0 ? (
-                                person.specializations.slice(0, 2).map((spec, i) => (
-                                  <Badge key={i} variant="secondary" className="text-xs">
-                                    {spec}
-                                  </Badge>
-                                ))
-                              ) : (
-                                <span className="text-foreground-muted text-sm">-</span>
+                              {canManage && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Assign Duty"
+                                  onClick={() => setPersonnelForDuty(person)}
+                                >
+                                  <Briefcase className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {canManage && (
+                                <Link href={`/personnel/${person.id}?edit=true`}>
+                                  <Button variant="ghost" size="sm" title="Edit">
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </Link>
+                              )}
+                              {canDelete && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Delete"
+                                  onClick={() => setPersonnelToDelete(person)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-error" />
+                                </Button>
                               )}
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={getStatusBadgeVariant(person.dutyStatus) as any}>
-                              {person.dutyStatus.replace(/_/g, " ")}
-                            </Badge>
                           </TableCell>
                         </TableRow>
                       ))
@@ -710,43 +418,106 @@ export default function PersonnelPage() {
                 </Table>
               </CardContent>
             </Card>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between text-sm text-foreground-muted">
+                <span>
+                  Page {page} of {totalPages} · {roster.data?.total} officers
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                    Previous
+                  </Button>
+                  <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* On Duty Tab — grouped by the shift recorded when duty was assigned */}
+          <TabsContent value="duty" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-foreground">Officers currently on duty, by shift</h3>
+              {dutyBoard.data && dutyBoard.data.total > dutyBoard.data.data.length && (
+                <p className="text-sm text-warning">
+                  Showing {dutyBoard.data.data.length} of {dutyBoard.data.total} on-duty officers
+                </p>
+              )}
+            </div>
+
+            {dutyBoard.isPending ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-accent" />
+              </div>
+            ) : dutyBoard.isError ? (
+              <Card className="border-error/30">
+                <CardContent className="p-8 text-center space-y-3">
+                  <p className="text-foreground font-medium">Duty board could not be loaded</p>
+                  <p className="text-foreground-muted">{dutyBoard.error.message}</p>
+                  <Button variant="secondary" onClick={() => dutyBoard.refetch()}>
+                    Try again
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : shifts.length === 0 ? (
+              <div className="text-center py-12">
+                <Clock className="h-12 w-12 mx-auto text-foreground-muted opacity-50 mb-2" />
+                <p className="text-foreground-muted">No officers are on duty</p>
+                <p className="text-sm text-foreground-muted mt-1">Assign duty from the roster to see officers here</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {shifts.map((group) => (
+                  <Card key={group.shift}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Clock className="h-5 w-5" />
+                        {group.shift}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {group.officers.map((officer) => (
+                          <Link
+                            key={officer.id}
+                            href={`/personnel/${officer.id}`}
+                            className="flex items-center gap-3 p-2 rounded-md bg-background-tertiary hover:bg-background-secondary"
+                          >
+                            <Avatar fallback={officer.name} size="sm" />
+                            <div>
+                              <span className="text-foreground">{officer.name}</span>
+                              {officer.currentDuty && (
+                                <p className="text-xs text-foreground-muted">{officer.currentDuty}</p>
+                              )}
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
 
-        {/* Delete Confirmation Dialog */}
         <ConfirmDialog
-          isOpen={deleteDialogOpen}
-          onClose={() => setDeleteDialogOpen(false)}
+          isOpen={personnelToDelete !== null}
+          onClose={() => setPersonnelToDelete(null)}
           onConfirm={handleDeleteConfirm}
-          title="Delete Personnel"
-          message="Are you sure you want to delete this personnel record? This action cannot be undone."
+          title="Delete Personnel Record"
+          message={`Delete the service record for ${personnelToDelete?.name ?? "this officer"}? The user account is not affected. This cannot be undone.`}
           confirmText="Delete"
           type="danger"
         />
 
-        {/* Duty Assignment Dialog */}
         <DutyAssignmentDialog
-          isOpen={dutyDialogOpen}
-          onClose={() => {
-            setDutyDialogOpen(false);
-            setSelectedPersonnelForDuty(null);
-          }}
+          isOpen={personnelForDuty !== null}
+          onClose={() => setPersonnelForDuty(null)}
           onAssign={handleDutyAssignment}
-          officerName={personnel.find(p => p.id === selectedPersonnelForDuty)?.name || "Officer"}
-        />
-
-        <DutyScheduleEditor
-          isOpen={showScheduleEditor}
-          onClose={() => setShowScheduleEditor(false)}
-          onSave={(schedule) => {
-            addToast({
-              type: "success",
-              title: "Schedule Saved",
-              message: `Duty schedule for ${new Date(schedule.date).toLocaleDateString('en-IN')} saved successfully`,
-            });
-            // Backend integration pending - data saved to local state only
-          }}
-          date={new Date().toISOString().split('T')[0]}
+          officerName={personnelForDuty?.name || "Officer"}
         />
       </div>
     </DashboardLayout>

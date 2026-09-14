@@ -1,16 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { FlaskConical, FileText, Calendar } from "lucide-react";
+import { FlaskConical } from "lucide-react";
 import { Modal, ModalFooter } from "./Modal";
 import { Input } from "./input";
 import { LegacySelect as Select } from "./select";
-import { Textarea } from "./textarea";
 import { Button } from "./button";
 import { DatePicker } from "./DatePicker";
 import { useCreateForensic } from "@/hooks/use-forensics";
+import type { ForensicPriority, ForensicType } from "@/lib/api/forensics";
 import { toast } from "@/stores/toastStore";
-import { useAuthStore } from "@/stores/authStore";
 
 export interface ForensicRequestDialogProps {
   caseId?: string;
@@ -20,6 +19,30 @@ export interface ForensicRequestDialogProps {
   onSuccess?: () => void;
 }
 
+/** A date input yields YYYY-MM-DD; the API's time.Time fields need RFC 3339. */
+const toApiDate = (day: string) => `${day}T00:00:00Z`;
+const today = () => new Date().toISOString().split("T")[0];
+
+const forensicTypeOptions = [
+  { value: "FINGERPRINT", label: "Fingerprint Analysis" },
+  { value: "DNA", label: "DNA Analysis" },
+  { value: "BALLISTICS", label: "Ballistics" },
+  { value: "DIGITAL", label: "Digital Forensics" },
+  { value: "NARCOTICS", label: "Narcotics" },
+  { value: "DOCUMENT", label: "Document Examination" },
+];
+
+const priorityOptions = [
+  { value: "LOW", label: "Low" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "HIGH", label: "High" },
+  { value: "CRITICAL", label: "Critical" },
+];
+
+/**
+ * Sends one evidence item to a forensic lab. Evidence is required by the API;
+ * the case is carried across when the evidence item is linked to one.
+ */
 export function ForensicRequestDialog({
   caseId,
   evidenceId,
@@ -27,116 +50,80 @@ export function ForensicRequestDialog({
   onClose,
   onSuccess,
 }: ForensicRequestDialogProps) {
-  const [type, setType] = useState("");
-  const [labName, setLabName] = useState("");
-  const [labRefNumber, setLabRefNumber] = useState("");
-  const [requestedDate, setRequestedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [type, setType] = useState<ForensicType | "">("");
+  const [lab, setLab] = useState("");
+  const [submittedDate, setSubmittedDate] = useState(today);
   const [expectedDate, setExpectedDate] = useState("");
-  const [priority, setPriority] = useState("MEDIUM");
-  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState<ForensicPriority>("MEDIUM");
 
   const createMutation = useCreateForensic();
-  const { user } = useAuthStore();
+
+  const reset = () => {
+    setType("");
+    setLab("");
+    setSubmittedDate(today());
+    setExpectedDate("");
+    setPriority("MEDIUM");
+  };
 
   const handleSubmit = async () => {
-    if (!type || !labName || !caseId) {
+    if (!type || !lab.trim() || !evidenceId) {
       toast.warning("Required Fields", "Please fill in all required fields");
       return;
     }
 
     try {
       await createMutation.mutateAsync({
-        type: type as any,
-        caseId,
         evidenceId,
-        labName,
-        labRefNumber,
-        requestedDate,
-        expectedDate,
-        priority: priority as any,
-        requestedBy: user?.name || "Unknown Officer",
-        status: "REQUESTED",
-        description,
+        caseId: caseId ?? null,
+        type,
+        priority,
+        lab: lab.trim(),
+        submittedDate: toApiDate(submittedDate),
+        expectedDate: expectedDate ? toApiDate(expectedDate) : null,
       });
-
-      // Reset form
-      setType("");
-      setLabName("");
-      setLabRefNumber("");
-      setRequestedDate(new Date().toISOString().split('T')[0]);
-      setExpectedDate("");
-      setPriority("MEDIUM");
-      setDescription("");
-
-      toast.success("Request Created", "Forensic request has been submitted");
+      reset();
       onSuccess?.();
       onClose();
     } catch (error) {
-      console.error("Request failed:", error);
-      toast.error("Request Failed", "Failed to create forensic request. Please try again.");
+      toast.error(
+        "Request not created",
+        error instanceof Error ? error.message : "The server rejected the request"
+      );
     }
   };
 
-  const forensicTypeOptions = [
-    { value: "FINGERPRINT", label: "Fingerprint Analysis" },
-    { value: "DNA", label: "DNA Analysis" },
-    { value: "BALLISTIC", label: "Ballistic Analysis" },
-    { value: "TOXICOLOGY", label: "Toxicology" },
-    { value: "DIGITAL_FORENSICS", label: "Digital Forensics" },
-    { value: "AUTOPSY", label: "Autopsy" },
-    { value: "HANDWRITING", label: "Handwriting Analysis" },
-  ];
-
-  const priorityOptions = [
-    { value: "LOW", label: "Low" },
-    { value: "MEDIUM", label: "Medium" },
-    { value: "HIGH", label: "High" },
-    { value: "CRITICAL", label: "Critical" },
-  ];
-
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="New Forensic Lab Request"
-      size="lg"
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title="New Forensic Lab Request" size="lg">
       <div className="space-y-4">
         <Select
           label="Test Type *"
           options={forensicTypeOptions}
           value={type}
-          onChange={(value: string) => setType(value)}
+          onChange={(value: string) => setType(value as ForensicType)}
         />
 
         <Input
-          label="Lab Name *"
-          value={labName}
-          onChange={(value: string) => setLabName(value)}
-          placeholder="e.g., FSL Bangalore, CFSL Delhi"
+          label="Lab *"
+          value={lab}
+          onChange={(value: string) => setLab(value)}
+          placeholder="e.g., State FSL, Kolkata"
           icon={<FlaskConical className="h-4 w-4" />}
-        />
-
-        <Input
-          label="Lab Reference Number"
-          value={labRefNumber}
-          onChange={(value: string) => setLabRefNumber(value)}
-          placeholder="Optional - will be assigned by lab"
         />
 
         <div className="grid grid-cols-2 gap-4">
           <DatePicker
-            label="Requested Date *"
-            value={requestedDate}
-            onChange={(date) => setRequestedDate(date)}
-            maxDate={new Date().toISOString().split('T')[0]}
+            label="Submitted Date *"
+            value={submittedDate}
+            onChange={(date) => setSubmittedDate(date)}
+            maxDate={today()}
           />
 
           <DatePicker
             label="Expected Completion Date"
             value={expectedDate}
             onChange={(date) => setExpectedDate(date)}
-            minDate={requestedDate}
+            minDate={submittedDate}
           />
         </div>
 
@@ -144,29 +131,16 @@ export function ForensicRequestDialog({
           label="Priority *"
           options={priorityOptions}
           value={priority}
-          onChange={(value: string) => setPriority(value)}
+          onChange={(value: string) => setPriority(value as ForensicPriority)}
         />
 
-        <Textarea
-          label="Description / Instructions"
-          value={description}
-          onChange={(value: string) => setDescription(value)}
-          placeholder="Describe what needs to be analyzed or any specific instructions..."
-          rows={4}
-        />
-
-        {caseId && (
-          <div className="p-3 bg-background-tertiary rounded-md">
-            <p className="text-sm text-foreground-muted">Case ID</p>
-            <p className="font-medium text-foreground">{caseId}</p>
-          </div>
+        {!evidenceId && (
+          <p className="text-sm text-error">Choose an evidence item before sending it to a lab.</p>
         )}
-
-        {evidenceId && (
-          <div className="p-3 bg-background-tertiary rounded-md">
-            <p className="text-sm text-foreground-muted">Evidence ID</p>
-            <p className="font-medium text-foreground">{evidenceId}</p>
-          </div>
+        {evidenceId && !caseId && (
+          <p className="text-sm text-foreground-muted">
+            This evidence item is not linked to a case, so the request will not be either.
+          </p>
         )}
       </div>
 
@@ -176,7 +150,7 @@ export function ForensicRequestDialog({
         </Button>
         <Button
           onClick={handleSubmit}
-          disabled={createMutation.isPending || !type || !labName || !caseId}
+          disabled={createMutation.isPending || !type || !lab.trim() || !evidenceId}
           isLoading={createMutation.isPending}
         >
           <FlaskConical className="h-4 w-4 mr-2" />

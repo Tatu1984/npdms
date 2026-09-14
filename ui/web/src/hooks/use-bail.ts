@@ -1,400 +1,77 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import bailApi, { type Bail, type BailInput, type BailQuery, type BailStatus } from "@/lib/api/bail";
+
 /**
- * Bail Hooks - React Query + Offline Support
+ * React Query bindings for bail applications.
+ *
+ * No local fallback: a failed request surfaces as an error, never as demo
+ * records or a write that only happened in the browser. Every mutation
+ * invalidates the whole bail subtree so lists and stats cannot disagree with
+ * the record just changed.
  */
 
-'use client';
-
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { db, Bail, BailType, BailStatus } from '../lib/db/schema';
-import { queueCreate, queueUpdate, queueDelete, type QueueOptions } from '../lib/sync/queue-manager';
-import { networkMonitor } from '../lib/sync/network-monitor';
-import { v4 as uuidv4 } from 'uuid';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
-
-// Demo data for when API and IndexedDB are empty
-const DEMO_BAIL: Bail[] = [
-  {
-    id: 'demo-bail-001',
-    applicationNumber: 'BAIL/2024/00089',
-    caseId: 'demo-case-001',
-    accusedId: 'demo-accused-001',
-    accusedName: 'Ravi Shankar',
-    type: 'REGULAR',
-    status: 'PENDING',
-    applicationDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    lawyerName: 'Adv. Suresh Menon',
-    courtName: 'Sessions Court, Bangalore',
-    hearingDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-    bailAmount: 200000,
-    suretyAmount: 100000,
-    conditions: ['Report to police station weekly', 'Do not leave city without permission'],
-    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'demo-bail-002',
-    applicationNumber: 'BAIL/2024/00090',
-    caseId: 'demo-case-002',
-    accusedId: 'demo-accused-002',
-    accusedName: 'Amit Verma',
-    type: 'ANTICIPATORY',
-    status: 'APPROVED',
-    applicationDate: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
-    lawyerName: 'Adv. Priya Nair',
-    courtName: 'High Court, Karnataka',
-    approvedDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-    approvedBy: 'Hon. Justice Priya Sharma',
-    bailAmount: 500000,
-    suretyAmount: 250000,
-    conditions: ['Cooperate with investigation', 'Surrender passport'],
-    createdAt: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'demo-bail-003',
-    applicationNumber: 'BAIL/2024/00091',
-    caseId: 'demo-case-003',
-    accusedId: 'demo-accused-003',
-    accusedName: 'Vikram Singh',
-    type: 'REGULAR',
-    status: 'APPROVED',
-    applicationDate: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(),
-    lawyerName: 'Adv. Rajan Iyer',
-    courtName: 'Magistrate Court, Bangalore',
-    approvedDate: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-    approvedBy: 'Hon. Magistrate Vijay Kumar',
-    bailAmount: 50000,
-    suretyAmount: 25000,
-    conditions: ['Appear for all court hearings'],
-    createdAt: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'demo-bail-004',
-    applicationNumber: 'BAIL/2024/00092',
-    caseId: 'demo-case-005',
-    accusedId: 'demo-accused-004',
-    accusedName: 'Sunil Kumar',
-    type: 'REGULAR',
-    status: 'REJECTED',
-    applicationDate: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-    lawyerName: 'Adv. Kamal Hassan',
-    courtName: 'Sessions Court, Bangalore',
-    rejectedReason: 'NDPS case - serious charges, risk of tampering evidence',
-    createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-];
-
-interface ListResponse<T> {
-  data: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-interface BailFilters {
-  type?: BailType;
-  status?: BailStatus;
-  caseId?: string;
-  page?: number;
-  pageSize?: number;
-}
-
-const bailApi = {
-  list: async (filters: BailFilters = {}): Promise<ListResponse<Bail>> => {
-    const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined) {
-        params.append(key, String(value));
-      }
-    });
-
-    const response = await fetch(`${API_BASE}/bail?${params}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    return response.json();
-  },
-
-  getById: async (id: string): Promise<Bail> => {
-    const response = await fetch(`${API_BASE}/bail/${id}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    return response.json();
-  },
-
-  create: async (data: Partial<Bail>): Promise<Bail> => {
-    const response = await fetch(`${API_BASE}/bail`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    return response.json();
-  },
-
-  update: async (id: string, data: Partial<Bail>): Promise<Bail> => {
-    const response = await fetch(`${API_BASE}/bail/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    return response.json();
-  },
-
-  delete: async (id: string): Promise<void> => {
-    const response = await fetch(`${API_BASE}/bail/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-  },
-};
-
 export const bailKeys = {
-  all: ['bail'] as const,
-  lists: () => [...bailKeys.all, 'list'] as const,
-  list: (filters: BailFilters) => [...bailKeys.lists(), filters] as const,
-  details: () => [...bailKeys.all, 'detail'] as const,
-  detail: (id: string) => [...bailKeys.details(), id] as const,
+  all: ["bail"] as const,
+  list: (query: BailQuery) => ["bail", "list", query] as const,
+  detail: (id: string) => ["bail", "detail", id] as const,
+  stats: () => ["bail", "stats"] as const,
+  accused: (caseId: string) => ["bail", "accused", caseId] as const,
 };
 
-export function useBail(filters: BailFilters = {}) {
-  const isOnline = networkMonitor.isOnline();
-
+export function useBail(query: BailQuery = {}) {
   return useQuery({
-    queryKey: bailKeys.list(filters),
-    queryFn: async () => {
-      if (isOnline) {
-        try {
-          const response = await bailApi.list(filters);
-          await Promise.all(response.data.map(bail =>
-            db.bail.put({ ...bail, _pending: false, _localOnly: false })
-          ));
-          return response;
-        } catch (error) {
-          console.error('[useBail] Network error, using IndexedDB:', error);
-        }
-      }
-
-      let results = await db.bail.orderBy('applicationDate').reverse().toArray();
-      // If no data in IndexedDB, use demo data
-      if (results.length === 0) {
-        results = DEMO_BAIL;
-      }
-      let filtered = results.filter(b => !b._localOnly || b._pending);
-
-      if (filters.type) filtered = filtered.filter(b => b.type === filters.type);
-      if (filters.status) filtered = filtered.filter(b => b.status === filters.status);
-      if (filters.caseId) filtered = filtered.filter(b => b.caseId === filters.caseId);
-
-      const page = filters.page || 1;
-      const pageSize = filters.pageSize || 20;
-      const start = (page - 1) * pageSize;
-      const paginated = filtered.slice(start, start + pageSize);
-
-      return { data: paginated, total: filtered.length, page, pageSize };
-    },
-    staleTime: 30000,
+    queryKey: bailKeys.list(query),
+    queryFn: () => bailApi.list(query),
   });
 }
 
 export function useBailById(id: string) {
-  const isOnline = networkMonitor.isOnline();
-
   return useQuery({
     queryKey: bailKeys.detail(id),
-    queryFn: async () => {
-      if (isOnline) {
-        try {
-          const bail = await bailApi.getById(id);
-          await db.bail.put({ ...bail, _pending: false, _localOnly: false });
-          return bail;
-        } catch (error) {
-          console.error('[useBailById] Network error, using IndexedDB:', error);
-        }
-      }
-
-      const bail = await db.bail.get(id);
-      if (!bail) throw new Error('Bail record not found');
-      return bail;
-    },
-    enabled: !!id,
+    queryFn: () => bailApi.get(id),
+    enabled: Boolean(id),
   });
 }
 
-export function useCreateBail(options?: QueueOptions) {
-  const queryClient = useQueryClient();
-  const isOnline = networkMonitor.isOnline();
-
-  return useMutation({
-    mutationFn: async (data: Omit<Bail, 'id' | 'createdAt' | 'updatedAt'>) => {
-      const id = uuidv4();
-      const now = new Date().toISOString();
-      const bail: Bail = {
-        ...data,
-        id,
-        createdAt: now,
-        updatedAt: now,
-        _pending: !isOnline,
-        _localOnly: !isOnline,
-      };
-
-      if (isOnline) {
-        try {
-          const created = await bailApi.create(data);
-          await db.bail.put({
-            ...created,
-            _pending: false,
-            _localOnly: false,
-          });
-          return created;
-        } catch (error) {
-          console.error('[useCreateBail] Network error, queuing for offline sync:', error);
-        }
-      }
-
-      await db.bail.put(bail);
-      await queueCreate(
-        'bail',
-        id,
-        data,
-        `${API_BASE}/bail`,
-        options
-      );
-
-      return bail;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bailKeys.lists() });
-    },
-    onError: (error: Error) => {
-      console.error('[useCreateBail] Mutation error:', error.message);
-    },
+export function useBailStats() {
+  return useQuery({
+    queryKey: bailKeys.stats(),
+    queryFn: bailApi.stats,
   });
 }
 
-export function useUpdateBail(options?: QueueOptions) {
-  const queryClient = useQueryClient();
-  const isOnline = networkMonitor.isOnline();
-
-  return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<Bail> }) => {
-      const existing = await db.bail.get(id);
-      if (!existing) throw new Error('Bail record not found');
-
-      const updated = { ...existing, ...data, updatedAt: new Date().toISOString(), _pending: !isOnline };
-      await db.bail.put(updated);
-
-      if (isOnline) {
-        try {
-          const updated = await bailApi.update(id, data);
-          await db.bail.put({
-            ...updated,
-            _pending: false,
-            _localOnly: false,
-          });
-          return updated;
-        } catch (error) {
-          console.error('[useUpdateBail] Network error, queuing for offline sync:', error);
-        }
-      }
-
-      await db.bail.put(updated);
-      await queueUpdate(
-        'bail',
-        id,
-        data,
-        `${API_BASE}/bail/${id}`,
-        options
-      );
-
-      return updated;
-    },
-    onSuccess: (_, { id }) => {
-      queryClient.invalidateQueries({ queryKey: bailKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: bailKeys.detail(id) });
-    },
-    onError: (error: Error) => {
-      console.error('[useUpdateBail] Mutation error:', error.message);
-    },
+export function useAccusedForCase(caseId: string | null | undefined) {
+  return useQuery({
+    queryKey: bailKeys.accused(caseId ?? ""),
+    queryFn: () => bailApi.accusedForCase(caseId!),
+    enabled: Boolean(caseId),
   });
 }
 
-export function useDeleteBail(options?: QueueOptions) {
-  const queryClient = useQueryClient();
-  const isOnline = networkMonitor.isOnline();
-
+export function useCreateBail() {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      if (isOnline) {
-        try {
-          await bailApi.delete(id);
-          await db.bail.delete(id);
-          return;
-        } catch (error) {
-          console.error('[useDeleteBail] Network error, queuing for offline sync:', error);
-        }
-      }
+    mutationFn: (input: BailInput) => bailApi.create(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: bailKeys.all }),
+  });
+}
 
-      const existing = await db.bail.get(id);
-      if (existing) {
-        await db.bail.put({
-          ...existing,
-          _pending: true,
-        });
-      }
+export function useUpdateBail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ bail, changes }: { bail: Bail; changes: Partial<BailInput> }) =>
+      bailApi.update(bail, changes),
+    onSuccess: () => qc.invalidateQueries({ queryKey: bailKeys.all }),
+  });
+}
 
-      await queueDelete(
-        'bail',
-        id,
-        `${API_BASE}/bail/${id}`,
-        options
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: bailKeys.lists() });
-    },
-    onError: (error: Error) => {
-      console.error('[useDeleteBail] Mutation error:', error.message);
-    },
+export function useSetBailStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status, reason }: { id: string; status: BailStatus; reason?: string }) =>
+      bailApi.setStatus(id, status, reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: bailKeys.all }),
   });
 }

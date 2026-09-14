@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   User,
   Shield,
@@ -12,294 +13,56 @@ import {
   Clock,
   ArrowLeft,
   Edit,
-  FileText,
-  Award,
   Briefcase,
-  TrendingUp,
   AlertTriangle,
-  Check,
   X,
   Save,
+  Loader2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { LegacySelect as Select } from "@/components/ui/select";
+import { DutyAssignmentDialog } from "@/components/ui/DutyAssignmentDialog";
 import { useAuthStore, hasMinimumRole, getRoleDisplayName } from "@/stores/authStore";
-import { usePersonnelStore } from "@/stores/personnelStore";
 import { useToastStore } from "@/stores/toastStore";
+import { useAssignDuty, usePersonnelById, useUpdatePersonnel } from "@/hooks/use-personnel";
+import type { Personnel, PersonnelRank, PersonnelStatus } from "@/lib/api/personnel";
+import { ApiClientError } from "@/lib/api/client";
+import { formatDate, formatDateTime } from "@/lib/utils";
 
-// Helper function to generate mock officer data based on ID
-const getOfficerById = (id: string) => {
-  const mockOfficers: any = {
-    "p-001": {
-      id: "p-001",
-      badgeNumber: "KAR-C-4567",
-      name: "Ramesh Kumar",
-      rank: "CONSTABLE",
-      photo: null,
-      phone: "+91 9876543210",
-      email: "ramesh.kumar@karpolice.gov.in",
-      dateOfBirth: "1992-03-15",
-      dateOfJoining: "2019-05-15",
-      gender: "Male",
-      bloodGroup: "B+",
-      currentPosting: {
-        station: "Koramangala Police Station",
-        district: "Bangalore Urban",
-        state: "Karnataka",
-        since: "2019-05-15",
-      },
-      address: {
-        permanent: "123, 4th Main, Jayanagar 4th Block, Bangalore - 560041",
-        current: "45, 2nd Cross, Koramangala 5th Block, Bangalore - 560095",
-      },
-      emergency: {
-        name: "Sunita Kumar",
-        relation: "Spouse",
-        phone: "+91 9876543211",
-      },
-      stats: {
-        casesAssigned: 3,
-        casesResolved: 2,
-        pendingCases: 1,
-        resolutionRate: 67,
-        avgResolutionDays: 15,
-        commendations: 1,
-        complaints: 0,
-      },
-      postingHistory: [
-        { station: "Koramangala PS", from: "2019-05-15", to: "Present", role: "Patrol Officer" },
-      ],
-      trainings: [
-        { name: "Basic Police Training", year: "2019", status: "Completed" },
-        { name: "Traffic Management", year: "2020", status: "Completed" },
-      ],
-      awards: [
-        { title: "Best Newcomer", year: "2020", from: "Station SHO" },
-      ],
-      activeCases: [
-        { firNumber: "KOR/2024/00123", type: "Theft", status: "UNDER_INVESTIGATION" },
-      ],
-      attendance: { present: 22, leave: 2, absent: 0, onDuty: 24 },
-      status: "ON_DUTY",
-      lastSeen: "2 min ago",
-    },
-    "p-002": {
-      id: "p-002",
-      badgeNumber: "KAR-HC-3456",
-      name: "Mohan Singh",
-      rank: "HEAD_CONSTABLE",
-      photo: null,
-      phone: "+91 9876543211",
-      email: "mohan.singh@karpolice.gov.in",
-      dateOfBirth: "1988-07-20",
-      dateOfJoining: "2015-08-20",
-      gender: "Male",
-      bloodGroup: "O+",
-      currentPosting: {
-        station: "Koramangala Police Station",
-        district: "Bangalore Urban",
-        state: "Karnataka",
-        since: "2015-08-20",
-      },
-      address: {
-        permanent: "456, MG Road, Bangalore - 560001",
-        current: "78, Brigade Road, Bangalore - 560001",
-      },
-      emergency: {
-        name: "Rekha Singh",
-        relation: "Spouse",
-        phone: "+91 9876543212",
-      },
-      stats: {
-        casesAssigned: 5,
-        casesResolved: 4,
-        pendingCases: 1,
-        resolutionRate: 80,
-        avgResolutionDays: 10,
-        commendations: 2,
-        complaints: 0,
-      },
-      postingHistory: [
-        { station: "Koramangala PS", from: "2015-08-20", to: "Present", role: "Armoury In-Charge" },
-      ],
-      trainings: [
-        { name: "Weapons Training", year: "2016", status: "Completed" },
-        { name: "Security Management", year: "2018", status: "Completed" },
-      ],
-      awards: [
-        { title: "Excellence in Service", year: "2021", from: "District SP" },
-        { title: "Best Armoury Management", year: "2022", from: "Station SHO" },
-      ],
-      activeCases: [
-        { firNumber: "KOR/2024/00145", type: "Robbery", status: "UNDER_INVESTIGATION" },
-      ],
-      attendance: { present: 23, leave: 1, absent: 0, onDuty: 24 },
-      status: "ON_DUTY",
-      lastSeen: "10 min ago",
-    },
-    "p-003": {
-      id: "p-003",
-      badgeNumber: "KAR-ASI-2345",
-      name: "Prakash Rao",
-      rank: "ASI",
-      photo: null,
-      phone: "+91 9876543212",
-      email: "prakash.rao@karpolice.gov.in",
-      dateOfBirth: "1985-11-10",
-      dateOfJoining: "2012-03-10",
-      gender: "Male",
-      bloodGroup: "A+",
-      currentPosting: {
-        station: "Koramangala Police Station",
-        district: "Bangalore Urban",
-        state: "Karnataka",
-        since: "2012-03-10",
-      },
-      address: {
-        permanent: "789, Indiranagar, Bangalore - 560038",
-        current: "321, HAL 2nd Stage, Bangalore - 560008",
-      },
-      emergency: {
-        name: "Lakshmi Rao",
-        relation: "Spouse",
-        phone: "+91 9876543213",
-      },
-      stats: {
-        casesAssigned: 4,
-        casesResolved: 3,
-        pendingCases: 1,
-        resolutionRate: 75,
-        avgResolutionDays: 12,
-        commendations: 2,
-        complaints: 0,
-      },
-      postingHistory: [
-        { station: "Koramangala PS", from: "2012-03-10", to: "Present", role: "Investigation Officer" },
-      ],
-      trainings: [
-        { name: "Criminal Investigation", year: "2013", status: "Completed" },
-        { name: "Digital Forensics", year: "2020", status: "Completed" },
-      ],
-      awards: [
-        { title: "Investigator of the Year", year: "2019", from: "District SP" },
-      ],
-      activeCases: [
-        { firNumber: "KOR/2024/00098", type: "Fraud", status: "UNDER_INVESTIGATION" },
-      ],
-      attendance: { present: 20, leave: 4, absent: 0, onDuty: 24 },
-      status: "ON_LEAVE",
-      lastSeen: "1 day ago",
-    },
-    "p-004": {
-      id: "p-004",
-      badgeNumber: "KAR-SI-1234",
-      name: "Suresh Patil",
-      rank: "SI",
-      photo: null,
-      phone: "+91 9876543213",
-      email: "suresh.patil@karpolice.gov.in",
-      dateOfBirth: "1982-06-01",
-      dateOfJoining: "2010-07-01",
-      gender: "Male",
-      bloodGroup: "AB+",
-      currentPosting: {
-        station: "Koramangala Police Station",
-        district: "Bangalore Urban",
-        state: "Karnataka",
-        since: "2010-07-01",
-      },
-      address: {
-        permanent: "234, Malleshwaram, Bangalore - 560003",
-        current: "567, Koramangala 6th Block, Bangalore - 560095",
-      },
-      emergency: {
-        name: "Anita Patil",
-        relation: "Spouse",
-        phone: "+91 9876543214",
-      },
-      stats: {
-        casesAssigned: 8,
-        casesResolved: 7,
-        pendingCases: 1,
-        resolutionRate: 87,
-        avgResolutionDays: 8,
-        commendations: 3,
-        complaints: 0,
-      },
-      postingHistory: [
-        { station: "Koramangala PS", from: "2018-01-01", to: "Present", role: "Investigation Officer" },
-        { station: "BTM Layout PS", from: "2010-07-01", to: "2017-12-31", role: "Beat Officer" },
-      ],
-      trainings: [
-        { name: "Advanced Investigation", year: "2015", status: "Completed" },
-        { name: "Crime Scene Management", year: "2019", status: "Completed" },
-        { name: "Cyber Crime", year: "2023", status: "Completed" },
-      ],
-      awards: [
-        { title: "Best Investigation Award", year: "2023", from: "District SP" },
-        { title: "Commendation Letter", year: "2021", from: "DGP Office" },
-      ],
-      activeCases: [
-        { firNumber: "KOR/2024/00123", type: "Theft", status: "UNDER_INVESTIGATION" },
-      ],
-      attendance: { present: 24, leave: 0, absent: 0, onDuty: 24 },
-      status: "ON_DUTY",
-      lastSeen: "Just now",
-    },
-  };
+const rankOptions: Array<{ value: PersonnelRank; label: string }> = [
+  { value: "CONSTABLE", label: "Constable" },
+  { value: "HEAD_CONSTABLE", label: "Head Constable" },
+  { value: "ASI", label: "Assistant Sub-Inspector" },
+  { value: "SI", label: "Sub-Inspector" },
+  { value: "INSPECTOR", label: "Inspector" },
+  { value: "SHO", label: "Station House Officer" },
+  { value: "DSP", label: "Deputy SP" },
+  { value: "SP", label: "Superintendent of Police" },
+  { value: "DIG", label: "Deputy Inspector General" },
+  { value: "IG", label: "Inspector General" },
+  { value: "DGP", label: "Director General of Police" },
+];
 
-  // Return officer data if exists, otherwise generate a generic one
-  return mockOfficers[id] || {
-    id,
-    badgeNumber: `KAR-${id.slice(-3)}`,
-    name: "Unknown Officer",
-    rank: "CONSTABLE",
-    photo: null,
-    phone: "+91 9876543210",
-    email: "officer@karpolice.gov.in",
-    dateOfBirth: "1990-01-01",
-    dateOfJoining: "2020-01-01",
-    gender: "Male",
-    bloodGroup: "O+",
-    currentPosting: {
-      station: "Koramangala Police Station",
-      district: "Bangalore Urban",
-      state: "Karnataka",
-      since: "2020-01-01",
-    },
-    address: {
-      permanent: "Address not available",
-      current: "Address not available",
-    },
-    emergency: {
-      name: "Not available",
-      relation: "N/A",
-      phone: "N/A",
-    },
-    stats: {
-      casesAssigned: 0,
-      casesResolved: 0,
-      pendingCases: 0,
-      resolutionRate: 0,
-      avgResolutionDays: 0,
-      commendations: 0,
-      complaints: 0,
-    },
-    postingHistory: [],
-    trainings: [],
-    awards: [],
-    activeCases: [],
-    attendance: { present: 0, leave: 0, absent: 0, onDuty: 0 },
-    status: "ON_DUTY",
-    lastSeen: "Unknown",
-  };
-};
+const statusOptions: Array<{ value: PersonnelStatus; label: string }> = [
+  { value: "ON_DUTY", label: "On Duty" },
+  { value: "OFF_DUTY", label: "Off Duty" },
+  { value: "ON_LEAVE", label: "On Leave" },
+  { value: "TRAINING", label: "Training" },
+  { value: "SUSPENDED", label: "Suspended" },
+];
+
+const shiftOptions = [
+  { value: "", label: "No shift" },
+  { value: "Day (0600-1400)", label: "Day Shift (06:00 - 14:00)" },
+  { value: "Evening (1400-2200)", label: "Evening Shift (14:00 - 22:00)" },
+  { value: "Night (2200-0600)", label: "Night Shift (22:00 - 06:00)" },
+  { value: "Full Day (0800-2000)", label: "Full Day (08:00 - 20:00)" },
+  { value: "On Call", label: "On Call" },
+];
 
 function getStatusBadge(status: string) {
   switch (status) {
@@ -309,6 +72,8 @@ function getStatusBadge(status: string) {
       return <Badge variant="secondary">Off Duty</Badge>;
     case "ON_LEAVE":
       return <Badge variant="warning">On Leave</Badge>;
+    case "TRAINING":
+      return <Badge variant="info">Training</Badge>;
     case "SUSPENDED":
       return <Badge variant="error">Suspended</Badge>;
     default:
@@ -316,78 +81,158 @@ function getStatusBadge(status: string) {
   }
 }
 
+function Row({ label, children, last }: { label: string; children: React.ReactNode; last?: boolean }) {
+  return (
+    <div className={`flex justify-between gap-4 py-2 ${last ? "" : "border-b border-border"}`}>
+      <span className="text-foreground-muted">{label}</span>
+      <span className="text-foreground text-right">{children}</span>
+    </div>
+  );
+}
+
+const notRecorded = <span className="text-foreground-muted">Not recorded</span>;
+
+type EditForm = {
+  badgeNumber: string;
+  rank: PersonnelRank;
+  status: PersonnelStatus;
+  currentDuty: string;
+  shift: string;
+  leaveType: string;
+  leaveUntil: string;
+};
+
+const formFrom = (p: Personnel): EditForm => ({
+  badgeNumber: p.badgeNumber,
+  rank: p.rank,
+  status: p.status,
+  currentDuty: p.currentDuty ?? "",
+  shift: p.shift ?? "",
+  leaveType: p.leaveType ?? "",
+  leaveUntil: p.leaveUntil ? p.leaveUntil.slice(0, 10) : "",
+});
+
 export default function OfficerDetailPage() {
-  const params = useParams();
+  const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
-  const [activeTab, setActiveTab] = useState("overview");
-  const [isEditMode, setIsEditMode] = useState(false);
+  const { data: officer, isPending, isError, error, refetch } = usePersonnelById(params.id);
+  const updatePersonnel = useUpdatePersonnel();
+  const assignDuty = useAssignDuty();
 
-  // Get officer data using useMemo to avoid setState in useEffect
-  const officerData = useMemo(() => {
-    const officerId = params.id as string;
-    return getOfficerById(officerId);
-  }, [params.id]);
+  const [editForm, setEditForm] = useState<EditForm | null>(null);
+  const [requestedEdit, setRequestedEdit] = useState(searchParams.get("edit") === "true");
+  const [dutyDialogOpen, setDutyDialogOpen] = useState(false);
 
-  const [officer, setOfficer] = useState<any>(null);
-  const [editedData, setEditedData] = useState<any>(null);
-
+  // Mirrors the API: update and assign-duty need SHO or above.
   const canEdit = user && hasMinimumRole(user.role, "SHO");
 
-  // Sync officer data when it changes
-  useEffect(() => {
-    if (officerData && officer !== officerData) {
-      setOfficer(officerData);
-      setEditedData(officerData);
-    }
-  }, [officerData, officer]);
+  // Open the editor once the record arrives when linked with ?edit=true.
+  if (requestedEdit && officer && canEdit && !editForm) {
+    setEditForm(formFrom(officer));
+    setRequestedEdit(false);
+  }
 
-  const handleEditToggle = () => {
-    if (isEditMode) {
-      // Reset to original data on cancel
-      setEditedData(officer);
-    }
-    setIsEditMode(!isEditMode);
-  };
-
-  const handleSave = async () => {
-    try {
-      // Update the officer data
-      setOfficer(editedData);
-      setIsEditMode(false);
-
-      addToast({
-        type: "success",
-        title: "Profile Updated",
-        message: `${editedData.name}'s profile has been updated successfully.`,
-      });
-    } catch (error) {
-      addToast({
-        type: "error",
-        title: "Error",
-        message: "Failed to update profile. Please try again.",
-      });
-    }
-  };
-
-  if (!officer) {
+  if (isPending) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <p className="text-foreground-muted">Loading officer details...</p>
+        <div className="flex items-center justify-center h-64 gap-3 text-foreground-muted">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading officer details…
         </div>
       </DashboardLayout>
     );
   }
 
-  const mockOfficer = officer;
+  if (isError) {
+    const notFound = error instanceof ApiClientError && error.code === 404;
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center h-96 gap-2">
+          <AlertTriangle className="h-12 w-12 text-warning mb-2" />
+          <h2 className="text-xl font-bold text-foreground">
+            {notFound ? "Officer Not Found" : "Officer could not be loaded"}
+          </h2>
+          <p className="text-foreground-muted mb-2">
+            {notFound ? "There is no personnel record with this id." : error.message}
+          </p>
+          <div className="flex gap-2">
+            {!notFound && (
+              <Button variant="secondary" onClick={() => refetch()}>
+                Try again
+              </Button>
+            )}
+            <Link href="/personnel">
+              <Button>Back to Personnel</Button>
+            </Link>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const isEditMode = editForm !== null;
+
+  const handleSave = async () => {
+    if (!editForm) return;
+    if (!editForm.badgeNumber.trim()) {
+      addToast({ type: "error", title: "Validation Error", message: "Badge number is required" });
+      return;
+    }
+    try {
+      const updated = await updatePersonnel.mutateAsync({
+        person: officer,
+        changes: {
+          badgeNumber: editForm.badgeNumber.trim(),
+          rank: editForm.rank,
+          status: editForm.status,
+          currentDuty: editForm.currentDuty.trim() || null,
+          shift: editForm.shift || null,
+          leaveType: editForm.leaveType.trim() || null,
+          leaveUntil: editForm.leaveUntil ? `${editForm.leaveUntil}T00:00:00Z` : null,
+        },
+      });
+      setEditForm(null);
+      addToast({
+        type: "success",
+        title: "Service Record Updated",
+        message: `${updated.name}'s record has been saved`,
+      });
+    } catch (err) {
+      addToast({
+        type: "error",
+        title: "Record not updated",
+        message: err instanceof Error ? err.message : "The server rejected the request",
+      });
+    }
+  };
+
+  const handleDutyAssignment = async (duty: string, shift: string) => {
+    try {
+      await assignDuty.mutateAsync({ id: officer.id, duty, shift });
+      addToast({ type: "success", title: "Duty Assigned", message: `${officer.name} assigned to ${duty} (${shift})` });
+      setDutyDialogOpen(false);
+    } catch (err) {
+      addToast({
+        type: "error",
+        title: "Assignment Failed",
+        message: err instanceof Error ? err.message : "The server rejected the request",
+      });
+    }
+  };
+
+  const yearsOfService = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(officer.joiningDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+  );
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" onClick={() => router.back()}>
               <ArrowLeft className="h-4 w-4" />
@@ -397,16 +242,14 @@ export default function OfficerDetailPage() {
                 <User className="h-8 w-8 text-accent" />
               </div>
               <div>
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold text-foreground">
-                    {mockOfficer.name}
-                  </h1>
-                  {getStatusBadge(mockOfficer.status)}
+                <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="text-2xl font-bold text-foreground">{officer.name}</h1>
+                  {getStatusBadge(officer.status)}
                 </div>
                 <div className="flex items-center gap-4 text-foreground-muted">
-                  <span className="font-mono text-accent">{mockOfficer.badgeNumber}</span>
+                  <span className="font-mono text-accent">{officer.badgeNumber}</span>
                   <span>|</span>
-                  <span>{getRoleDisplayName(mockOfficer.rank as any)}</span>
+                  <span>{getRoleDisplayName(officer.rank as any) ?? officer.rank}</span>
                 </div>
               </div>
             </div>
@@ -415,488 +258,207 @@ export default function OfficerDetailPage() {
             <div className="flex gap-2">
               {isEditMode ? (
                 <>
-                  <Button variant="secondary" onClick={handleEditToggle}>
+                  <Button variant="secondary" onClick={() => setEditForm(null)} disabled={updatePersonnel.isPending}>
                     <X className="h-4 w-4 mr-2" />
                     Cancel
                   </Button>
-                  <Button onClick={handleSave}>
+                  <Button onClick={handleSave} disabled={updatePersonnel.isPending}>
                     <Save className="h-4 w-4 mr-2" />
-                    Save Changes
+                    {updatePersonnel.isPending ? "Saving…" : "Save Changes"}
                   </Button>
                 </>
               ) : (
-                <Button onClick={handleEditToggle}>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit Profile
-                </Button>
+                <>
+                  <Button variant="secondary" onClick={() => setDutyDialogOpen(true)}>
+                    <Briefcase className="h-4 w-4 mr-2" />
+                    Assign Duty
+                  </Button>
+                  <Button onClick={() => setEditForm(formFrom(officer))}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Record
+                  </Button>
+                </>
               )}
             </div>
           )}
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* Summary */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-accent">{mockOfficer.stats.casesAssigned}</p>
-              <p className="text-sm text-foreground-muted">Cases Assigned</p>
+              <p className="text-3xl font-bold text-accent">{officer.assignedCases}</p>
+              <p className="text-sm text-foreground-muted">Assigned Cases (recorded)</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-success">{mockOfficer.stats.casesResolved}</p>
-              <p className="text-sm text-foreground-muted">Resolved</p>
+              <p className="text-3xl font-bold text-foreground">{yearsOfService}</p>
+              <p className="text-sm text-foreground-muted">Years of Service</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-warning">{mockOfficer.stats.pendingCases}</p>
-              <p className="text-sm text-foreground-muted">Pending</p>
+              <p className="text-lg font-bold text-foreground truncate">{officer.currentDuty || "—"}</p>
+              <p className="text-sm text-foreground-muted">Current Duty</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-info">{mockOfficer.stats.resolutionRate}%</p>
-              <p className="text-sm text-foreground-muted">Resolution Rate</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-foreground">{mockOfficer.stats.commendations}</p>
-              <p className="text-sm text-foreground-muted">Commendations</p>
+              <p className="text-lg font-bold text-foreground truncate">{officer.shift || "—"}</p>
+              <p className="text-sm text-foreground-muted">Shift</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="overview">
-              <User className="h-4 w-4 mr-2" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="cases">
-              <FileText className="h-4 w-4 mr-2" />
-              Cases
-            </TabsTrigger>
-            <TabsTrigger value="career">
-              <Briefcase className="h-4 w-4 mr-2" />
-              Career
-            </TabsTrigger>
-            <TabsTrigger value="performance">
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Performance
-            </TabsTrigger>
-          </TabsList>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Service Record */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Service Record
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {editForm ? (
+                <>
+                  <Input
+                    label="Badge Number *"
+                    value={editForm.badgeNumber}
+                    onChange={(v: string) => setEditForm({ ...editForm, badgeNumber: v })}
+                  />
+                  <Select
+                    label="Rank"
+                    value={editForm.rank}
+                    onChange={(v: string) => setEditForm({ ...editForm, rank: v as PersonnelRank })}
+                    options={rankOptions}
+                  />
+                  <Select
+                    label="Status"
+                    value={editForm.status}
+                    onChange={(v: string) => setEditForm({ ...editForm, status: v as PersonnelStatus })}
+                    options={statusOptions}
+                  />
+                </>
+              ) : (
+                <>
+                  <Row label="Badge Number">
+                    <span className="font-mono text-accent">{officer.badgeNumber}</span>
+                  </Row>
+                  <Row label="Rank">{getRoleDisplayName(officer.rank as any) ?? officer.rank}</Row>
+                  <Row label="Status">{getStatusBadge(officer.status)}</Row>
+                  <Row label="Record Updated" last>
+                    {formatDateTime(officer.updatedAt)}
+                  </Row>
+                </>
+              )}
+            </CardContent>
+          </Card>
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Personal Info */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Personal Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {isEditMode ? (
-                    <>
-                      <Input
-                        label="Full Name"
-                        value={editedData.name}
-                        onChange={(v: string) => setEditedData({ ...editedData, name: v })}
-                      />
-                      <Input
-                        label="Badge Number"
-                        value={editedData.badgeNumber}
-                        disabled
-                      />
-                      <Input
-                        label="Date of Birth"
-                        type="date"
-                        value={editedData.dateOfBirth}
-                        onChange={(v: string) => setEditedData({ ...editedData, dateOfBirth: v })}
-                      />
-                      <Select
-                        label="Gender"
-                        value={editedData.gender}
-                        onChange={(v: string) => setEditedData({ ...editedData, gender: v })}
-                        options={[
-                          { value: "Male", label: "Male" },
-                          { value: "Female", label: "Female" },
-                          { value: "Other", label: "Other" },
-                        ]}
-                      />
-                      <Select
-                        label="Blood Group"
-                        value={editedData.bloodGroup}
-                        onChange={(v: string) => setEditedData({ ...editedData, bloodGroup: v })}
-                        options={[
-                          { value: "A+", label: "A+" },
-                          { value: "A-", label: "A-" },
-                          { value: "B+", label: "B+" },
-                          { value: "B-", label: "B-" },
-                          { value: "AB+", label: "AB+" },
-                          { value: "AB-", label: "AB-" },
-                          { value: "O+", label: "O+" },
-                          { value: "O-", label: "O-" },
-                        ]}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex justify-between py-2 border-b border-border">
-                        <span className="text-foreground-muted">Full Name</span>
-                        <span className="text-foreground">{mockOfficer.name}</span>
-                      </div>
-                      <div className="flex justify-between py-2 border-b border-border">
-                        <span className="text-foreground-muted">Badge Number</span>
-                        <span className="font-mono text-accent">{mockOfficer.badgeNumber}</span>
-                      </div>
-                      <div className="flex justify-between py-2 border-b border-border">
-                        <span className="text-foreground-muted">Rank</span>
-                        <span className="text-foreground">{getRoleDisplayName(mockOfficer.rank as any)}</span>
-                      </div>
-                      <div className="flex justify-between py-2 border-b border-border">
-                        <span className="text-foreground-muted">Date of Birth</span>
-                        <span className="text-foreground">{mockOfficer.dateOfBirth}</span>
-                      </div>
-                      <div className="flex justify-between py-2 border-b border-border">
-                        <span className="text-foreground-muted">Gender</span>
-                        <span className="text-foreground">{mockOfficer.gender}</span>
-                      </div>
-                      <div className="flex justify-between py-2">
-                        <span className="text-foreground-muted">Blood Group</span>
-                        <Badge variant="error">{mockOfficer.bloodGroup}</Badge>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
+          {/* Contact — read from the user account */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Contact Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-3 py-2 border-b border-border">
+                <Phone className="h-4 w-4 text-foreground-muted" />
+                <span className="text-foreground">{officer.phone || notRecorded}</span>
+              </div>
+              <div className="flex items-center gap-3 py-2">
+                <Mail className="h-4 w-4 text-foreground-muted" />
+                <span className="text-foreground">{officer.email || notRecorded}</span>
+              </div>
+              <p className="text-xs text-foreground-muted">Held on the officer&apos;s user account.</p>
+            </CardContent>
+          </Card>
 
-              {/* Contact Info */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Contact Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {isEditMode ? (
-                    <>
-                      <Input
-                        label="Phone Number"
-                        value={editedData.phone}
-                        onChange={(v: string) => setEditedData({ ...editedData, phone: v })}
-                        icon={<Phone className="h-4 w-4" />}
-                      />
-                      <Input
-                        label="Email"
-                        type="email"
-                        value={editedData.email}
-                        onChange={(v: string) => setEditedData({ ...editedData, email: v })}
-                        icon={<Mail className="h-4 w-4" />}
-                      />
-                      <Textarea
-                        label="Permanent Address"
-                        value={editedData.address.permanent}
-                        onChange={(v: string) =>
-                          setEditedData({
-                            ...editedData,
-                            address: { ...editedData.address, permanent: v },
-                          })
-                        }
-                        rows={2}
-                      />
-                      <Textarea
-                        label="Current Address"
-                        value={editedData.address.current}
-                        onChange={(v: string) =>
-                          setEditedData({
-                            ...editedData,
-                            address: { ...editedData.address, current: v },
-                          })
-                        }
-                        rows={2}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-3 py-2 border-b border-border">
-                        <Phone className="h-4 w-4 text-foreground-muted" />
-                        <span className="text-foreground">{mockOfficer.phone}</span>
-                      </div>
-                      <div className="flex items-center gap-3 py-2 border-b border-border">
-                        <Mail className="h-4 w-4 text-foreground-muted" />
-                        <span className="text-foreground">{mockOfficer.email}</span>
-                      </div>
-                      <div className="py-2 border-b border-border">
-                        <div className="flex items-center gap-2 text-foreground-muted mb-1">
-                          <MapPin className="h-4 w-4" />
-                          <span className="text-sm">Permanent Address</span>
-                        </div>
-                        <p className="text-foreground text-sm">{mockOfficer.address.permanent}</p>
-                      </div>
-                      <div className="py-2">
-                        <div className="flex items-center gap-2 text-foreground-muted mb-1">
-                          <MapPin className="h-4 w-4" />
-                          <span className="text-sm">Current Address</span>
-                        </div>
-                        <p className="text-foreground text-sm">{mockOfficer.address.current}</p>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
+          {/* Posting */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Current Posting
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Row label="Station">{officer.stationName || notRecorded}</Row>
+              <Row label="Date of Joining" last>
+                {formatDate(officer.joiningDate)}
+              </Row>
+            </CardContent>
+          </Card>
 
-              {/* Current Posting */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5" />
-                    Current Posting
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between py-2 border-b border-border">
-                    <span className="text-foreground-muted">Station</span>
-                    <span className="text-foreground">{mockOfficer.currentPosting.station}</span>
+          {/* Duty & Leave */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Duty &amp; Leave
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {editForm ? (
+                <>
+                  <Input
+                    label="Current Duty"
+                    value={editForm.currentDuty}
+                    onChange={(v: string) => setEditForm({ ...editForm, currentDuty: v })}
+                  />
+                  <Select
+                    label="Shift"
+                    value={editForm.shift}
+                    onChange={(v: string) => setEditForm({ ...editForm, shift: v })}
+                    options={
+                      editForm.shift && !shiftOptions.some((o) => o.value === editForm.shift)
+                        ? [...shiftOptions, { value: editForm.shift, label: editForm.shift }]
+                        : shiftOptions
+                    }
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="Leave Type"
+                      placeholder="e.g. Earned Leave"
+                      value={editForm.leaveType}
+                      onChange={(v: string) => setEditForm({ ...editForm, leaveType: v })}
+                    />
+                    <Input
+                      label="Leave Until"
+                      type="date"
+                      value={editForm.leaveUntil}
+                      onChange={(v: string) => setEditForm({ ...editForm, leaveUntil: v })}
+                    />
                   </div>
-                  <div className="flex justify-between py-2 border-b border-border">
-                    <span className="text-foreground-muted">District</span>
-                    <span className="text-foreground">{mockOfficer.currentPosting.district}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-border">
-                    <span className="text-foreground-muted">State</span>
-                    <span className="text-foreground">{mockOfficer.currentPosting.state}</span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-foreground-muted">Posted Since</span>
-                    <span className="text-foreground">{mockOfficer.currentPosting.since}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Emergency Contact */}
-              <Card className="border-error/30">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-error">
-                    <AlertTriangle className="h-5 w-5" />
-                    Emergency Contact
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {isEditMode ? (
-                    <>
-                      <Input
-                        label="Contact Name"
-                        value={editedData.emergency.name}
-                        onChange={(v: string) =>
-                          setEditedData({
-                            ...editedData,
-                            emergency: { ...editedData.emergency, name: v },
-                          })
-                        }
-                      />
-                      <Input
-                        label="Relationship"
-                        value={editedData.emergency.relation}
-                        onChange={(v: string) =>
-                          setEditedData({
-                            ...editedData,
-                            emergency: { ...editedData.emergency, relation: v },
-                          })
-                        }
-                      />
-                      <Input
-                        label="Phone"
-                        value={editedData.emergency.phone}
-                        onChange={(v: string) =>
-                          setEditedData({
-                            ...editedData,
-                            emergency: { ...editedData.emergency, phone: v },
-                          })
-                        }
-                        icon={<Phone className="h-4 w-4" />}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex justify-between py-2 border-b border-border">
-                        <span className="text-foreground-muted">Name</span>
-                        <span className="text-foreground">{mockOfficer.emergency.name}</span>
-                      </div>
-                      <div className="flex justify-between py-2 border-b border-border">
-                        <span className="text-foreground-muted">Relationship</span>
-                        <span className="text-foreground">{mockOfficer.emergency.relation}</span>
-                      </div>
-                      <div className="flex justify-between py-2">
-                        <span className="text-foreground-muted">Phone</span>
-                        <span className="text-foreground">{mockOfficer.emergency.phone}</span>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Cases Tab */}
-          <TabsContent value="cases" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Active Cases</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {mockOfficer.activeCases.map((caseItem: { firNumber: string; type: string; status: string }, index: number) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-4 rounded-lg bg-background-tertiary hover:bg-background-secondary cursor-pointer"
-                    >
-                      <div>
-                        <span className="font-mono text-accent">{caseItem.firNumber}</span>
-                        <p className="text-sm text-foreground-muted">{caseItem.type}</p>
-                      </div>
-                      <Badge variant="investigating">{caseItem.status.replace(/_/g, " ")}</Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Career Tab */}
-          <TabsContent value="career" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Posting History */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Posting History</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {mockOfficer.postingHistory.map((posting: { station: string; from: string; to: string; role: string }, index: number) => (
-                      <div key={index} className="relative pl-6 pb-4 border-l-2 border-border last:pb-0">
-                        <div className="absolute -left-1.5 top-1 h-3 w-3 rounded-full bg-accent" />
-                        <p className="font-medium text-foreground">{posting.station}</p>
-                        <p className="text-sm text-foreground-muted">{posting.role}</p>
-                        <p className="text-xs text-foreground-muted">{posting.from} - {posting.to}</p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Trainings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Training & Certifications</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {mockOfficer.trainings.map((training: { name: string; year: string; status: string }, index: number) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 rounded-lg bg-background-tertiary"
-                      >
-                        <div>
-                          <p className="font-medium text-foreground">{training.name}</p>
-                          <p className="text-sm text-foreground-muted">{training.year}</p>
-                        </div>
-                        <Badge variant={training.status === "Completed" ? "success" : "info"}>
-                          {training.status}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Awards */}
-              <Card className="lg:col-span-2">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Award className="h-5 w-5" />
-                    Awards & Commendations
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {mockOfficer.awards.map((award: { title: string; year: string; from: string }, index: number) => (
-                      <div
-                        key={index}
-                        className="p-4 rounded-lg bg-warning/5 border border-warning/20"
-                      >
-                        <Award className="h-6 w-6 text-warning mb-2" />
-                        <p className="font-medium text-foreground">{award.title}</p>
-                        <p className="text-sm text-foreground-muted">From: {award.from}</p>
-                        <p className="text-xs text-foreground-muted">{award.year}</p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Performance Tab */}
-          <TabsContent value="performance" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Case Statistics</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-foreground">Resolution Rate</span>
-                      <span className="text-success font-medium">{mockOfficer.stats.resolutionRate}%</span>
-                    </div>
-                    <div className="h-2 bg-background-tertiary rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-success"
-                        style={{ width: `${mockOfficer.stats.resolutionRate}%` }}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-between py-2 border-t border-border">
-                    <span className="text-foreground-muted">Avg. Resolution Time</span>
-                    <span className="text-foreground">{mockOfficer.stats.avgResolutionDays} days</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-t border-border">
-                    <span className="text-foreground-muted">Complaints Filed</span>
-                    <span className="text-success">{mockOfficer.stats.complaints}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>This Month&apos;s Attendance</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-lg bg-success/10 text-center">
-                      <p className="text-2xl font-bold text-success">{mockOfficer.attendance.present}</p>
-                      <p className="text-sm text-foreground-muted">Present</p>
-                    </div>
-                    <div className="p-4 rounded-lg bg-warning/10 text-center">
-                      <p className="text-2xl font-bold text-warning">{mockOfficer.attendance.leave}</p>
-                      <p className="text-sm text-foreground-muted">Leave</p>
-                    </div>
-                    <div className="p-4 rounded-lg bg-error/10 text-center">
-                      <p className="text-2xl font-bold text-error">{mockOfficer.attendance.absent}</p>
-                      <p className="text-sm text-foreground-muted">Absent</p>
-                    </div>
-                    <div className="p-4 rounded-lg bg-info/10 text-center">
-                      <p className="text-2xl font-bold text-info">{mockOfficer.attendance.onDuty}</p>
-                      <p className="text-sm text-foreground-muted">Total Days</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
+                </>
+              ) : (
+                <>
+                  <Row label="Current Duty">{officer.currentDuty || notRecorded}</Row>
+                  <Row label="Shift">{officer.shift || notRecorded}</Row>
+                  <Row label="Leave Type">{officer.leaveType || notRecorded}</Row>
+                  <Row label="Leave Until" last>
+                    {officer.leaveUntil ? (
+                      <span className="flex items-center gap-2 justify-end">
+                        <Calendar className="h-4 w-4 text-foreground-muted" />
+                        {formatDate(officer.leaveUntil)}
+                      </span>
+                    ) : (
+                      notRecorded
+                    )}
+                  </Row>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
+
+      <DutyAssignmentDialog
+        isOpen={dutyDialogOpen}
+        onClose={() => setDutyDialogOpen(false)}
+        onAssign={handleDutyAssignment}
+        officerName={officer.name}
+      />
     </DashboardLayout>
   );
 }

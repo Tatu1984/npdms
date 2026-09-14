@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
+import { useDeferredValue, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   Car,
   Search,
   Plus,
-  Eye,
   MapPin,
   Fuel,
   Wrench,
@@ -16,8 +15,11 @@ import {
   Navigation,
   Download,
   Maximize2,
-  Edit,
   Trash2,
+  Loader2,
+  UserCheck,
+  Undo2,
+  Gauge,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -26,13 +28,24 @@ import { Input } from "@/components/ui/input";
 import { LegacySelect as Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
-import { useVehiclesStore } from "@/stores/vehiclesStore";
 import { useToastStore } from "@/stores/toastStore";
 import { exportToCSV, exportConfigs } from "@/lib/utils/export";
+import { formatDate } from "@/lib/utils";
+import {
+  useAllocateVehicle,
+  useCreateVehicle,
+  useDeleteVehicle,
+  useReturnVehicle,
+  useUpdateVehicle,
+  useVehicleCounts,
+  useVehicles,
+} from "@/hooks/use-vehicles";
+import { useQuery } from "@tanstack/react-query";
+import investigationApi from "@/lib/api/investigation";
+import type { Vehicle, VehicleStatus, VehicleType } from "@/lib/api/vehicles";
 
 // Dynamic import for map to avoid SSR issues
 const VehicleTrackingMap = dynamic(
@@ -43,57 +56,11 @@ const VehicleTrackingMap = dynamic(
       <div className="h-64 bg-background-tertiary rounded-lg flex items-center justify-center">
         <div className="text-foreground-muted">Loading map...</div>
       </div>
-    )
+    ),
   }
 );
 
-// Convert GPS string to coordinates
-function parseGpsLocation(gps: string | undefined): { lat: number; lng: number } | undefined {
-  if (!gps || gps === "Station") return undefined;
-  const [lat, lng] = gps.split(",").map((s) => parseFloat(s.trim()));
-  if (isNaN(lat) || isNaN(lng)) return undefined;
-  return { lat, lng };
-}
-
-// Mock trips data
-const mockTrips = [
-  {
-    id: "t-001",
-    tripId: "T-001",
-    vehicle: "KA-01-P-1234",
-    driver: "HC Mohan",
-    purpose: "Patrol Beat A",
-    startTime: "06:00",
-    endTime: null,
-    kmStart: 45678,
-    kmEnd: null,
-    status: "ACTIVE",
-  },
-  {
-    id: "t-002",
-    tripId: "T-002",
-    vehicle: "KA-01-G-5678",
-    driver: "Const. Kumar",
-    purpose: "Court Escort",
-    startTime: "09:00",
-    endTime: "12:30",
-    kmStart: 23456,
-    kmEnd: 23484,
-    status: "COMPLETED",
-  },
-  {
-    id: "t-003",
-    tripId: "T-003",
-    vehicle: "KA-01-P-9999",
-    driver: "ASI Sharma",
-    purpose: "PCR Duty",
-    startTime: "06:00",
-    endTime: null,
-    kmStart: 67890,
-    kmEnd: null,
-    status: "ACTIVE",
-  },
-];
+const PAGE_SIZE = 20;
 
 const vehicleTypeOptions = [
   { value: "", label: "All Types" },
@@ -127,366 +94,377 @@ function getFuelColor(level: number) {
   return "text-error";
 }
 
+/** A date input yields YYYY-MM-DD; the API's time.Time fields need RFC 3339. */
+const toApiDate = (day: string) => `${day}T00:00:00Z`;
+const today = () => new Date().toISOString().split("T")[0];
+
+const errorText = (error: unknown) => (error instanceof Error ? error.message : "The server rejected the request");
+
+const emptyVehicleForm = () => ({
+  registrationNumber: "",
+  type: "Patrol" as VehicleType,
+  make: "",
+  lastService: today(),
+  fuelLevel: "100",
+  odometerReading: "0",
+});
+
 export default function VehiclesPage() {
   const { user } = useAuthStore();
-  const { vehicles, deleteVehicle, updateVehicle, isLoading } = useVehiclesStore();
   const { addToast } = useToastStore();
-  const [activeTab, setActiveTab] = useState("fleet");
   const [searchQuery, setSearchQuery] = useState("");
+  const search = useDeferredValue(searchQuery.trim());
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [showFullMap, setShowFullMap] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [vehicleToDelete, setVehicleToDelete] = useState<string | null>(null);
 
-  // Maintenance Modal State
-  const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
-  const [maintenanceForm, setMaintenanceForm] = useState({
-    vehicleId: "",
-    serviceType: "",
-    scheduledDate: "",
-    vendor: "",
-    estimatedCost: "",
-    notes: "",
+  const vehicles = useVehicles({
+    page,
+    pageSize: PAGE_SIZE,
+    search: search || undefined,
+    type: (typeFilter || undefined) as VehicleType | undefined,
+    status: (statusFilter || undefined) as VehicleStatus | undefined,
+  });
+  const counts = useVehicleCounts();
+
+  const createVehicle = useCreateVehicle();
+  const updateVehicle = useUpdateVehicle();
+  const allocateVehicle = useAllocateVehicle();
+  const returnVehicle = useReturnVehicle();
+  const deleteVehicle = useDeleteVehicle();
+
+  // Dialog state — each holds the vehicle it acts on
+  const [addOpen, setAddOpen] = useState(false);
+  const [vehicleForm, setVehicleForm] = useState(emptyVehicleForm);
+  const [allocating, setAllocating] = useState<Vehicle | null>(null);
+  const [driverSearch, setDriverSearch] = useState("");
+  const deferredDriverSearch = useDeferredValue(driverSearch.trim());
+  const [driver, setDriver] = useState<{ id: string; label: string } | null>(null);
+  const [duty, setDuty] = useState("");
+  const [returning, setReturning] = useState<Vehicle | null>(null);
+  const [maintaining, setMaintaining] = useState<Vehicle | null>(null);
+  const [maintenanceNote, setMaintenanceNote] = useState("");
+  const [readingsFor, setReadingsFor] = useState<Vehicle | null>(null);
+  const [readings, setReadings] = useState({ fuelLevel: "", odometerReading: "", lastService: "" });
+  const [deleting, setDeleting] = useState<Vehicle | null>(null);
+
+  // The officer directory is only fetched while a vehicle is being allocated.
+  const officers = useQuery({
+    queryKey: ["investigation", "officers", deferredDriverSearch, ""],
+    queryFn: () => investigationApi.officers(deferredDriverSearch || undefined).then((r) => r.data),
+    enabled: allocating !== null,
+    staleTime: 5 * 60 * 1000,
   });
 
-  // Fuel Entry Modal State
-  const [fuelModalOpen, setFuelModalOpen] = useState(false);
-  const [fuelForm, setFuelForm] = useState({
-    vehicleId: "",
-    liters: "",
-    amount: "",
-    odometer: "",
-    filledBy: "",
-    date: new Date().toISOString().split('T')[0],
-  });
+  // Creating, editing and allocating are SHO and above on the server; deleting is DSP and above.
+  const canManage = user && hasMinimumRole(user.role, "SHO");
+  const canDelete = user && hasMinimumRole(user.role, "DSP");
 
-  const canAllocate = user && hasMinimumRole(user.role, "SHO");
-  const canDelete = user && hasMinimumRole(user.role, "SP");
+  const rows = vehicles.data?.data ?? [];
+  const totalPages = vehicles.data?.totalPages ?? 0;
 
-  const filteredVehicles = vehicles.filter((v) => {
-    if (typeFilter && v.type !== typeFilter) return false;
-    if (statusFilter && v.status !== statusFilter) return false;
-    if (searchQuery) {
-      const search = searchQuery.toLowerCase();
-      return (
-        v.registrationNumber.toLowerCase().includes(search) ||
-        v.currentDriver?.toLowerCase().includes(search) ||
-        false
-      );
-    }
-    return true;
-  });
-
-  // Prepare vehicles for map
-  const vehiclesForMap = vehicles
-    .filter((v) => v.gpsLocation)
+  // Only vehicles with a stored position are placed on the map — nothing is inferred.
+  const vehiclesForMap = rows
+    .filter((v) => v.gpsLatitude !== null && v.gpsLongitude !== null)
     .map((v) => ({
       id: v.id,
       registrationNumber: v.registrationNumber,
       type: v.type,
       status: v.status,
-      gpsLocation: v.gpsLocation,
-      driver: v.currentDriver,
+      gpsLocation: { lat: v.gpsLatitude!, lng: v.gpsLongitude! },
+      driver: v.currentDriver ?? undefined,
     }));
 
-  const stats = {
-    total: vehicles.length,
-    onDuty: vehicles.filter((v) => v.status === "ON_DUTY").length,
-    available: vehicles.filter((v) => v.status === "AVAILABLE").length,
-    maintenance: vehicles.filter((v) => v.status === "MAINTENANCE").length,
-  };
+  const notify = (type: "success" | "error", title: string, message: string) => addToast({ type, title, message });
 
   const handleExport = () => {
-    exportToCSV(vehicles, "vehicles-export", exportConfigs.vehicles);
-    addToast({
-      type: "success",
-      title: "Export Successful",
-      message: `Exported ${vehicles.length} vehicles to CSV`,
-    });
+    exportToCSV(
+      rows.map((v) => ({ ...v, currentDriver: v.currentDriver ?? "", currentDuty: v.currentDuty ?? "" })),
+      "vehicles-export",
+      exportConfigs.vehicles
+    );
+    notify("success", "Export Successful", `Exported ${rows.length} vehicles shown on this page to CSV`);
   };
 
-  const handleDeleteClick = (id: string) => {
-    setVehicleToDelete(id);
-    setDeleteDialogOpen(true);
+  const setFilter = (setter: (v: string) => void) => (value: string) => {
+    setter(value);
+    setPage(1);
   };
 
-  const handleDeleteConfirm = async () => {
-    if (vehicleToDelete) {
-      await deleteVehicle(vehicleToDelete);
-      addToast({
-        type: "success",
-        title: "Vehicle Deleted",
-        message: "Vehicle has been removed from the system",
-      });
-      setDeleteDialogOpen(false);
-      setVehicleToDelete(null);
-    }
-  };
+  /* ------------------------------ add vehicle ------------------------------ */
 
-  const handleVehicleClick = (vehicleId: string) => {
-    window.location.href = `/vehicles/${vehicleId}`;
-  };
-
-  // Maintenance Modal Handlers
-  const handleOpenMaintenanceModal = () => {
-    setMaintenanceForm({
-      vehicleId: "",
-      serviceType: "",
-      scheduledDate: "",
-      vendor: "",
-      estimatedCost: "",
-      notes: "",
-    });
-    setMaintenanceModalOpen(true);
-  };
-
-  const handleMaintenanceSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!maintenanceForm.vehicleId || !maintenanceForm.serviceType || !maintenanceForm.scheduledDate) {
-      addToast({
-        type: "error",
-        title: "Validation Error",
-        message: "Please fill in all required fields",
-      });
+  const handleCreate = async () => {
+    const fuel = Number(vehicleForm.fuelLevel);
+    const odometer = Number(vehicleForm.odometerReading);
+    if (!vehicleForm.registrationNumber.trim() || !vehicleForm.make.trim() || !vehicleForm.lastService) {
+      notify("error", "Validation Error", "Please fill in all required fields");
       return;
     }
-
-    try {
-      // Update vehicle status to maintenance
-      await updateVehicle(maintenanceForm.vehicleId, {
-        status: "MAINTENANCE",
-        maintenanceNote: `${maintenanceForm.serviceType} - Scheduled: ${maintenanceForm.scheduledDate}`,
-      });
-
-      addToast({
-        type: "success",
-        title: "Maintenance Scheduled",
-        message: `${maintenanceForm.serviceType} scheduled for ${maintenanceForm.scheduledDate}`,
-      });
-
-      setMaintenanceModalOpen(false);
-    } catch (error) {
-      addToast({
-        type: "error",
-        title: "Error",
-        message: "Failed to schedule maintenance",
-      });
-    }
-  };
-
-  // Fuel Entry Modal Handlers
-  const handleOpenFuelModal = () => {
-    setFuelForm({
-      vehicleId: "",
-      liters: "",
-      amount: "",
-      odometer: "",
-      filledBy: "",
-      date: new Date().toISOString().split('T')[0],
-    });
-    setFuelModalOpen(true);
-  };
-
-  const handleFuelSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!fuelForm.vehicleId || !fuelForm.liters || !fuelForm.amount || !fuelForm.odometer) {
-      addToast({
-        type: "error",
-        title: "Validation Error",
-        message: "Please fill in all required fields",
-      });
+    if (!Number.isInteger(fuel) || fuel < 0 || fuel > 100 || !Number.isInteger(odometer) || odometer < 0) {
+      notify("error", "Validation Error", "Fuel must be a whole number from 0 to 100 and odometer cannot be negative");
       return;
     }
-
+    if (!user?.stationId) {
+      notify("error", "No station", "Your account is not attached to a station, so the vehicle cannot be registered");
+      return;
+    }
     try {
-      const vehicle = vehicles.find(v => v.id === fuelForm.vehicleId);
-      if (vehicle) {
-        // Calculate fuel level based on fuel capacity (assuming 50L tank)
-        const fuelCapacity = 50;
-        const currentFuelAmount = (vehicle.fuelLevel / 100) * fuelCapacity;
-        const newFuelAmount = Math.min(currentFuelAmount + parseFloat(fuelForm.liters), fuelCapacity);
-        const newFuelLevel = Math.round((newFuelAmount / fuelCapacity) * 100);
-
-        await updateVehicle(fuelForm.vehicleId, {
-          fuelLevel: newFuelLevel,
-          odometerReading: parseInt(fuelForm.odometer),
-        });
-
-        addToast({
-          type: "success",
-          title: "Fuel Entry Logged",
-          message: `Added ${fuelForm.liters}L to ${vehicle.registrationNumber}`,
-        });
-
-        setFuelModalOpen(false);
-      }
-    } catch (error) {
-      addToast({
-        type: "error",
-        title: "Error",
-        message: "Failed to log fuel entry",
+      const created = await createVehicle.mutateAsync({
+        registrationNumber: vehicleForm.registrationNumber.trim().toUpperCase(),
+        type: vehicleForm.type,
+        make: vehicleForm.make.trim(),
+        lastService: toApiDate(vehicleForm.lastService),
+        fuelLevel: fuel,
+        odometerReading: odometer,
+        stationId: user.stationId,
       });
+      notify("success", "Vehicle Added", `${created.registrationNumber} has been registered`);
+      setAddOpen(false);
+      setVehicleForm(emptyVehicleForm());
+    } catch (error) {
+      notify("error", "Vehicle not added", errorText(error));
     }
   };
+
+  /* -------------------------------- allocate ------------------------------- */
+
+  const closeAllocate = () => {
+    setAllocating(null);
+    setDriver(null);
+    setDriverSearch("");
+    setDuty("");
+  };
+
+  const handleAllocate = async () => {
+    if (!allocating || !driver || !duty.trim()) {
+      notify("error", "Validation Error", "Choose a driver and state the duty");
+      return;
+    }
+    try {
+      const updated = await allocateVehicle.mutateAsync({ id: allocating.id, driverId: driver.id, duty: duty.trim() });
+      notify("success", "Vehicle Allocated", `${updated.registrationNumber} is on duty with ${updated.currentDriver ?? driver.label}`);
+      closeAllocate();
+    } catch (error) {
+      notify("error", "Vehicle not allocated", errorText(error));
+    }
+  };
+
+  /* ------------------------------ return, delete ---------------------------- */
+
+  const handleReturn = async () => {
+    if (!returning) return;
+    try {
+      const updated = await returnVehicle.mutateAsync(returning.id);
+      notify("success", "Vehicle Returned", `${updated.registrationNumber} is available`);
+      setReturning(null);
+    } catch (error) {
+      notify("error", "Vehicle not returned", errorText(error));
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    try {
+      await deleteVehicle.mutateAsync(deleting.id);
+      notify("success", "Vehicle Deleted", `${deleting.registrationNumber} has been removed from the fleet register`);
+      setDeleting(null);
+    } catch (error) {
+      notify("error", "Vehicle not deleted", errorText(error));
+    }
+  };
+
+  /* ------------------------------- maintenance ------------------------------ */
+
+  const handleSendToMaintenance = async () => {
+    if (!maintaining || !maintenanceNote.trim()) {
+      notify("error", "Validation Error", "Record what the maintenance is for");
+      return;
+    }
+    try {
+      await updateVehicle.mutateAsync({
+        vehicle: maintaining,
+        changes: { status: "MAINTENANCE", maintenanceNote: maintenanceNote.trim() },
+      });
+      notify("success", "Sent to Maintenance", `${maintaining.registrationNumber} is out of service`);
+      setMaintaining(null);
+      setMaintenanceNote("");
+    } catch (error) {
+      notify("error", "Status not changed", errorText(error));
+    }
+  };
+
+  const handleBackInService = async (vehicle: Vehicle) => {
+    try {
+      await updateVehicle.mutateAsync({
+        vehicle,
+        changes: { status: "AVAILABLE", maintenanceNote: null },
+      });
+      notify("success", "Back in Service", `${vehicle.registrationNumber} is available`);
+    } catch (error) {
+      notify("error", "Status not changed", errorText(error));
+    }
+  };
+
+  /* -------------------------------- readings -------------------------------- */
+
+  const openReadings = (vehicle: Vehicle) => {
+    setReadingsFor(vehicle);
+    setReadings({
+      fuelLevel: String(vehicle.fuelLevel),
+      odometerReading: String(vehicle.odometerReading),
+      lastService: vehicle.lastService.split("T")[0],
+    });
+  };
+
+  const handleReadings = async () => {
+    if (!readingsFor) return;
+    const fuel = Number(readings.fuelLevel);
+    const odometer = Number(readings.odometerReading);
+    if (!Number.isInteger(fuel) || fuel < 0 || fuel > 100 || !Number.isInteger(odometer) || !readings.lastService) {
+      notify("error", "Validation Error", "Fuel must be a whole number from 0 to 100 and every reading is required");
+      return;
+    }
+    if (odometer < readingsFor.odometerReading) {
+      notify("error", "Validation Error", `Odometer cannot go below the recorded ${readingsFor.odometerReading} km`);
+      return;
+    }
+    try {
+      await updateVehicle.mutateAsync({
+        vehicle: readingsFor,
+        changes: { fuelLevel: fuel, odometerReading: odometer, lastService: toApiDate(readings.lastService) },
+      });
+      notify("success", "Readings Updated", `${readingsFor.registrationNumber} has been updated`);
+      setReadingsFor(null);
+    } catch (error) {
+      notify("error", "Readings not updated", errorText(error));
+    }
+  };
+
+  const statCards = [
+    { label: "Total Vehicles", value: counts.data?.total, icon: Car, valueClass: "text-foreground", iconClass: "text-accent", filter: "" },
+    { label: "On Duty", value: counts.data?.ON_DUTY, icon: Navigation, valueClass: "text-info", iconClass: "text-info", filter: "ON_DUTY" },
+    { label: "Available", value: counts.data?.AVAILABLE, icon: CheckCircle, valueClass: "text-success", iconClass: "text-success", filter: "AVAILABLE" },
+    { label: "Maintenance", value: counts.data?.MAINTENANCE, icon: Wrench, valueClass: "text-warning", iconClass: "text-warning", filter: "MAINTENANCE" },
+  ];
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Vehicle Management</h1>
-            <p className="text-foreground-muted">
-              Track fleet status, trips, and vehicle allocation
-            </p>
+            <p className="text-foreground-muted">Track fleet status and vehicle allocation</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={handleExport}>
+            <Button variant="secondary" onClick={handleExport} disabled={rows.length === 0}>
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
-            {canAllocate && (
-              <Link href="/vehicles/new">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Vehicle
-                </Button>
-              </Link>
+            {canManage && (
+              <Button onClick={() => setAddOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Vehicle
+              </Button>
             )}
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Total Vehicles</p>
-                  <p className="text-2xl font-bold text-foreground">{stats.total}</p>
+        {/* Stats — whole-fleet counts from the server, not the rows on this page */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {statCards.map(({ label, value, icon: Icon, valueClass, iconClass, filter }) => (
+            <Card
+              key={label}
+              className={`cursor-pointer transition-all hover:border-accent/50 ${
+                statusFilter === filter ? "border-accent ring-1 ring-accent" : ""
+              }`}
+              onClick={() => setFilter(setStatusFilter)(statusFilter === filter ? "" : filter)}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-foreground-muted">{label}</p>
+                    <p className={`text-2xl font-bold ${valueClass}`}>
+                      {counts.isError ? "—" : value ?? <Loader2 className="h-5 w-5 animate-spin" />}
+                    </p>
+                  </div>
+                  <Icon className={`h-8 w-8 opacity-50 ${iconClass}`} />
                 </div>
-                <Car className="h-8 w-8 text-accent opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">On Duty</p>
-                  <p className="text-2xl font-bold text-info">{stats.onDuty}</p>
-                </div>
-                <Navigation className="h-8 w-8 text-info opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Available</p>
-                  <p className="text-2xl font-bold text-success">{stats.available}</p>
-                </div>
-                <CheckCircle className="h-8 w-8 text-success opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Maintenance</p>
-                  <p className="text-2xl font-bold text-warning">{stats.maintenance}</p>
-                </div>
-                <Wrench className="h-8 w-8 text-warning opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        {/* Live Map Preview */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              Live Vehicle Tracking
-            </CardTitle>
-            <div className="flex gap-2">
+        {/* Map — only when vehicles on this page have a recorded position */}
+        {vehiclesForMap.length > 0 && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Last Recorded Positions
+              </CardTitle>
               <Button variant="ghost" size="sm" onClick={() => setShowFullMap(!showFullMap)}>
                 <Maximize2 className="h-4 w-4 mr-2" />
                 {showFullMap ? "Collapse" : "Expand"}
               </Button>
+            </CardHeader>
+            <CardContent>
+              <VehicleTrackingMap vehicles={vehiclesForMap} height={showFullMap ? "500px" : "300px"} />
+              <p className="text-sm text-foreground-muted mt-2 text-center">
+                {vehiclesForMap.length} of {rows.length} vehicles on this page have a recorded position
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Filters */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 min-w-[16rem]">
+                <Input
+                  placeholder="Search by registration number or make..."
+                  value={searchQuery}
+                  onChange={setFilter(setSearchQuery)}
+                  icon={<Search className="h-4 w-4" />}
+                />
+              </div>
+              <Select options={vehicleTypeOptions} value={typeFilter} onChange={setFilter(setTypeFilter)} className="w-full md:w-40" />
+              <Select options={statusOptions} value={statusFilter} onChange={setFilter(setStatusFilter)} className="w-full md:w-40" />
             </div>
-          </CardHeader>
-          <CardContent>
-            <VehicleTrackingMap
-              vehicles={vehiclesForMap}
-              height={showFullMap ? "500px" : "300px"}
-              onVehicleClick={handleVehicleClick}
-            />
-            <p className="text-sm text-foreground-muted mt-2 text-center">
-              {stats.onDuty} vehicles currently on patrol • Click markers for details
-            </p>
           </CardContent>
         </Card>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="fleet">
-              <Car className="h-4 w-4 mr-2" />
-              Fleet Status
-            </TabsTrigger>
-            <TabsTrigger value="trips">
-              <Navigation className="h-4 w-4 mr-2" />
-              Trip Log
-            </TabsTrigger>
-            <TabsTrigger value="fuel">
-              <Fuel className="h-4 w-4 mr-2" />
-              Fuel Log
-            </TabsTrigger>
-            <TabsTrigger value="maintenance">
-              <Wrench className="h-4 w-4 mr-2" />
-              Maintenance
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Fleet Status Tab */}
-          <TabsContent value="fleet" className="space-y-6">
-            {/* Filters */}
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex flex-col md:flex-row gap-4">
-                  <div className="flex-1">
-                    <Input
-                      placeholder="Search by registration number or driver..."
-                      value={searchQuery}
-                      onChange={setSearchQuery}
-                      icon={<Search className="h-4 w-4" />}
-                    />
-                  </div>
-                  <Select
-                    options={vehicleTypeOptions}
-                    value={typeFilter}
-                    onChange={setTypeFilter}
-                    className="w-full md:w-40"
-                  />
-                  <Select
-                    options={statusOptions}
-                    value={statusFilter}
-                    onChange={setStatusFilter}
-                    className="w-full md:w-40"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Vehicles Table */}
-            <Card>
-              <CardContent className="p-0">
+        {/* Vehicles Table */}
+        <Card>
+          <CardContent className="p-0">
+            {vehicles.isPending ? (
+              <div className="p-12 flex items-center justify-center gap-3 text-foreground-muted">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Loading vehicles…
+              </div>
+            ) : vehicles.isError ? (
+              <div className="p-12 text-center space-y-3">
+                <AlertTriangle className="h-12 w-12 text-error mx-auto" />
+                <h3 className="text-lg font-medium text-foreground">Vehicles could not be loaded</h3>
+                <p className="text-foreground-muted">{vehicles.error.message}</p>
+                <Button variant="secondary" onClick={() => vehicles.refetch()}>
+                  Try again
+                </Button>
+              </div>
+            ) : rows.length === 0 ? (
+              <div className="p-12 text-center">
+                <Car className="h-12 w-12 text-foreground-muted mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground">No vehicles found</h3>
+                <p className="text-foreground-muted">
+                  {search || typeFilter || statusFilter
+                    ? "Try adjusting your search or filter criteria"
+                    : "No vehicles have been registered yet"}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -496,62 +474,83 @@ export default function VehiclesPage() {
                       <TableHead>Driver</TableHead>
                       <TableHead>Current Assignment</TableHead>
                       <TableHead>Fuel</TableHead>
-                      <TableHead>Km Today</TableHead>
+                      <TableHead>Odometer</TableHead>
+                      <TableHead>Last Service</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredVehicles.map((vehicle) => (
+                    {rows.map((vehicle) => (
                       <TableRow key={vehicle.id} className="hover:bg-background-tertiary">
                         <TableCell>
-                          <span className="font-mono text-accent">{vehicle.registrationNumber}</span>
+                          <Link href={`/vehicles/${vehicle.id}`} className="font-mono text-accent hover:underline">{vehicle.registrationNumber}</Link>
+                          <span className="block text-xs text-foreground-muted">
+                            {vehicle.make}
+                            {vehicle.stationName && ` · ${vehicle.stationName}`}
+                          </span>
                         </TableCell>
                         <TableCell>{vehicle.type}</TableCell>
                         <TableCell>
                           <Badge variant={getStatusBadgeVariant(vehicle.status) as any}>
                             {vehicle.status.replace(/_/g, " ")}
                           </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {vehicle.currentDriver || (
-                            <span className="text-foreground-muted">-</span>
+                          {vehicle.status === "MAINTENANCE" && vehicle.maintenanceNote && (
+                            <span className="block text-xs text-foreground-muted mt-1">{vehicle.maintenanceNote}</span>
+                          )}
+                          {vehicle.status === "RESERVED" && vehicle.reservedFor && (
+                            <span className="block text-xs text-foreground-muted mt-1">{vehicle.reservedFor}</span>
                           )}
                         </TableCell>
-                        <TableCell>
-                          {vehicle.currentDuty || (
-                            <span className="text-foreground-muted">-</span>
-                          )}
-                        </TableCell>
+                        <TableCell>{vehicle.currentDriver || <span className="text-foreground-muted">-</span>}</TableCell>
+                        <TableCell>{vehicle.currentDuty || <span className="text-foreground-muted">-</span>}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Fuel className={`h-4 w-4 ${getFuelColor(vehicle.fuelLevel)}`} />
-                            <span className={getFuelColor(vehicle.fuelLevel)}>
-                              {vehicle.fuelLevel}%
-                            </span>
+                            <span className={getFuelColor(vehicle.fuelLevel)}>{vehicle.fuelLevel}%</span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-foreground">{vehicle.odometerReading} km</span>
+                          <span className="text-foreground">{vehicle.odometerReading.toLocaleString("en-IN")} km</span>
                         </TableCell>
+                        <TableCell>{formatDate(vehicle.lastService)}</TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Link href={`/vehicles/${vehicle.id}`}>
-                              <Button variant="ghost" size="sm" title="View Details">
-                                <Eye className="h-4 w-4" />
+                          <div className="flex items-center justify-end gap-1">
+                            {canManage && (vehicle.status === "AVAILABLE" || vehicle.status === "RESERVED") && (
+                              <Button variant="ghost" size="sm" title="Allocate" onClick={() => setAllocating(vehicle)}>
+                                <UserCheck className="h-4 w-4 mr-1" />
+                                Allocate
                               </Button>
-                            </Link>
-                            <Link href={`/vehicles/${vehicle.id}?edit=true`}>
-                              <Button variant="ghost" size="sm" title="Edit">
-                                <Edit className="h-4 w-4" />
+                            )}
+                            {vehicle.status === "ON_DUTY" && (
+                              <Button variant="ghost" size="sm" title="Return" onClick={() => setReturning(vehicle)}>
+                                <Undo2 className="h-4 w-4 mr-1" />
+                                Return
                               </Button>
-                            </Link>
-                            {canDelete && (
+                            )}
+                            {canManage && vehicle.status === "MAINTENANCE" && (
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                title="Delete"
-                                onClick={() => handleDeleteClick(vehicle.id)}
+                                title="Back in service"
+                                disabled={updateVehicle.isPending}
+                                onClick={() => handleBackInService(vehicle)}
                               >
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Back in Service
+                              </Button>
+                            )}
+                            {canManage && (vehicle.status === "AVAILABLE" || vehicle.status === "RESERVED") && (
+                              <Button variant="ghost" size="sm" title="Send to maintenance" onClick={() => setMaintaining(vehicle)}>
+                                <Wrench className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {canManage && (
+                              <Button variant="ghost" size="sm" title="Update readings" onClick={() => openReadings(vehicle)}>
+                                <Gauge className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {canDelete && vehicle.status !== "ON_DUTY" && (
+                              <Button variant="ghost" size="sm" title="Delete" onClick={() => setDeleting(vehicle)}>
                                 <Trash2 className="h-4 w-4 text-error" />
                               </Button>
                             )}
@@ -561,459 +560,237 @@ export default function VehiclesPage() {
                     ))}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Trip Log Tab */}
-          <TabsContent value="trips" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-foreground">Today&apos;s Trips</h3>
-              <Button variant="secondary" onClick={() => addToast({ type: "success", title: "Export Complete", message: "Trip log exported to CSV" })}>
-                <Download className="h-4 w-4 mr-2" />
-                Export Log
-              </Button>
-            </div>
-
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Trip ID</TableHead>
-                      <TableHead>Vehicle</TableHead>
-                      <TableHead>Driver</TableHead>
-                      <TableHead>Purpose</TableHead>
-                      <TableHead>Start Time</TableHead>
-                      <TableHead>End Time</TableHead>
-                      <TableHead>Distance</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mockTrips.map((trip) => (
-                      <TableRow key={trip.id}>
-                        <TableCell>
-                          <span className="font-mono text-accent">{trip.tripId}</span>
-                        </TableCell>
-                        <TableCell>{trip.vehicle}</TableCell>
-                        <TableCell>{trip.driver}</TableCell>
-                        <TableCell>{trip.purpose}</TableCell>
-                        <TableCell>{trip.startTime}</TableCell>
-                        <TableCell>{trip.endTime || "-"}</TableCell>
-                        <TableCell>
-                          {trip.kmEnd ? `${trip.kmEnd - trip.kmStart} km` : "In Progress"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={trip.status === "ACTIVE" ? "info" : "success"}
-                          >
-                            {trip.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Fuel Log Tab */}
-          <TabsContent value="fuel" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-foreground">Fuel Consumption</h3>
-              <div className="flex gap-2">
-                <Button variant="secondary" onClick={handleOpenFuelModal}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Log Fuel Entry
-                </Button>
-                <Button variant="secondary" onClick={() => addToast({ type: "success", title: "Export Complete", message: "Fuel log exported to CSV" })}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export
-                </Button>
               </div>
-            </div>
+            )}
+          </CardContent>
+        </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-accent">₹12,450</p>
-                  <p className="text-sm text-foreground-muted">Today&apos;s Fuel Cost</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-info">156 L</p>
-                  <p className="text-sm text-foreground-muted">Fuel Consumed Today</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-success">12.5 km/L</p>
-                  <p className="text-sm text-foreground-muted">Avg. Mileage</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Fuel Entries</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Vehicle</TableHead>
-                      <TableHead>Liters</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Odometer</TableHead>
-                      <TableHead>Filled By</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>18 Jan 2024</TableCell>
-                      <TableCell>KA-01-P-1234</TableCell>
-                      <TableCell>35 L</TableCell>
-                      <TableCell>₹3,500</TableCell>
-                      <TableCell>45,678 km</TableCell>
-                      <TableCell>HC Mohan</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>18 Jan 2024</TableCell>
-                      <TableCell>KA-01-P-9999</TableCell>
-                      <TableCell>45 L</TableCell>
-                      <TableCell>₹4,500</TableCell>
-                      <TableCell>67,890 km</TableCell>
-                      <TableCell>ASI Sharma</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Maintenance Tab */}
-          <TabsContent value="maintenance" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-foreground">Maintenance Schedule</h3>
-              <Button variant="secondary" onClick={handleOpenMaintenanceModal}>
-                <Plus className="h-4 w-4 mr-2" />
-                Schedule Maintenance
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between text-sm text-foreground-muted">
+            <span>
+              Page {page} of {totalPages} · {vehicles.data?.total} vehicles
+            </span>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                Previous
+              </Button>
+              <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                Next
               </Button>
             </div>
-
-            {/* Upcoming Maintenance */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-warning" />
-                  Service Due
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 rounded-md bg-warning/10 border border-warning/30">
-                    <div>
-                      <p className="font-medium text-foreground">KA-01-P-1237</p>
-                      <p className="text-sm text-foreground-muted">Engine service overdue by 15 days</p>
-                    </div>
-                    <Button variant="secondary" size="sm" onClick={handleOpenMaintenanceModal}>
-                      Schedule
-                    </Button>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-md bg-background-tertiary">
-                    <div>
-                      <p className="font-medium text-foreground">KA-01-G-5678</p>
-                      <p className="text-sm text-foreground-muted">Service due in 5 days</p>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={handleOpenMaintenanceModal}>
-                      Schedule
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Maintenance History */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Maintenance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Vehicle</TableHead>
-                      <TableHead>Service Type</TableHead>
-                      <TableHead>Cost</TableHead>
-                      <TableHead>Vendor</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>12 Jan 2024</TableCell>
-                      <TableCell>KA-01-G-5679</TableCell>
-                      <TableCell>Regular Service</TableCell>
-                      <TableCell>₹5,500</TableCell>
-                      <TableCell>Govt. Workshop</TableCell>
-                      <TableCell>
-                        <Badge variant="success">Completed</Badge>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>10 Jan 2024</TableCell>
-                      <TableCell>KA-01-P-9999</TableCell>
-                      <TableCell>Oil Change</TableCell>
-                      <TableCell>₹2,200</TableCell>
-                      <TableCell>Govt. Workshop</TableCell>
-                      <TableCell>
-                        <Badge variant="success">Completed</Badge>
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
       </div>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Add Vehicle */}
+      <Modal isOpen={addOpen} onClose={() => setAddOpen(false)} title="Add Vehicle" description="Register a vehicle to the fleet" size="lg">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Registration Number *"
+              placeholder="WB-01-AB-1234"
+              value={vehicleForm.registrationNumber}
+              onChange={(v: string) => setVehicleForm({ ...vehicleForm, registrationNumber: v })}
+            />
+            <Select
+              label="Type *"
+              options={vehicleTypeOptions.slice(1)}
+              value={vehicleForm.type}
+              onChange={(v: string) => setVehicleForm({ ...vehicleForm, type: v as VehicleType })}
+            />
+          </div>
+          <Input
+            label="Make / Model *"
+            placeholder="Mahindra Bolero"
+            value={vehicleForm.make}
+            onChange={(v: string) => setVehicleForm({ ...vehicleForm, make: v })}
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Input
+              label="Fuel Level (%) *"
+              type="number"
+              value={vehicleForm.fuelLevel}
+              onChange={(v: string) => setVehicleForm({ ...vehicleForm, fuelLevel: v })}
+            />
+            <Input
+              label="Odometer (km) *"
+              type="number"
+              value={vehicleForm.odometerReading}
+              onChange={(v: string) => setVehicleForm({ ...vehicleForm, odometerReading: v })}
+            />
+            <Input
+              label="Last Service *"
+              type="date"
+              value={vehicleForm.lastService}
+              onChange={(v: string) => setVehicleForm({ ...vehicleForm, lastService: v })}
+            />
+          </div>
+          <p className="text-sm text-foreground-muted">
+            Station: {user?.stationName || "your account has no station"}
+          </p>
+        </div>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setAddOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleCreate} disabled={createVehicle.isPending}>
+            {createVehicle.isPending ? "Adding..." : "Add Vehicle"}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Allocate */}
+      <Modal
+        isOpen={allocating !== null}
+        onClose={closeAllocate}
+        title={`Allocate ${allocating?.registrationNumber ?? ""}`}
+        description="Assign a driver and duty. The vehicle goes on duty."
+        size="lg"
+      >
+        <div className="space-y-4">
+          {driver ? (
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <span className="text-foreground text-sm">{driver.label}</span>
+              <Button variant="ghost" size="sm" onClick={() => setDriver(null)}>
+                Change
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Input
+                label="Driver *"
+                placeholder="Search officers by name or badge"
+                value={driverSearch}
+                onChange={setDriverSearch}
+                icon={<Search className="h-4 w-4" />}
+              />
+              <div className="rounded-lg border border-border divide-y divide-border max-h-48 overflow-y-auto">
+                {officers.isPending ? (
+                  <p className="p-3 text-sm text-foreground-muted">Loading officers…</p>
+                ) : officers.isError ? (
+                  <p className="p-3 text-sm text-error">Officers could not be loaded: {officers.error.message}</p>
+                ) : officers.data.length === 0 ? (
+                  <p className="p-3 text-sm text-foreground-muted">No matching officers</p>
+                ) : (
+                  officers.data.map((o) => (
+                    <button
+                      key={o.id}
+                      type="button"
+                      className="w-full text-left p-3 hover:bg-background-tertiary"
+                      onClick={() => setDriver({ id: o.id, label: `${o.roleLabel} ${o.name}${o.badgeNumber ? ` (${o.badgeNumber})` : ""}` })}
+                    >
+                      <span className="text-sm text-foreground">
+                        {o.roleLabel} {o.name}
+                      </span>
+                      <span className="block text-xs text-foreground-muted">
+                        {[o.badgeNumber, o.stationName].filter(Boolean).join(" · ")}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+          <Input label="Duty *" placeholder="Patrol, Beat 4 — Park Street" value={duty} onChange={setDuty} />
+        </div>
+        <ModalFooter>
+          <Button variant="secondary" onClick={closeAllocate}>
+            Cancel
+          </Button>
+          <Button onClick={handleAllocate} disabled={allocateVehicle.isPending}>
+            {allocateVehicle.isPending ? "Allocating..." : "Allocate"}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Send to maintenance */}
+      <Modal
+        isOpen={maintaining !== null}
+        onClose={() => setMaintaining(null)}
+        title={`Send ${maintaining?.registrationNumber ?? ""} to maintenance`}
+        description="The vehicle is marked out of service until it is brought back."
+      >
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-foreground">
+            Reason <span className="text-error">*</span>
+          </label>
+          <textarea
+            className="w-full px-3 py-2 bg-background-tertiary border border-border rounded-md text-foreground placeholder-foreground-muted focus:outline-none focus:ring-2 focus:ring-accent"
+            rows={3}
+            placeholder="Brake service at Govt. Workshop"
+            value={maintenanceNote}
+            onChange={(e) => setMaintenanceNote(e.target.value)}
+          />
+        </div>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setMaintaining(null)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSendToMaintenance} disabled={updateVehicle.isPending}>
+            <Wrench className="h-4 w-4 mr-2" />
+            Send to Maintenance
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Update readings */}
+      <Modal
+        isOpen={readingsFor !== null}
+        onClose={() => setReadingsFor(null)}
+        title={`Update readings — ${readingsFor?.registrationNumber ?? ""}`}
+        description="Record the current fuel level, odometer and last service date."
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Input
+            label="Fuel Level (%)"
+            type="number"
+            value={readings.fuelLevel}
+            onChange={(v: string) => setReadings({ ...readings, fuelLevel: v })}
+          />
+          <Input
+            label="Odometer (km)"
+            type="number"
+            value={readings.odometerReading}
+            onChange={(v: string) => setReadings({ ...readings, odometerReading: v })}
+          />
+          <Input
+            label="Last Service"
+            type="date"
+            value={readings.lastService}
+            onChange={(v: string) => setReadings({ ...readings, lastService: v })}
+          />
+        </div>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setReadingsFor(null)}>
+            Cancel
+          </Button>
+          <Button onClick={handleReadings} disabled={updateVehicle.isPending}>
+            Save Readings
+          </Button>
+        </ModalFooter>
+      </Modal>
+
       <ConfirmDialog
-        isOpen={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Delete Vehicle"
-        message="Are you sure you want to delete this vehicle? This action cannot be undone."
-        confirmText="Delete"
-        type="danger"
+        isOpen={returning !== null}
+        onClose={() => setReturning(null)}
+        onConfirm={handleReturn}
+        title="Return Vehicle"
+        message={`Return ${returning?.registrationNumber ?? ""}? The driver, duty and recorded position are cleared and the vehicle becomes available.`}
+        confirmText="Return"
+        type="warning"
+        isLoading={returnVehicle.isPending}
       />
 
-      {/* Schedule Maintenance Modal */}
-      <Modal
-        isOpen={maintenanceModalOpen}
-        onClose={() => setMaintenanceModalOpen(false)}
-        title="Schedule Maintenance"
-        description="Schedule maintenance service for a vehicle"
-        size="lg"
-      >
-        <form onSubmit={handleMaintenanceSubmit}>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Vehicle <span className="text-error">*</span>
-              </label>
-              <Select
-                options={[
-                  { value: "", label: "Select a vehicle" },
-                  ...vehicles.map(v => ({
-                    value: v.id,
-                    label: `${v.registrationNumber} - ${v.type}`
-                  }))
-                ]}
-                value={maintenanceForm.vehicleId}
-                onChange={(value: string) => setMaintenanceForm({ ...maintenanceForm, vehicleId: value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Service Type <span className="text-error">*</span>
-              </label>
-              <Select
-                options={[
-                  { value: "", label: "Select service type" },
-                  { value: "Regular Service", label: "Regular Service" },
-                  { value: "Oil Change", label: "Oil Change" },
-                  { value: "Tire Replacement", label: "Tire Replacement" },
-                  { value: "Brake Service", label: "Brake Service" },
-                  { value: "Engine Repair", label: "Engine Repair" },
-                  { value: "Body Work", label: "Body Work" },
-                  { value: "Other", label: "Other" },
-                ]}
-                value={maintenanceForm.serviceType}
-                onChange={(value: string) => setMaintenanceForm({ ...maintenanceForm, serviceType: value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Scheduled Date <span className="text-error">*</span>
-              </label>
-              <Input
-                type="date"
-                value={maintenanceForm.scheduledDate}
-                onChange={(value: string) => setMaintenanceForm({ ...maintenanceForm, scheduledDate: value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Vendor
-              </label>
-              <Input
-                type="text"
-                placeholder="e.g., Govt. Workshop"
-                value={maintenanceForm.vendor}
-                onChange={(value: string) => setMaintenanceForm({ ...maintenanceForm, vendor: value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Estimated Cost (₹)
-              </label>
-              <Input
-                type="number"
-                placeholder="0"
-                value={maintenanceForm.estimatedCost}
-                onChange={(value: string) => setMaintenanceForm({ ...maintenanceForm, estimatedCost: value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Notes
-              </label>
-              <textarea
-                className="w-full px-3 py-2 bg-background-tertiary border border-border rounded-md text-foreground placeholder-foreground-muted focus:outline-none focus:ring-2 focus:ring-accent"
-                rows={3}
-                placeholder="Additional notes..."
-                value={maintenanceForm.notes}
-                onChange={(e) => setMaintenanceForm({ ...maintenanceForm, notes: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <ModalFooter>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setMaintenanceModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit">
-              <Wrench className="h-4 w-4 mr-2" />
-              Schedule Maintenance
-            </Button>
-          </ModalFooter>
-        </form>
-      </Modal>
-
-      {/* Log Fuel Entry Modal */}
-      <Modal
-        isOpen={fuelModalOpen}
-        onClose={() => setFuelModalOpen(false)}
-        title="Log Fuel Entry"
-        description="Record fuel refill for a vehicle"
-        size="lg"
-      >
-        <form onSubmit={handleFuelSubmit}>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Vehicle <span className="text-error">*</span>
-              </label>
-              <Select
-                options={[
-                  { value: "", label: "Select a vehicle" },
-                  ...vehicles.map(v => ({
-                    value: v.id,
-                    label: `${v.registrationNumber} - ${v.type} (${v.fuelLevel}% fuel)`
-                  }))
-                ]}
-                value={fuelForm.vehicleId}
-                onChange={(value: string) => setFuelForm({ ...fuelForm, vehicleId: value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Date <span className="text-error">*</span>
-                </label>
-                <Input
-                  type="date"
-                  value={fuelForm.date}
-                  onChange={(value: string) => setFuelForm({ ...fuelForm, date: value })}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Liters <span className="text-error">*</span>
-                </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={fuelForm.liters}
-                  onChange={(value: string) => setFuelForm({ ...fuelForm, liters: value })}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Amount (₹) <span className="text-error">*</span>
-                </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={fuelForm.amount}
-                  onChange={(value: string) => setFuelForm({ ...fuelForm, amount: value })}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Odometer Reading (km) <span className="text-error">*</span>
-                </label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={fuelForm.odometer}
-                  onChange={(value: string) => setFuelForm({ ...fuelForm, odometer: value })}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Filled By
-              </label>
-              <Input
-                type="text"
-                placeholder="Officer name"
-                value={fuelForm.filledBy}
-                onChange={(value: string) => setFuelForm({ ...fuelForm, filledBy: value })}
-              />
-            </div>
-          </div>
-
-          <ModalFooter>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setFuelModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit">
-              <Fuel className="h-4 w-4 mr-2" />
-              Log Fuel Entry
-            </Button>
-          </ModalFooter>
-        </form>
-      </Modal>
+      <ConfirmDialog
+        isOpen={deleting !== null}
+        onClose={() => setDeleting(null)}
+        onConfirm={handleDelete}
+        title="Delete Vehicle"
+        message={`Delete ${deleting?.registrationNumber ?? ""} from the fleet register? This action cannot be undone.`}
+        confirmText="Delete"
+        type="danger"
+        isLoading={deleteVehicle.isPending}
+      />
     </DashboardLayout>
   );
 }
