@@ -3,30 +3,33 @@
 import { ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
-import { Sidebar } from "./Sidebar";
-import { Header } from "./Header";
+import { PlatformSidebar } from "./PlatformSidebar";
+import { PlatformTopbar } from "./PlatformTopbar";
 import { Spinner } from "@/components/ui/Spinner";
 import { ToastContainer } from "@/components/ui/Toast";
 
 interface DashboardLayoutProps {
   children: ReactNode;
+  /**
+   * Command-centre screens (CCTV, dispatch) render dark regardless of the
+   * user's theme preference — they are read at a distance in a control room.
+   */
+  ops?: boolean;
 }
 
-export function DashboardLayout({ children }: DashboardLayoutProps) {
+export function DashboardLayout({ children, ops }: DashboardLayoutProps) {
   const router = useRouter();
   const { isAuthenticated, user, _hasHydrated } = useAuthStore();
 
   useEffect(() => {
-    // Only redirect after hydration is complete
     if (_hasHydrated && (!isAuthenticated || !user)) {
       router.push("/login");
     }
   }, [isAuthenticated, user, _hasHydrated, router]);
 
-  // Show loading while hydrating OR if not authenticated after hydration
   if (!_hasHydrated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <Spinner size="lg" />
       </div>
     );
@@ -34,19 +37,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   if (!isAuthenticated || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <Spinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar />
-      <Header />
-      <main className="ml-64 pt-16">
-        <div className="p-6">{children}</div>
-      </main>
+    <div className="flex min-h-screen bg-background">
+      <PlatformSidebar />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <PlatformTopbar />
+        <main className={ops ? "dark flex-1 bg-background" : "flex-1"}>
+          <div className="mx-auto w-full max-w-[110rem] p-4 md:p-6">{children}</div>
+        </main>
+      </div>
       <ToastContainer />
     </div>
   );

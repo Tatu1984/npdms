@@ -1,107 +1,329 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   Kolkata Police Digital Intelligence Platform — design tokens
+
+   Two themes, one token vocabulary:
+   - light (default) : govt-standard, high legibility. Investigation, case
+                       file, court, citizen and administrative work.
+   - dark  (.dark)   : command-centre. CCTV, dispatch, risk and ops screens.
+
+   Ops screens opt into dark regardless of user preference by wrapping in
+   <div className="dark">, so both themes must stay complete.
+   ========================================================================== */
+
 :root {
-  /* NPDMS Dark Theme - Command Grade Interface */
-  --background: #0D1117;
-  --background-secondary: #161B22;
-  --background-tertiary: #21262D;
-  --border: #30363D;
-  --foreground: #E6EDF3;
-  --foreground-muted: #8B949E;
+  /* Surfaces — light */
+  --background: #F6F7F9;
+  --surface: #FFFFFF;
+  --surface-raised: #FFFFFF;
+  --surface-sunken: #EEF1F5;
+  --surface-hover: #F1F4F8;
 
-  /* Semantic Colors */
-  --success: #238636;
-  --success-muted: #1a5c28;
-  --warning: #9E6A03;
-  --warning-muted: #6e4a02;
-  --error: #DA3633;
-  --error-muted: #a82a28;
-  --info: #1F6FEB;
-  --info-muted: #1958b8;
+  /* Text */
+  --foreground: #101828;
+  --foreground-muted: #5A6478;
+  --foreground-subtle: #8A94A6;
 
-  /* Role Indicators */
-  --role-constable: #4A9EFF;
-  --role-sho: #36B37E;
-  --role-district: #FFAB00;
-  --role-state: #9B59B6;
-  --role-central: #E74C3C;
+  /* Lines */
+  --border: #DFE3EA;
+  --border-strong: #C6CDD9;
 
-  /* Accent */
-  --accent: #1F6FEB;
-  --accent-hover: #388BFD;
+  /* Brand — West Bengal Police / Kolkata Police
+     Deep indigo authority blue with a maroon accent from KP insignia. */
+  --brand: #12395E;
+  --brand-hover: #1B4C7A;
+  --brand-foreground: #FFFFFF;
+  --brand-subtle: #E7EEF5;
+  --accent: #1B4C7A;
+  --accent-hover: #245F96;
+  --accent-subtle: #E7EEF5;
+  --insignia: #8C2A2F;
+  --insignia-hover: #A33339;
+  --insignia-subtle: #F7EAEB;
+
+  /* Status */
+  --success: #0F7B3F;
+  --success-subtle: #E6F4EC;
+  --warning: #A86400;
+  --warning-subtle: #FDF2E2;
+  --danger: #B42318;
+  --danger-subtle: #FDECEA;
+  --info: #175CD3;
+  --info-subtle: #E8F0FD;
+
+  /* Severity — used by dispatch, CCTV events, risk scoring */
+  --sev-low: #0F7B3F;
+  --sev-medium: #A86400;
+  --sev-high: #C4520A;
+  --sev-critical: #B42318;
+
+  /* Agency accents — KP / WBP / CID / Traffic */
+  --agency-kp: #12395E;
+  --agency-wbp: #0F5B4C;
+  --agency-cid: #5B2D8C;
+  --agency-traffic: #B45309;
+
+  /* AI governance — every AI output is visually marked as advisory */
+  --ai: #6941C6;
+  --ai-subtle: #F2EDFB;
+  --ai-border: #D6C7F5;
+
+  /* Blockchain / integrity */
+  --chain-verified: #0F7B3F;
+  --chain-pending: #A86400;
+  --chain-broken: #B42318;
+
+  --ring: #2E6FBA;
+
+  --radius: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-sm: 0.3rem;
+
+  --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow: 0 1px 3px rgb(16 24 40 / 0.10), 0 1px 2px rgb(16 24 40 / 0.06);
+  --shadow-lg: 0 12px 24px -6px rgb(16 24 40 / 0.12), 0 4px 8px -4px rgb(16 24 40 / 0.06);
+
+  --header-height: 3.5rem;
+  --sidebar-width: 16rem;
+  --sidebar-width-collapsed: 4rem;
+}
+
+.dark {
+  /* Surfaces — command centre */
+  --background: #0B0F16;
+  --surface: #121822;
+  --surface-raised: #18202C;
+  --surface-sunken: #080B11;
+  --surface-hover: #1D2735;
+
+  --foreground: #E7EDF5;
+  --foreground-muted: #9AA7B8;
+  --foreground-subtle: #6B788B;
+
+  --border: #26303E;
+  --border-strong: #38465A;
+
+  --brand: #3D8BD4;
+  --brand-hover: #56A0E4;
+  --brand-foreground: #06111C;
+  --brand-subtle: #142433;
+  --accent: #3D8BD4;
+  --accent-hover: #56A0E4;
+  --accent-subtle: #142433;
+  --insignia: #D96A6F;
+  --insignia-hover: #E88187;
+  --insignia-subtle: #2A1719;
+
+  --success: #3DBB74;
+  --success-subtle: #10251A;
+  --warning: #E0A106;
+  --warning-subtle: #2A2009;
+  --danger: #F0574D;
+  --danger-subtle: #2E1512;
+  --info: #5B9BF8;
+  --info-subtle: #101F35;
+
+  --sev-low: #3DBB74;
+  --sev-medium: #E0A106;
+  --sev-high: #F08B3C;
+  --sev-critical: #F0574D;
+
+  --agency-kp: #3D8BD4;
+  --agency-wbp: #35B598;
+  --agency-cid: #A98BE0;
+  --agency-traffic: #E5A24A;
+
+  --ai: #A58BF0;
+  --ai-subtle: #1B1630;
+  --ai-border: #3A2E63;
+
+  --chain-verified: #3DBB74;
+  --chain-pending: #E0A106;
+  --chain-broken: #F0574D;
+
+  --ring: #5B9BF8;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.40);
+  --shadow: 0 1px 3px rgb(0 0 0 / 0.50), 0 1px 2px rgb(0 0 0 / 0.40);
+  --shadow-lg: 0 12px 24px -6px rgb(0 0 0 / 0.55), 0 4px 8px -4px rgb(0 0 0 / 0.40);
 }
 
 @theme inline {
   --color-background: var(--background);
-  --color-background-secondary: var(--background-secondary);
-  --color-background-tertiary: var(--background-tertiary);
-  --color-border: var(--border);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-hover: var(--surface-hover);
+
   --color-foreground: var(--foreground);
   --color-foreground-muted: var(--foreground-muted);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-error: var(--error);
-  --color-info: var(--info);
+  --color-foreground-subtle: var(--foreground-subtle);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-subtle: var(--brand-subtle);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-insignia: var(--insignia);
+  --color-insignia-hover: var(--insignia-hover);
+  --color-insignia-subtle: var(--insignia-subtle);
+
+  --color-success: var(--success);
+  --color-success-subtle: var(--success-subtle);
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-danger: var(--danger);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-info: var(--info);
+  --color-info-subtle: var(--info-subtle);
+
+  --color-sev-low: var(--sev-low);
+  --color-sev-medium: var(--sev-medium);
+  --color-sev-high: var(--sev-high);
+  --color-sev-critical: var(--sev-critical);
+
+  --color-agency-kp: var(--agency-kp);
+  --color-agency-wbp: var(--agency-wbp);
+  --color-agency-cid: var(--agency-cid);
+  --color-agency-traffic: var(--agency-traffic);
+
+  --color-ai: var(--ai);
+  --color-ai-subtle: var(--ai-subtle);
+  --color-ai-border: var(--ai-border);
+
+  --color-chain-verified: var(--chain-verified);
+  --color-chain-pending: var(--chain-pending);
+  --color-chain-broken: var(--chain-broken);
+
+  --color-ring: var(--ring);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-lg);
+
+  /* Back-compat aliases.
+     The prototype screens use the old token names in ~1,700 places. These keep
+     them rendering against the new palette while modules are rebuilt; retire
+     an alias once no screen references it. */
+  --color-background-secondary: var(--surface);
+  --color-background-tertiary: var(--surface-sunken);
+  --color-foreground-primary: var(--foreground);
+  --color-foreground-secondary: var(--foreground-muted);
+  --color-error: var(--danger);
+  --color-error-muted: var(--danger-subtle);
+  --color-success-muted: var(--success-subtle);
+  --color-warning-muted: var(--warning-subtle);
+  --color-info-muted: var(--info-subtle);
+  --color-accent-muted: var(--accent-subtle);
+
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-bengali: var(--font-bengali), "Noto Sans Bengali", var(--font-inter), sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 }
 
 * {
   box-sizing: border-box;
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.5;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Scrollbar Styling */
+/* Bengali text gets its own face — Latin fallbacks render Bengali poorly */
+:lang(bn),
+.font-bengali {
+  font-family: var(--font-bengali);
+  line-height: 1.75;
+}
+
+/* Tabular figures wherever numbers are compared down a column */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
-
 ::-webkit-scrollbar-track {
-  background: var(--background-secondary);
+  background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 4px;
+  background: var(--border-strong);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--foreground-muted);
+  background: var(--foreground-subtle);
+  background-clip: content-box;
 }
 
-/* Focus styles for accessibility */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
-/* Custom utility classes */
 .text-balance {
   text-wrap: balance;
 }
 
-/* Animation */
+/* Hairline grid used behind command-centre panels */
+.ops-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--border) 60%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--border) 60%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-
 @keyframes slideIn {
   from { transform: translateY(-10px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
-
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes pulseRing {
+  0% { transform: scale(0.85); opacity: 0.7; }
+  70% { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(1.6); opacity: 0; }
 }
 
-.animate-slide-in {
-  animation: slideIn 0.2s ease-out;
+.animate-fade-in { animation: fadeIn 0.2s ease-out; }
+.animate-slide-in { animation: slideIn 0.2s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

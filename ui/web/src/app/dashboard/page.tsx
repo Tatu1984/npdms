@@ -1,445 +1,316 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  FileText,
-  Briefcase,
-  AlertTriangle,
-  Users,
-  TrendingUp,
-  TrendingDown,
-  Clock,
-  CheckCircle,
   ArrowRight,
+  Brain,
+  ChevronRight,
+  ClipboardList,
+  FileText,
+  GitCompareArrows,
+  Gauge,
+  LayoutDashboard,
+  Megaphone,
+  Radio,
+  ScanSearch,
+  ShieldCheck,
+  Siren,
+  Users,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useI18n } from "@/lib/i18n";
+import { useAuthStore } from "@/stores/authStore";
+import {
+  GROUP_LABEL,
+  GROUP_ORDER,
+  MODULES,
+  PHASED_MODULES,
+} from "@/lib/platform/modules";
+import {
+  CONTRADICTIONS,
+  DASHBOARD_TRENDS,
+  GAPS,
+  GRIEVANCES,
+  INCIDENTS,
+  STATION_METRICS,
+  VIDEO_EVENTS,
+  WORKSPACES,
+} from "@/lib/platform/mock";
+import { act } from "@/components/platform/actions";
+import {
+  PageHeader,
+  Panel,
+  PhaseBadge,
+  SeverityBadge,
+  StatTile,
+  StatusPill,
+} from "@/components/platform/primitives";
+import { AIGovernanceNotice } from "@/components/platform/governance";
 import { Button } from "@/components/ui/button";
-import { ReportGeneratorDialog } from "@/components/ui/ReportGeneratorDialog";
-import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
-import { useToastStore } from "@/stores/toastStore";
-import { useFIRStore } from "@/stores/firStore";
-import { useCasesStore } from "@/stores/casesStore";
-import { usePersonnelStore } from "@/stores/personnelStore";
-import { useAlertsStore } from "@/stores/alertsStore";
-import { useEvidenceStore } from "@/stores/evidenceStore";
-import { useVehiclesStore } from "@/stores/vehiclesStore";
-import { useArmouryStore } from "@/stores/armouryStore";
-
-// Fallback mock data (used when stores are empty)
-const fallbackFIRs = [
-  {
-    id: "1",
-    firNumber: "KOR/2024/00123",
-    complainant: "Rajesh Sharma",
-    offence: "Theft",
-    status: "UNDER_INVESTIGATION",
-    priority: "HIGH",
-    time: "2 hours ago",
-  },
-  {
-    id: "2",
-    firNumber: "KOR/2024/00122",
-    complainant: "Priya Menon",
-    offence: "Assault",
-    status: "REGISTERED",
-    priority: "CRITICAL",
-    time: "4 hours ago",
-  },
-  {
-    id: "3",
-    firNumber: "KOR/2024/00121",
-    complainant: "Mohammed Khan",
-    offence: "Fraud",
-    status: "UNDER_INVESTIGATION",
-    priority: "NORMAL",
-    time: "6 hours ago",
-  },
-];
-
-const fallbackAlerts = [
-  {
-    id: "1",
-    type: "FLASH",
-    title: "Armed suspects spotted near MG Road",
-    time: "15 min ago",
-  },
-  {
-    id: "2",
-    type: "URGENT",
-    title: "VIP movement - Route diversion required",
-    time: "1 hour ago",
-  },
-  {
-    id: "3",
-    type: "NOTICE",
-    title: "Weekly review meeting at 10:00 AM",
-    time: "3 hours ago",
-  },
-];
-
-function StatCard({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-  trend,
-  trendValue,
-}: {
-  title: string;
-  value: number | string;
-  subtitle?: string;
-  icon: React.ElementType;
-  trend?: "up" | "down";
-  trendValue?: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm text-foreground-muted">{title}</p>
-            <p className="text-3xl font-bold text-foreground mt-1">{value}</p>
-            {subtitle && (
-              <p className="text-sm text-foreground-muted mt-1">{subtitle}</p>
-            )}
-            {trend && trendValue && (
-              <div className="flex items-center gap-1 mt-2">
-                {trend === "up" ? (
-                  <TrendingUp className="h-4 w-4 text-success" />
-                ) : (
-                  <TrendingDown className="h-4 w-4 text-error" />
-                )}
-                <span
-                  className={`text-sm ${
-                    trend === "up" ? "text-success" : "text-error"
-                  }`}
-                >
-                  {trendValue}
-                </span>
-              </div>
-            )}
-          </div>
-          <div className="p-3 rounded-lg bg-accent/10">
-            <Icon className="h-6 w-6 text-accent" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function getStatusBadgeVariant(status: string) {
-  switch (status) {
-    case "REGISTERED":
-      return "registered";
-    case "UNDER_INVESTIGATION":
-      return "investigating";
-    case "CHARGESHEET_FILED":
-      return "chargesheet";
-    case "CLOSED":
-      return "closed";
-    default:
-      return "secondary";
-  }
-}
-
-function getPriorityBadgeVariant(priority: string) {
-  switch (priority) {
-    case "LOW":
-      return "low";
-    case "NORMAL":
-      return "normal";
-    case "HIGH":
-      return "high";
-    case "CRITICAL":
-      return "critical";
-    default:
-      return "secondary";
-  }
-}
-
-function getAlertStyle(type: string) {
-  switch (type) {
-    case "FLASH":
-      return "border-l-4 border-l-error bg-error/5";
-    case "URGENT":
-      return "border-l-4 border-l-warning bg-warning/5";
-    case "NOTICE":
-      return "border-l-4 border-l-info bg-info/5";
-    default:
-      return "";
-  }
-}
-
-function getRelativeTime(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 60) return `${diffMins} min ago`;
-  if (diffHours < 24) return `${diffHours} hours ago`;
-  if (diffDays < 7) return `${diffDays} days ago`;
-  return date.toLocaleDateString();
-}
+import { AnimatedList, AnimatedListItem, GradientText } from "@/components/reactbits";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user } = useAuthStore();
-  const { addToast: _addToast } = useToastStore(); // Reserved for future use
-  const { firs, loadFIRs } = useFIRStore();
-  const { cases } = useCasesStore();
-  const { personnel } = usePersonnelStore();
-  const { alerts } = useAlertsStore();
-  const { evidence } = useEvidenceStore();
-  const { vehicles } = useVehiclesStore();
-  const { weapons } = useArmouryStore();
+  const { t, pick } = useI18n();
+  const user = useAuthStore((s) => s.user);
 
-  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const openInvestigations = STATION_METRICS.reduce((s, m) => s + m.openInvestigations, 0);
+  const awaitingDispatch = INCIDENTS.filter((i) => i.status === "unassigned").length;
+  const unreviewedEvents = VIDEO_EVENTS.filter((e) => e.status === "new").length;
+  const openGrievances = GRIEVANCES.filter((g) => g.status !== "closed").length;
+  const aiFindings = CONTRADICTIONS.length + GAPS.length;
 
-  const isSHOOrAbove = user && hasMinimumRole(user.role, "SHO");
-  const isSPOrAbove = user && hasMinimumRole(user.role, "SP");
-
-  // Load FIRs on mount
-  useEffect(() => {
-    loadFIRs();
-  }, [loadFIRs]);
-
-  // Compute real stats from stores
-  const computedStats = {
-    firsTotal: firs.length,
-    pendingCases: cases.filter(c => c.status === "INVESTIGATION" || c.status === "TRIAL").length,
-    closedCases: cases.filter(c => c.status === "CLOSED" || c.status === "JUDGMENT").length,
-    officersOnDuty: personnel.filter(p => p.status === "ON_DUTY").length,
-    totalOfficers: personnel.length,
-    vehiclesActive: vehicles.filter(v => v.status === "ON_DUTY").length,
-    totalVehicles: vehicles.length,
-    criticalAlerts: alerts.filter(a => a.type === "FLASH" && !a.acknowledged).length,
-    evidenceItems: evidence.length,
-    weaponsIssued: weapons.filter(w => w.status === "ISSUED").length,
-  };
-
-  // Get recent FIRs from store
-  const recentFIRsFromStore = firs.slice(0, 3).map(fir => ({
-    id: fir.id,
-    firNumber: fir.firNumber,
-    complainant: fir.complainantName,
-    offence: fir.offenceType,
-    status: fir.status,
-    priority: fir.priority,
-    time: getRelativeTime(fir.registeredAt),
-  }));
-
-  // Use store data if available, otherwise use fallback data
-  const displayFIRs = recentFIRsFromStore.length > 0 ? recentFIRsFromStore : fallbackFIRs;
-
-  // Get recent alerts from store
-  const recentAlertsFromStore = alerts.slice(0, 3).map(alert => ({
-    id: alert.id,
-    type: alert.type,
-    title: alert.title,
-    time: getRelativeTime(alert.issuedAt),
-  }));
-
-  const displayAlerts = recentAlertsFromStore.length > 0 ? recentAlertsFromStore : fallbackAlerts;
-
-  const handleGenerateReport = () => {
-    setReportDialogOpen(true);
-  };
-
-  const handleAssignOfficers = () => {
-    router.push("/personnel");
-  };
+  const maxTrend = Math.max(...DASHBOARD_TRENDS.map((d) => d.firs));
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Page Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-foreground-muted">
-            Welcome back, {user?.name}. Here&apos;s your station overview.
-          </p>
+      <div className="flex flex-col gap-5">
+        <PageHeader
+          title={`${greeting()}, ${user?.name?.split(" ")[0] ?? "Officer"}`}
+          description="Operational picture across investigation, evidence, surveillance, traffic and citizen services."
+          icon={LayoutDashboard}
+          actions={
+            <>
+              <Button variant="outline" onClick={() => router.push("/fir/new")}>
+                <FileText className="h-4 w-4" />
+                Register FIR
+              </Button>
+              <Button onClick={() => router.push("/investigation")}>
+                <Brain className="h-4 w-4" />
+                Investigation Copilot
+              </Button>
+            </>
+          }
+          menu={[
+            act.link("dispatch", "Dispatch console", "/dispatch", { icon: Radio }),
+            act.link("workload", "Station performance", "/workload", { icon: Gauge }),
+            act.link("reports", "Report library", "/reports", { icon: ClipboardList }),
+          ]}
+        />
+
+        {/* headline numbers — each one is a route */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <StatTile
+            label="Open investigations"
+            value={openInvestigations}
+            icon={ClipboardList}
+            href="/cases"
+            deltaLabel="across five stations"
+          />
+          <StatTile
+            label="AI findings to review"
+            value={aiFindings}
+            icon={GitCompareArrows}
+            tone="ai"
+            href="/ai-review"
+            deltaLabel="contradictions and gaps"
+          />
+          <StatTile
+            label="Awaiting dispatch"
+            value={awaitingDispatch}
+            icon={Siren}
+            tone="danger"
+            href="/dispatch"
+          />
+          <StatTile
+            label="Unreviewed CCTV events"
+            value={unreviewedEvents}
+            icon={ScanSearch}
+            tone="warning"
+            href="/video-intelligence"
+          />
+          <StatTile
+            label="Open grievances"
+            value={openGrievances}
+            icon={Megaphone}
+            tone="info"
+            href="/grievance"
+          />
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            title="Total FIRs"
-            value={computedStats.firsTotal}
-            subtitle={`${computedStats.vehiclesActive} vehicles active`}
-            icon={FileText}
-          />
-          <StatCard
-            title="Pending Cases"
-            value={computedStats.pendingCases}
-            icon={Briefcase}
-          />
-          <StatCard
-            title="Closed Cases"
-            value={computedStats.closedCases}
-            icon={CheckCircle}
-          />
-          {isSHOOrAbove && (
-            <StatCard
-              title="Officers on Duty"
-              value={`${computedStats.officersOnDuty}/${computedStats.totalOfficers}`}
-              icon={Users}
-            />
-          )}
-        </div>
+        <AIGovernanceNotice />
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Recent FIRs */}
-          <Card className="lg:col-span-2">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Recent FIRs
-              </CardTitle>
-              <Link href="/fir">
-                <Button variant="ghost" size="sm">
-                  View All <ArrowRight className="h-4 w-4 ml-1" />
-                </Button>
-              </Link>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {displayFIRs.map((fir) => (
-                  <Link href={`/fir/${fir.id}`} key={fir.id}>
-                    <div
-                      className="flex items-center justify-between p-4 rounded-lg bg-background-tertiary hover:bg-background-tertiary/80 transition-colors cursor-pointer"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <span className="font-mono text-sm text-accent">
-                            {fir.firNumber}
-                          </span>
-                          <Badge variant={getPriorityBadgeVariant(fir.priority) as any}>
-                            {fir.priority}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-foreground mt-1">
-                          {fir.complainant} - {fir.offence}
-                        </p>
-                        <p className="text-xs text-foreground-muted mt-1 flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {fir.time}
-                        </p>
+        <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
+          {/* active workspaces */}
+          <Panel
+            title="Your investigation workspaces"
+            description="Cases where you are the investigating or supervisory officer"
+            actions={
+              <Button variant="ghost" size="sm" onClick={() => router.push("/investigation")}>
+                {t("common.viewAll")}
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            }
+            bodyClassName="p-0"
+          >
+            <AnimatedList className="divide-y divide-border">
+              {WORKSPACES.slice(0, 4).map((w) => (
+                <AnimatedListItem key={w.id}>
+                  <Link
+                    href={`/investigation/${w.id}`}
+                    className="flex items-center justify-between gap-3 p-4 transition-colors hover:bg-surface-hover"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {pick(w.title)}
+                      </p>
+                      <p className="mt-0.5 font-mono text-xs text-foreground-subtle">
+                        {w.caseNumber} · {w.station} PS
+                      </p>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        {w.counts.contradictions > 0 && (
+                          <StatusPill tone="danger">
+                            {w.counts.contradictions} contradictions
+                          </StatusPill>
+                        )}
+                        {w.counts.gaps > 0 && (
+                          <StatusPill tone="warning">{w.counts.gaps} gaps</StatusPill>
+                        )}
+                        {w.nextCourtDate && (
+                          <StatusPill tone="info">Court {w.nextCourtDate}</StatusPill>
+                        )}
                       </div>
-                      <Badge variant={getStatusBadgeVariant(fir.status) as any}>
-                        {fir.status.replace(/_/g, " ")}
-                      </Badge>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <SeverityBadge level={w.priority} />
+                      <ArrowRight className="h-4 w-4 text-foreground-subtle" />
                     </div>
                   </Link>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                </AnimatedListItem>
+              ))}
+            </AnimatedList>
+          </Panel>
 
-          {/* Alerts */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5" />
-                Active Alerts
-              </CardTitle>
-              <Link href="/alerts">
-                <Badge variant="error" className="cursor-pointer">{displayAlerts.length}</Badge>
-              </Link>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {displayAlerts.map((alert) => (
-                  <Link href={`/alerts/${alert.id}`} key={alert.id}>
+          {/* six-month trend */}
+          <Panel
+            title="Six-month trend"
+            description="FIRs registered against disposals"
+            menu={[
+              act.link("analytics", "Open crime analytics", "/analytics", { icon: Gauge }),
+              act.link("reports", "Export report", "/reports", { icon: ClipboardList }),
+            ]}
+          >
+            <div className="flex h-48 items-end gap-3">
+              {DASHBOARD_TRENDS.map((d) => (
+                <div key={d.month} className="flex flex-1 flex-col items-center gap-1.5">
+                  <div className="flex w-full flex-1 items-end justify-center gap-1">
                     <div
-                      className={`p-3 rounded-lg ${getAlertStyle(alert.type)} cursor-pointer hover:opacity-80 transition-opacity`}
+                      className="w-1/2 rounded-t bg-accent transition-all"
+                      style={{ height: `${(d.firs / maxTrend) * 100}%` }}
+                      title={`${d.firs} FIRs`}
+                    />
+                    <div
+                      className="w-1/2 rounded-t bg-success transition-all"
+                      style={{ height: `${(d.disposals / maxTrend) * 100}%` }}
+                      title={`${d.disposals} disposals`}
+                    />
+                  </div>
+                  <span className="text-[0.65rem] text-foreground-subtle">{d.month}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex items-center gap-4">
+              <span className="flex items-center gap-1.5 text-xs text-foreground-muted">
+                <span className="h-2 w-2 rounded-full bg-accent" />
+                FIRs registered
+              </span>
+              <span className="flex items-center gap-1.5 text-xs text-foreground-muted">
+                <span className="h-2 w-2 rounded-full bg-success" />
+                Disposals
+              </span>
+            </div>
+          </Panel>
+        </div>
+
+        {/* the fourteen modules, grouped */}
+        <Panel
+          title={
+            <>
+              The platform, in <GradientText>fourteen phased modules</GradientText>
+            </>
+          }
+          description="One platform consuming authorised data from the systems Kolkata Police already operates"
+          bodyClassName="flex flex-col gap-5"
+        >
+          {GROUP_ORDER.filter((g) => g !== "core").map((group) => {
+            const items = MODULES.filter((m) => m.group === group);
+            if (items.length === 0) return null;
+            return (
+              <div key={group}>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-foreground-subtle">
+                  {t(GROUP_LABEL[group])}
+                </p>
+                <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                  {items.map((m) => (
+                    <Link
+                      key={m.id}
+                      href={m.href}
+                      className="group flex flex-col gap-2 rounded-lg border border-border bg-surface p-3.5 transition-colors hover:border-accent/50 hover:bg-surface-hover"
                     >
-                      <div className="flex items-start justify-between">
-                        <Badge
-                          variant={
-                            alert.type === "FLASH"
-                              ? "error"
-                              : alert.type === "URGENT"
-                              ? "warning"
-                              : "info"
-                          }
-                          className="text-[10px]"
-                        >
-                          {alert.type}
-                        </Badge>
-                        <span className="text-xs text-foreground-muted">
-                          {alert.time}
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent-subtle text-accent">
+                          <m.icon className="h-4 w-4" />
                         </span>
+                        <div className="flex items-center gap-1.5">
+                          {m.phase !== undefined && <PhaseBadge phase={m.phase} />}
+                          {m.aiAssisted && <StatusPill tone="ai">AI</StatusPill>}
+                          {m.chainAnchored && (
+                            <StatusPill tone="success">
+                              <ShieldCheck className="h-3 w-3" />
+                            </StatusPill>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-sm text-foreground mt-2">{alert.title}</p>
-                    </div>
-                  </Link>
-                ))}
+                      <p className="text-sm font-medium text-foreground group-hover:text-accent">
+                        {t(m.nameKey)}
+                      </p>
+                      <p className="line-clamp-2 text-xs text-foreground-muted">{t(m.descKey)}</p>
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            );
+          })}
+        </Panel>
 
-        {/* Quick Actions for SHO+ */}
-        {isSHOOrAbove && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-3">
-                <Link href="/fir/new">
-                  <Button>
-                    <FileText className="h-4 w-4 mr-2" />
-                    Register New FIR
-                  </Button>
+        {/* delivery roadmap */}
+        <Panel
+          title="Delivery phases"
+          description="Each phase ships on the same platform — shared identity, audit, evidence and integration layers"
+          bodyClassName="p-0"
+        >
+          <ol className="divide-y divide-border">
+            {PHASED_MODULES.map((m) => (
+              <li key={m.id}>
+                <Link
+                  href={m.href}
+                  className="flex items-center gap-4 p-3.5 transition-colors hover:bg-surface-hover"
+                >
+                  <PhaseBadge phase={m.phase ?? 0} />
+                  <m.icon className="h-4 w-4 shrink-0 text-foreground-subtle" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-foreground">{t(m.nameKey)}</span>
+                    <span className="block truncate text-xs text-foreground-subtle">
+                      {t(m.descKey)}
+                    </span>
+                  </span>
+                  <StatusPill tone={m.status === "live" ? "success" : "info"}>{m.status}</StatusPill>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-foreground-subtle" />
                 </Link>
-                <Button variant="secondary" onClick={handleAssignOfficers}>
-                  <Users className="h-4 w-4 mr-2" />
-                  Assign Officers
-                </Button>
-                <Link href="/alerts">
-                  <Button variant="secondary">
-                    <AlertTriangle className="h-4 w-4 mr-2" />
-                    Issue Alert
-                  </Button>
-                </Link>
-                {isSPOrAbove && (
-                  <Button variant="secondary" onClick={handleGenerateReport}>
-                    <Briefcase className="h-4 w-4 mr-2" />
-                    Generate Report
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              </li>
+            ))}
+          </ol>
+        </Panel>
       </div>
-
-      {/* Report Generator Dialog */}
-      <ReportGeneratorDialog
-        isOpen={reportDialogOpen}
-        onClose={() => setReportDialogOpen(false)}
-        stationName={user?.stationName || "Koramangala PS"}
-        reportData={{
-          totalFIRs: computedStats.firsTotal,
-          pendingCases: computedStats.pendingCases,
-          closedCases: computedStats.closedCases,
-          officersOnDuty: computedStats.officersOnDuty,
-          criticalAlerts: computedStats.criticalAlerts,
-          evidenceItems: computedStats.evidenceItems,
-          vehiclesActive: computedStats.vehiclesActive,
-          weaponsIssued: computedStats.weaponsIssued,
-        }}
-      />
     </DashboardLayout>
   );
+}
+
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
 }
