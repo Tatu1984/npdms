@@ -1,141 +1,149 @@
-import apiClient from './client';
+import apiClient from "./client";
 
-export type CaseStatus = 'registered' | 'under_investigation' | 'chargesheet_filed' | 'court_proceedings' | 'closed' | 'transferred';
+/**
+ * Cases API.
+ *
+ * Field names mirror the Go `models.Case`, `models.Accused` and
+ * `models.Witness` exactly. Nullable columns arrive as `null`; joined names
+ * (`firNumber`, `ioName`) are omitted when empty.
+ */
+
+export type CaseStatus =
+  | "REGISTERED"
+  | "UNDER_INVESTIGATION"
+  | "CHARGESHEET_FILED"
+  | "IN_COURT"
+  | "CONVICTION"
+  | "ACQUITTAL"
+  | "CLOSED";
+export type CasePriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+
+export const CASE_STATUSES: CaseStatus[] = [
+  "REGISTERED",
+  "UNDER_INVESTIGATION",
+  "CHARGESHEET_FILED",
+  "IN_COURT",
+  "CONVICTION",
+  "ACQUITTAL",
+  "CLOSED",
+];
 
 export interface Case {
   id: string;
   caseNumber: string;
   firId: string;
-  firNumber: string;
+  firNumber?: string;
   title: string;
+  synopsis: string | null;
+  category: string | null;
   status: CaseStatus;
+  priority: CasePriority;
   ipcSections: string[];
-  assignedOfficerId?: string;
-  assignedOfficerName?: string;
-  courtName?: string;
-  nextHearingDate?: string;
+  investigatingOfficer: string | null;
+  ioName?: string;
+  courtName: string | null;
+  courtCaseNumber: string | null;
+  nextHearingDate: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
+export type AccusedStatus = "ABSCONDING" | "ARRESTED" | "ON_BAIL" | "IN_CUSTODY" | "RELEASED";
+
+export const ACCUSED_STATUSES: AccusedStatus[] = ["ABSCONDING", "ARRESTED", "IN_CUSTODY", "ON_BAIL", "RELEASED"];
+
 export interface Accused {
   id: string;
-  caseId?: string;
-  firId?: string;
+  caseId: string | null;
+  firId: string | null;
   name: string;
-  fatherName?: string;
-  age?: number;
-  gender: string;
-  address?: string;
-  phone?: string;
-  aadhar?: string;
-  status: 'wanted' | 'arrested' | 'in_custody' | 'released_on_bail' | 'absconding' | 'deceased';
-  arrestDate?: string;
-  arrestingOfficer?: string;
-  custodyLocation?: string;
-  bailStatus?: string;
-  role?: string;
-  photo?: string;
+  alias: string | null;
+  description: string | null;
+  age: number | null;
+  gender: string | null;
+  address: string | null;
+  idType: string | null;
+  idNumber: string | null;
+  status: AccusedStatus;
+  arrestDate: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Witness {
   id: string;
-  caseId?: string;
-  firId?: string;
+  caseId: string | null;
+  firId: string | null;
   name: string;
-  fatherName?: string;
-  age?: number;
-  gender: string;
-  address?: string;
-  phone?: string;
-  type: 'eyewitness' | 'expert' | 'character' | 'material' | 'hostile';
-  statement?: string;
-  statementDate?: string;
-  isProtected: boolean;
-  reliability?: string;
+  phone: string | null;
+  address: string | null;
+  witnessType: string | null;
+  statementRecorded: boolean;
+  statementDate: string | null;
+  statementText: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface CaseListResponse {
-  data: Case[];
+export interface Paginated<T> {
+  data: T[];
   total: number;
   page: number;
   pageSize: number;
   totalPages: number;
 }
 
-export interface CaseFilter {
+export interface CaseQuery {
   page?: number;
   pageSize?: number;
-  status?: CaseStatus;
+  /**
+   * Sent for when the API supports it. GET /cases currently reads only page
+   * and pageSize, so results are the most recent cases regardless.
+   */
   search?: string;
-  assignedOfficerId?: string;
 }
 
-export interface CreateCaseRequest {
-  firId: string;
-  title: string;
-  ipcSections: string[];
-}
+/** Fields an officer supplies. Number, status and timestamps are the server's. */
+export type CaseInput = Partial<
+  Omit<Case, "id" | "caseNumber" | "status" | "firNumber" | "ioName" | "createdAt" | "updatedAt">
+> &
+  Pick<Case, "firId" | "title">;
 
-export interface UpdateCaseRequest {
-  title?: string;
-  status?: CaseStatus;
-  ipcSections?: string[];
-  assignedOfficerId?: string;
-  courtName?: string;
-  nextHearingDate?: string;
-}
+export type AccusedInput = Partial<Omit<Accused, "id" | "caseId" | "createdAt" | "updatedAt">> &
+  Pick<Accused, "name" | "status">;
+
+export type WitnessInput = Partial<Omit<Witness, "id" | "caseId" | "createdAt" | "updatedAt">> &
+  Pick<Witness, "name">;
 
 export const casesApi = {
-  list: async (filter?: CaseFilter): Promise<CaseListResponse> => {
+  list: (query: CaseQuery = {}) => {
     const params: Record<string, string | number> = {};
-    if (filter) {
-      if (filter.page) params.page = filter.page;
-      if (filter.pageSize) params.pageSize = filter.pageSize;
-      if (filter.status) params.status = filter.status;
-      if (filter.search) params.search = filter.search;
-      if (filter.assignedOfficerId) params.assignedOfficerId = filter.assignedOfficerId;
-    }
-    return apiClient.get<CaseListResponse>('/cases', params);
+    if (query.page) params.page = query.page;
+    if (query.pageSize) params.pageSize = query.pageSize;
+    if (query.search) params.search = query.search;
+    return apiClient.get<Paginated<Case>>("/cases", params);
   },
 
-  get: async (id: string): Promise<Case> => {
-    return apiClient.get<Case>(`/cases/${id}`);
-  },
+  get: (id: string) => apiClient.get<Case>(`/cases/${id}`),
 
-  create: async (data: CreateCaseRequest): Promise<Case> => {
-    return apiClient.post<Case>('/cases', data);
-  },
+  create: (input: CaseInput) => apiClient.post<Case>("/cases", input),
 
-  update: async (id: string, data: UpdateCaseRequest): Promise<Case> => {
-    return apiClient.put<Case>(`/cases/${id}`, data);
-  },
+  /** The API rewrites every editable column from the body, so send the full record. */
+  update: (current: Case, changes: Partial<CaseInput> & { status?: CaseStatus }) =>
+    apiClient.put<Case>(`/cases/${current.id}`, { ...current, ...changes }),
 
-  // Accused management
-  getAccused: async (caseId: string): Promise<Accused[]> => {
-    return apiClient.get<Accused[]>(`/cases/${caseId}/accused`);
-  },
+  /** The API returns null rather than an empty list for a case with none. */
+  accused: async (caseId: string) =>
+    (await apiClient.get<Accused[] | null>(`/cases/${caseId}/accused`)) ?? [],
 
-  addAccused: async (caseId: string, data: Omit<Accused, 'id' | 'caseId'>): Promise<Accused> => {
-    return apiClient.post<Accused>(`/cases/${caseId}/accused`, data);
-  },
+  addAccused: (caseId: string, input: AccusedInput) =>
+    apiClient.post<Accused>(`/cases/${caseId}/accused`, input),
 
-  updateAccused: async (caseId: string, accusedId: string, data: Partial<Accused>): Promise<Accused> => {
-    return apiClient.put<Accused>(`/cases/${caseId}/accused/${accusedId}`, data);
-  },
+  witnesses: async (caseId: string) =>
+    (await apiClient.get<Witness[] | null>(`/cases/${caseId}/witnesses`)) ?? [],
 
-  // Witness management
-  getWitnesses: async (caseId: string): Promise<Witness[]> => {
-    return apiClient.get<Witness[]>(`/cases/${caseId}/witnesses`);
-  },
-
-  addWitness: async (caseId: string, data: Omit<Witness, 'id' | 'caseId'>): Promise<Witness> => {
-    return apiClient.post<Witness>(`/cases/${caseId}/witnesses`, data);
-  },
-
-  updateWitness: async (caseId: string, witnessId: string, data: Partial<Witness>): Promise<Witness> => {
-    return apiClient.put<Witness>(`/cases/${caseId}/witnesses/${witnessId}`, data);
-  },
+  addWitness: (caseId: string, input: WitnessInput) =>
+    apiClient.post<Witness>(`/cases/${caseId}/witnesses`, input),
 };
 
 export default casesApi;

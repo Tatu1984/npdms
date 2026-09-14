@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -13,340 +13,258 @@ import {
   Phone,
   Edit,
   Printer,
-  Share2,
-  AlertCircle,
-  CheckCircle,
-  Users,
+  Briefcase,
+  Loader2,
+  AlertTriangle,
   Package,
-  History,
-  MessageSquare,
-  Sparkles,
-  Link as LinkIcon,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { CaseDiaryEntryDialog } from "@/components/ui/CaseDiaryEntryDialog";
-import { AddPersonDialog } from "@/components/ui/AddPersonDialog";
-import { FIRActionDialog } from "@/components/ui/FIRActionDialog";
-import { CaseLinkDialog } from "@/components/ui/CaseLinkDialog";
-import { useFIR, useUpdateFIR } from "@/hooks/use-firs";
+import { SectionPicker } from "@/components/ui/SectionPicker";
+import { useFIR, useFIRTimeline, useSetFIRStatus, useUpdateFIR } from "@/hooks/use-firs";
+import { useOfficers } from "@/hooks/use-investigation";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { toast } from "@/stores/toastStore";
-import type { FIRStatus, FIRPriority } from "@/types";
+import { ApiClientError } from "@/lib/api/client";
+import type { FIR, FIRPriority, FIRStatus } from "@/lib/api/firs";
+import { formatDate, formatDateTime } from "@/lib/utils";
 
-function getStatusBadgeVariant(status: FIRStatus) {
-  const variants: Record<FIRStatus, string> = {
-    REGISTERED: "registered",
-    UNDER_INVESTIGATION: "investigating",
-    PENDING: "warning",
-    CHARGESHEET_FILED: "chargesheet",
-    COURT_PENDING: "warning",
-    CLOSED: "closed",
-    TRANSFERRED: "secondary",
-  };
-  return variants[status] || "secondary";
-}
+const statusBadge: Record<FIRStatus, string> = {
+  DRAFT: "secondary",
+  REGISTERED: "registered",
+  UNDER_INVESTIGATION: "investigating",
+  CHARGESHEET_FILED: "chargesheet",
+  CLOSED: "closed",
+  TRANSFERRED: "transferred",
+};
 
-function getPriorityBadgeVariant(priority: FIRPriority) {
-  const variants: Record<FIRPriority, string> = {
-    LOW: "low",
-    MEDIUM: "normal",
-    NORMAL: "normal",
-    HIGH: "high",
-    CRITICAL: "critical",
-  };
-  return variants[priority] || "secondary";
-}
+const priorityBadge: Record<FIRPriority, string> = {
+  LOW: "low",
+  MEDIUM: "normal",
+  HIGH: "high",
+  CRITICAL: "critical",
+};
 
-// Mock case diary entries
-const caseDiaryEntries = [
-  {
-    id: "1",
-    date: "2024-01-16",
-    time: "10:30",
-    officer: "SI Suresh",
-    content:
-      "Visited scene of crime. Collected CCTV footage from neighboring shop. Owner Mr. Sharma provided footage from 14:00-15:00 hours. Footage shows suspect entering premises. Face partially visible.",
-    nextAction: "Send footage for enhancement. Canvas nearby shops.",
-    attachments: ["cctv_footage.mp4"],
-  },
-  {
-    id: "2",
-    date: "2024-01-15",
-    time: "18:00",
-    officer: "Const. Ramesh",
-    content:
-      "Recorded statements from two witnesses: 1. Mrs. Lakshmi (neighbor) - Saw unknown person near gate 2. Mr. Auto Driver - Dropped person matching description near location.",
-    attachments: ["witness_stmt_1.pdf", "witness_stmt_2.pdf"],
-  },
-  {
-    id: "3",
-    date: "2024-01-15",
-    time: "15:30",
-    officer: "SI Suresh",
-    content:
-      "FIR registered. Initial investigation commenced. Scene visited, photographs taken. Fingerprints lifted from door handle and window frame.",
-    attachments: ["scene_photos.zip", "fingerprint_01.jpg"],
-  },
+const statusOptions: { value: FIRStatus; label: string }[] = [
+  { value: "REGISTERED", label: "Registered" },
+  { value: "UNDER_INVESTIGATION", label: "Under Investigation" },
+  { value: "CHARGESHEET_FILED", label: "Chargesheet Filed" },
+  { value: "TRANSFERRED", label: "Transferred" },
+  { value: "CLOSED", label: "Closed" },
 ];
 
-// Mock similar cases for AI analysis
-const similarCases = [
-  {
-    firNumber: "IND/2024/00098",
-    similarity: 85,
-    station: "Indiranagar PS",
-    description: "Similar MO - theft from parked vehicle in mall parking",
-  },
-  {
-    firNumber: "KOR/2023/02345",
-    similarity: 72,
-    station: "Koramangala PS",
-    description: "Same locality - laptop theft from parked car",
-  },
-  {
-    firNumber: "HSR/2024/00567",
-    similarity: 68,
-    station: "HSR Layout PS",
-    description: "Similar time pattern - evening theft from vehicle",
-  },
+const priorityOptions = [
+  { value: "LOW", label: "Low" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "HIGH", label: "High" },
+  { value: "CRITICAL", label: "Critical" },
 ];
+
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-sm text-foreground-muted">{label}</p>
+      <div className="text-foreground">{value ?? <span className="text-foreground-muted">Not recorded</span>}</div>
+    </div>
+  );
+}
+
+type EditForm = {
+  complainantName: string;
+  complainantPhone: string;
+  complainantAddress: string;
+  incidentLocation: string;
+  incidentDescription: string;
+  ipcSections: string[];
+  priority: FIRPriority;
+  investigatingOfficer: string;
+};
+
+const toEditForm = (fir: FIR): EditForm => ({
+  complainantName: fir.complainantName,
+  complainantPhone: fir.complainantPhone ?? "",
+  complainantAddress: fir.complainantAddress ?? "",
+  incidentLocation: fir.incidentLocation,
+  incidentDescription: fir.incidentDescription,
+  ipcSections: fir.ipcSections,
+  priority: fir.priority,
+  investigatingOfficer: fir.investigatingOfficer ?? "",
+});
 
 export default function FIRDetailPage() {
   const router = useRouter();
-  const params = useParams();
+  const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState("details");
 
-  // Fetch FIR by ID
-  const { data: selectedFIR, isLoading, error } = useFIR(params.id as string);
-
-  // Update mutation
-  const updateMutation = useUpdateFIR();
-
-  // Dialog states
-  const [diaryDialogOpen, setDiaryDialogOpen] = useState(false);
-  const [suspectDialogOpen, setSuspectDialogOpen] = useState(false);
-  const [witnessDialogOpen, setWitnessDialogOpen] = useState(false);
-  const [actionDialogOpen, setActionDialogOpen] = useState(false);
-  const [actionType, setActionType] = useState<"transfer" | "close" | "chargesheet">("transfer");
-  const [showCaseLink, setShowCaseLink] = useState(false);
-
-  // Local state for case diary entries, suspects, and witnesses
-  const [localDiaryEntries, setLocalDiaryEntries] = useState(caseDiaryEntries);
-  const [suspects, setSuspects] = useState<Array<{ id: string; name: string; phone?: string; address?: string; description?: string; status: string }>>([]);
-  const [witnesses, setWitnesses] = useState<Array<{ id: string; name: string; phone?: string; description?: string; status: string }>>([
-    { id: "w1", name: "Mrs. Lakshmi", phone: "", description: "Neighbor - Statement recorded", status: "RECORDED" },
-    { id: "w2", name: "Auto Driver (Name TBD)", phone: "", description: "Eyewitness - Statement recorded", status: "RECORDED" },
-  ]);
+  const { data: fir, isPending, isError, error, refetch } = useFIR(params.id);
+  const timeline = useFIRTimeline(params.id);
+  const updateFIR = useUpdateFIR();
+  const setStatus = useSetFIRStatus();
 
   const canEdit = user && hasMinimumRole(user.role, "SI");
-  const canTransfer = user && hasMinimumRole(user.role, "SHO");
+  const [editForm, setEditForm] = useState<EditForm | null>(null);
+  const [nextStatus, setNextStatus] = useState<FIRStatus | null>(null);
+  const officers = useOfficers();
 
-  // Handlers
-  const handleAddDiaryEntry = (entry: { content: string; nextAction: string; officer: string }) => {
-    const newEntry = {
-      id: `diary-${Date.now()}`,
-      date: new Date().toISOString().split("T")[0],
-      time: new Date().toTimeString().slice(0, 5),
-      officer: entry.officer,
-      content: entry.content,
-      nextAction: entry.nextAction,
-      attachments: [],
-    };
-    setLocalDiaryEntries([newEntry, ...localDiaryEntries]);
-    setDiaryDialogOpen(false);
-    toast.success("Entry Added", "Case diary entry has been recorded");
-  };
+  // /fir/{id}?edit=true, linked from the register, opens the editor once loaded.
+  useEffect(() => {
+    if (fir && canEdit && searchParams.get("edit") === "true" && editForm === null) {
+      setEditForm(toEditForm(fir));
+      router.replace(`/fir/${fir.id}`);
+    }
+  }, [fir, canEdit, searchParams, editForm, router]);
 
-  const handleAddSuspect = (person: { name: string; phone?: string; address?: string; description?: string; status?: string }) => {
-    const newSuspect = {
-      id: `suspect-${Date.now()}`,
-      name: person.name,
-      phone: person.phone,
-      address: person.address,
-      description: person.description,
-      status: person.status || "WANTED",
-    };
-    setSuspects([...suspects, newSuspect]);
-    setSuspectDialogOpen(false);
-    toast.success("Suspect Added", `${person.name} has been added as a suspect`);
-  };
+  if (isPending) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64 gap-3 text-foreground-muted">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading FIR…
+        </div>
+      </DashboardLayout>
+    );
+  }
 
-  const handleAddWitness = (person: { name: string; phone?: string; address?: string; description?: string; status?: string }) => {
-    const newWitness = {
-      id: `witness-${Date.now()}`,
-      name: person.name,
-      phone: person.phone,
-      description: person.description,
-      status: person.status || "PENDING",
-    };
-    setWitnesses([...witnesses, newWitness]);
-    setWitnessDialogOpen(false);
-    toast.success("Witness Added", `${person.name} has been registered as a witness`);
-  };
+  if (isError) {
+    const notFound = error instanceof ApiClientError && error.code === 404;
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center h-64 gap-2 text-center">
+          <AlertTriangle className="h-12 w-12 text-warning mb-2" />
+          <h2 className="text-xl font-bold text-foreground">{notFound ? "FIR Not Found" : "FIR could not be loaded"}</h2>
+          <p className="text-foreground-muted mb-2">{notFound ? "The requested FIR does not exist." : error.message}</p>
+          <div className="flex gap-2">
+            {!notFound && (
+              <Button variant="secondary" onClick={() => refetch()}>
+                Try again
+              </Button>
+            )}
+            <Link href="/fir">
+              <Button>Back to FIR Register</Button>
+            </Link>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
-  const handleFIRAction = async (data: { reason: string; targetStation?: string; courtName?: string }) => {
-    if (!selectedFIR) return;
+  const officerOptions = [
+    { value: "", label: "Unassigned" },
+    ...(officers.data ?? []).map((o) => ({
+      value: o.id,
+      label: `${o.roleLabel} ${o.name}${o.stationName ? ` · ${o.stationName}` : ""} (${o.openCases} open)`,
+    })),
+  ];
 
+  const saveEdit = async () => {
+    if (!editForm) return;
+    if (editForm.complainantName.trim().length < 2 || editForm.incidentLocation.trim().length < 5) {
+      toast.error("Validation Error", "Complainant name and incident location are required");
+      return;
+    }
+    if (editForm.complainantPhone && !/^[6-9]\d{9}$/.test(editForm.complainantPhone)) {
+      toast.error("Validation Error", "Phone must be 10 digits starting with 6-9");
+      return;
+    }
+    if (editForm.ipcSections.length === 0) {
+      toast.error("Validation Error", "Select at least one section");
+      return;
+    }
     try {
-      if (actionType === "transfer") {
-        await updateMutation.mutateAsync({ id: selectedFIR.id, data: { status: "TRANSFERRED" as FIRStatus } });
-        toast.success("Case Transferred", `${selectedFIR.firNumber} has been transferred to ${data.targetStation}`);
-      } else if (actionType === "close") {
-        await updateMutation.mutateAsync({ id: selectedFIR.id, data: { status: "CLOSED" as FIRStatus } });
-        toast.success("Case Closed", `${selectedFIR.firNumber} has been closed`);
-      } else if (actionType === "chargesheet") {
-        await updateMutation.mutateAsync({ id: selectedFIR.id, data: { status: "CHARGESHEET_FILED" as FIRStatus } });
-        toast.success("Chargesheet Filed", `Chargesheet for ${selectedFIR.firNumber} has been submitted to ${data.courtName}`);
-      }
-      setActionDialogOpen(false);
-    } catch (error) {
-      toast.error("Error", "Failed to update FIR status");
+      await updateFIR.mutateAsync({
+        fir,
+        changes: {
+          complainantName: editForm.complainantName.trim(),
+          complainantPhone: editForm.complainantPhone || null,
+          complainantAddress: editForm.complainantAddress.trim() || null,
+          incidentLocation: editForm.incidentLocation.trim(),
+          incidentDescription: editForm.incidentDescription.trim(),
+          ipcSections: editForm.ipcSections,
+          priority: editForm.priority,
+          investigatingOfficer: editForm.investigatingOfficer || null,
+        },
+      });
+      toast.success("FIR Updated", `${fir.firNumber} has been updated`);
+      setEditForm(null);
+    } catch (err) {
+      toast.error("FIR not updated", err instanceof Error ? err.message : "The server rejected the request");
     }
   };
 
-  const openActionDialog = (type: "transfer" | "close" | "chargesheet") => {
-    setActionType(type);
-    setActionDialogOpen(true);
+  const confirmStatus = async () => {
+    if (!nextStatus) return;
+    try {
+      await setStatus.mutateAsync({ id: fir.id, status: nextStatus });
+      toast.success("Status Changed", `${fir.firNumber} is now ${nextStatus.replace(/_/g, " ").toLowerCase()}`);
+      setNextStatus(null);
+    } catch (err) {
+      toast.error("Status not changed", err instanceof Error ? err.message : "The server rejected the request");
+    }
   };
 
-  if (isLoading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  if (error) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <p className="text-error mb-2">Failed to load FIR</p>
-            <p className="text-sm text-foreground-muted">{error.message}</p>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  if (!selectedFIR) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <p className="text-foreground-muted">FIR not found</p>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
+  const entries = timeline.data ?? [];
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => router.back()}>
+            <Button variant="ghost" onClick={() => router.back()} aria-label="Back">
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground font-mono">
-                  {selectedFIR.firNumber}
-                </h1>
-                <Badge variant={getStatusBadgeVariant(selectedFIR.status) as any}>
-                  {selectedFIR.status.replace(/_/g, " ")}
-                </Badge>
-                <Badge variant={getPriorityBadgeVariant(selectedFIR.priority) as any}>
-                  {selectedFIR.priority}
-                </Badge>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-2xl font-bold text-foreground font-mono">{fir.firNumber}</h1>
+                <Badge variant={statusBadge[fir.status] as any}>{fir.status.replace(/_/g, " ")}</Badge>
+                <Badge variant={priorityBadge[fir.priority] as any}>{fir.priority}</Badge>
               </div>
               <p className="text-foreground-muted">
-                {selectedFIR.offenceType} - {selectedFIR.stationName}
+                {fir.ipcSections.join(", ")}
+                {fir.stationName && ` — ${fir.stationName}`}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => {
-              toast.info("Print", "Opening print dialog...");
-              window.print();
-            }}>
+            <Button variant="ghost" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" />
               Print
             </Button>
-            <Button variant="ghost" onClick={() => {
-              navigator.clipboard.writeText(window.location.href);
-              toast.success("Link Copied", "FIR link copied to clipboard");
-            }}>
-              <Share2 className="h-4 w-4 mr-2" />
-              Share
-            </Button>
             {canEdit && (
-              <Link href={`/fir/${params.id}/edit`}>
-                <Button>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
-                </Button>
-              </Link>
+              <Button onClick={() => setEditForm(toEditForm(fir))}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
             )}
           </div>
         </div>
 
-        {/* Case Summary Card */}
+        {/* Summary */}
         <Card>
           <CardContent className="p-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div>
-                <p className="text-sm text-foreground-muted">FIR Number</p>
-                <p className="font-mono text-accent">{selectedFIR.firNumber}</p>
-              </div>
-              <div>
-                <p className="text-sm text-foreground-muted">Registered On</p>
-                <p className="text-foreground">
-                  {new Date(selectedFIR.registeredAt).toLocaleDateString("en-IN")}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-foreground-muted">Station</p>
-                <p className="text-foreground">{selectedFIR.stationName}</p>
-              </div>
-              <div>
-                <p className="text-sm text-foreground-muted">Investigating Officer</p>
-                <p className="text-foreground">
-                  {selectedFIR.investigatingOfficerName || "Unassigned"}
-                </p>
-              </div>
+              <Field label="FIR Number" value={<span className="font-mono text-accent">{fir.firNumber}</span>} />
+              <Field label="Registered On" value={formatDateTime(fir.createdAt)} />
+              <Field label="Registered By" value={fir.registeredByName || null} />
+              <Field label="Investigating Officer" value={fir.ioName || "Unassigned"} />
             </div>
           </CardContent>
         </Card>
 
-        {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="details">
               <FileText className="h-4 w-4 mr-2" />
               Details
-            </TabsTrigger>
-            <TabsTrigger value="diary">
-              <History className="h-4 w-4 mr-2" />
-              Case Diary
-            </TabsTrigger>
-            <TabsTrigger value="persons">
-              <Users className="h-4 w-4 mr-2" />
-              Persons
-            </TabsTrigger>
-            <TabsTrigger value="evidence">
-              <Package className="h-4 w-4 mr-2" />
-              Evidence
             </TabsTrigger>
             <TabsTrigger value="timeline">
               <Clock className="h-4 w-4 mr-2" />
@@ -354,11 +272,9 @@ export default function FIRDetailPage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Details Tab */}
           <TabsContent value="details" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
-                {/* Complainant */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -367,25 +283,26 @@ export default function FIRDetailPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-foreground-muted">Name</p>
-                      <p className="text-foreground font-medium">{selectedFIR.complainantName}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Phone</p>
-                      <p className="text-foreground flex items-center gap-2">
-                        <Phone className="h-4 w-4" />
-                        {selectedFIR.complainantPhone}
-                      </p>
-                    </div>
+                    <Field label="Name" value={<span className="font-medium">{fir.complainantName}</span>} />
+                    <Field
+                      label="Phone"
+                      value={
+                        fir.complainantPhone ? (
+                          <span className="flex items-center gap-2">
+                            <Phone className="h-4 w-4" />
+                            {fir.complainantPhone}
+                          </span>
+                        ) : null
+                      }
+                    />
                     <div className="col-span-2">
-                      <p className="text-sm text-foreground-muted">Address</p>
-                      <p className="text-foreground">{selectedFIR.complainantAddress}</p>
+                      <Field label="Address" value={fir.complainantAddress} />
                     </div>
+                    <Field label="ID Type" value={fir.complainantIdType} />
+                    <Field label="ID Number" value={fir.complainantIdNumber} />
                   </CardContent>
                 </Card>
 
-                {/* Incident */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -395,29 +312,22 @@ export default function FIRDetailPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-foreground-muted">Date & Time</p>
-                        <p className="text-foreground flex items-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          {new Date(selectedFIR.incidentDate).toLocaleDateString("en-IN")}
-                          {selectedFIR.incidentTime && ` at ${selectedFIR.incidentTime}`}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-foreground-muted">Location</p>
-                        <p className="text-foreground">{selectedFIR.incidentLocation}</p>
-                      </div>
+                      <Field
+                        label="Date & Time"
+                        value={
+                          <span className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4" />
+                            {formatDate(fir.incidentDate)}
+                            {fir.incidentTime && ` at ${fir.incidentTime.slice(0, 5)}`}
+                          </span>
+                        }
+                      />
+                      <Field label="Location" value={fir.incidentLocation} />
                     </div>
                     <div>
-                      <p className="text-sm text-foreground-muted">Offence</p>
-                      <p className="text-foreground">
-                        {selectedFIR.offenceCategory} - {selectedFIR.offenceType}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">IPC Sections</p>
+                      <p className="text-sm text-foreground-muted">Sections</p>
                       <div className="flex flex-wrap gap-2 mt-1">
-                        {selectedFIR.ipcSections.map((section) => (
+                        {fir.ipcSections.map((section) => (
                           <Badge key={section} variant="secondary">
                             {section}
                           </Badge>
@@ -426,380 +336,194 @@ export default function FIRDetailPage() {
                     </div>
                     <div>
                       <p className="text-sm text-foreground-muted">Description</p>
-                      <p className="text-foreground mt-1">{selectedFIR.description}</p>
+                      <p className="text-foreground mt-1 whitespace-pre-line">{fir.incidentDescription}</p>
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Sidebar */}
               <div className="space-y-6">
-                {/* AI Analysis */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-accent" />
-                      AI Analysis
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <p className="text-sm font-medium text-foreground mb-2">
-                        Similar Cases Detected ({similarCases.length})
-                      </p>
-                      <div className="space-y-2">
-                        {similarCases.map((c) => (
-                          <div
-                            key={c.firNumber}
-                            className="p-3 rounded-md bg-background-tertiary hover:bg-background-secondary cursor-pointer"
+                {canEdit && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Status</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {statusOptions
+                        .filter((o) => o.value !== fir.status)
+                        .map((o) => (
+                          <Button
+                            key={o.value}
+                            variant="secondary"
+                            className="w-full justify-start"
+                            onClick={() => setNextStatus(o.value)}
+                            disabled={setStatus.isPending}
                           >
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono text-sm text-accent">{c.firNumber}</span>
-                              <Badge variant="info" className="text-xs">
-                                {c.similarity}% match
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-foreground-muted mt-1">{c.station}</p>
-                            <p className="text-xs text-foreground mt-1">{c.description}</p>
-                          </div>
+                            Mark {o.label}
+                          </Button>
                         ))}
-                      </div>
-                    </div>
-                    <div className="pt-3 border-t border-border">
-                      <div className="flex items-center gap-2 text-xs text-foreground-muted">
-                        <AlertCircle className="h-3 w-3" />
-                        AI suggestions are advisory. Verify before action.
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="secondary" size="sm" className="flex-1" onClick={() => setShowCaseLink(true)}>
-                        <LinkIcon className="h-4 w-4 mr-1" />
-                        Link Cases
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => toast.info("Dismissed", "AI suggestions dismissed")}>
-                        Dismiss
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                )}
 
-                {/* Actions */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Actions</CardTitle>
+                    <CardTitle>Follow-up</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    {canTransfer && (
-                      <Button variant="secondary" className="w-full justify-start" onClick={() => openActionDialog("transfer")}>
-                        Transfer Case
+                    <Link href={`/cases/new?firId=${fir.id}`} className="block">
+                      <Button variant="secondary" className="w-full justify-start">
+                        <Briefcase className="h-4 w-4 mr-2" />
+                        Register Case from this FIR
                       </Button>
-                    )}
-                    <Button variant="secondary" className="w-full justify-start" onClick={() => toast.success("Request Sent", "Assistance request has been sent to district headquarters")}>
-                      Request Assistance
-                    </Button>
-                    <Button variant="secondary" className="w-full justify-start" onClick={() => toast.warning("Escalation", "Case has been flagged for SHO review")}>
-                      Escalate
-                    </Button>
-                    {canEdit && (
-                      <>
-                        <Button variant="secondary" className="w-full justify-start" onClick={() => openActionDialog("close")}>
-                          Close Case
-                        </Button>
-                        <Button variant="secondary" className="w-full justify-start" onClick={() => openActionDialog("chargesheet")}>
-                          File Chargesheet
-                        </Button>
-                      </>
-                    )}
+                    </Link>
+                    <Link href="/evidence/new" className="block">
+                      <Button variant="secondary" className="w-full justify-start">
+                        <Package className="h-4 w-4 mr-2" />
+                        Register Evidence
+                      </Button>
+                    </Link>
                   </CardContent>
                 </Card>
               </div>
             </div>
           </TabsContent>
 
-          {/* Case Diary Tab */}
-          <TabsContent value="diary" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-foreground">Case Diary Entries</h3>
-              {canEdit && (
-                <Button onClick={() => setDiaryDialogOpen(true)}>
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Add Entry
-                </Button>
-              )}
-            </div>
-            <div className="space-y-4">
-              {localDiaryEntries.map((entry) => (
-                <Card key={entry.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <p className="font-medium text-foreground">{entry.officer}</p>
-                        <p className="text-sm text-foreground-muted">
-                          {new Date(entry.date).toLocaleDateString("en-IN")} at {entry.time}
-                        </p>
-                      </div>
-                      <Button variant="ghost" size="sm" onClick={() => setActiveTab("details")}>
-                        View Details
-                      </Button>
-                    </div>
-                    <p className="text-foreground mb-3">{entry.content}</p>
-                    {entry.nextAction && (
-                      <div className="p-2 rounded-md bg-info/10 mb-3">
-                        <p className="text-sm text-info">
-                          <strong>Next Action:</strong> {entry.nextAction}
-                        </p>
-                      </div>
-                    )}
-                    {entry.attachments.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {entry.attachments.map((file) => (
-                          <Badge key={file} variant="secondary" className="cursor-pointer">
-                            {file}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* Persons Tab */}
-          <TabsContent value="persons" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Complainant</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-full bg-accent/10 flex items-center justify-center">
-                      <User className="h-6 w-6 text-accent" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">{selectedFIR.complainantName}</p>
-                      <p className="text-sm text-foreground-muted">{selectedFIR.complainantPhone}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Accused/Suspects</CardTitle>
-                  <Button variant="secondary" size="sm" onClick={() => setSuspectDialogOpen(true)}>
-                    Add Suspect
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  {suspects.length === 0 ? (
-                    <p className="text-foreground-muted text-sm">No suspects identified yet</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {suspects.map((suspect) => (
-                        <div key={suspect.id} className="flex items-center gap-4 p-3 rounded-md bg-background-tertiary">
-                          <User className="h-5 w-5 text-error" />
-                          <div className="flex-1">
-                            <p className="font-medium text-foreground">{suspect.name}</p>
-                            <p className="text-xs text-foreground-muted">{suspect.description || "No description"}</p>
-                          </div>
-                          <Badge variant={suspect.status === "ARRESTED" ? "success" : suspect.status === "WANTED" ? "error" : "warning"}>
-                            {suspect.status}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Witnesses</CardTitle>
-                  <Button variant="secondary" size="sm" onClick={() => setWitnessDialogOpen(true)}>
-                    Add Witness
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {witnesses.map((witness) => (
-                      <div key={witness.id} className="flex items-center gap-4 p-3 rounded-md bg-background-tertiary">
-                        <User className="h-5 w-5 text-foreground-muted" />
-                        <div className="flex-1">
-                          <p className="font-medium text-foreground">{witness.name}</p>
-                          <p className="text-xs text-foreground-muted">{witness.description}</p>
-                        </div>
-                        <Badge variant={witness.status === "RECORDED" ? "success" : witness.status === "HOSTILE" ? "error" : "warning"}>
-                          {witness.status}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Evidence Tab */}
-          <TabsContent value="evidence" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-foreground">Evidence Registry</h3>
-              {canEdit && (
-                <Link href="/evidence/new">
-                  <Button>
-                    <Package className="h-4 w-4 mr-2" />
-                    Add Evidence
-                  </Button>
-                </Link>
-              )}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <Badge variant="info">Physical</Badge>
-                    <Badge variant="warning">At Lab</Badge>
-                  </div>
-                  <p className="font-medium text-foreground">Fingerprint Sample</p>
-                  <p className="text-sm text-foreground-muted">
-                    Collected from door handle at scene
-                  </p>
-                  <div className="mt-3 pt-3 border-t border-border">
-                    <p className="text-xs text-foreground-muted">
-                      EVD-2024-KOR-00123-001 | Collected: 15 Jan 2024
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <Badge variant="info">Digital</Badge>
-                    <Badge variant="success">In Vault</Badge>
-                  </div>
-                  <p className="font-medium text-foreground">CCTV Footage</p>
-                  <p className="text-sm text-foreground-muted">
-                    Footage from Sharma Stores (2.3 GB)
-                  </p>
-                  <div className="mt-3 pt-3 border-t border-border">
-                    <p className="text-xs text-foreground-muted">
-                      EVD-2024-KOR-00123-002 | Collected: 16 Jan 2024
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Timeline Tab */}
           <TabsContent value="timeline" className="space-y-6">
-            <div className="relative">
-              <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border"></div>
-              <div className="space-y-6">
-                {[
-                  {
-                    date: "16 Jan 2024",
-                    time: "10:30",
-                    title: "Scene Investigation",
-                    description: "CCTV footage collected from nearby shop",
-                    icon: CheckCircle,
-                    iconColor: "text-success",
-                  },
-                  {
-                    date: "15 Jan 2024",
-                    time: "18:00",
-                    title: "Witness Statements",
-                    description: "Recorded statements from 2 witnesses",
-                    icon: Users,
-                    iconColor: "text-info",
-                  },
-                  {
-                    date: "15 Jan 2024",
-                    time: "15:30",
-                    title: "FIR Registered",
-                    description: "Initial investigation commenced",
-                    icon: FileText,
-                    iconColor: "text-accent",
-                  },
-                  {
-                    date: "15 Jan 2024",
-                    time: "14:30",
-                    title: "Incident Occurred",
-                    description: "Theft reported at Forum Mall parking",
-                    icon: AlertCircle,
-                    iconColor: "text-error",
-                  },
-                ].map((event, index) => (
-                  <div key={index} className="relative pl-10">
-                    <div
-                      className={`absolute left-0 top-0 h-8 w-8 rounded-full bg-background-secondary border border-border flex items-center justify-center`}
-                    >
-                      <event.icon className={`h-4 w-4 ${event.iconColor}`} />
-                    </div>
-                    <div className="p-4 rounded-lg bg-background-secondary">
-                      <div className="flex items-center gap-2 text-sm text-foreground-muted mb-1">
-                        <span>{event.date}</span>
-                        <span>•</span>
-                        <span>{event.time}</span>
-                      </div>
-                      <p className="font-medium text-foreground">{event.title}</p>
-                      <p className="text-sm text-foreground-muted">{event.description}</p>
-                    </div>
-                  </div>
-                ))}
+            {timeline.isPending ? (
+              <div className="flex items-center gap-3 text-foreground-muted">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading timeline…
               </div>
-            </div>
+            ) : timeline.isError ? (
+              <div className="space-y-2">
+                <p className="text-error">Timeline could not be loaded: {timeline.error.message}</p>
+                <Button variant="secondary" size="sm" onClick={() => timeline.refetch()}>
+                  Try again
+                </Button>
+              </div>
+            ) : entries.length === 0 ? (
+              <p className="text-foreground-muted">No audit entries are recorded for this FIR.</p>
+            ) : (
+              <div className="relative">
+                <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
+                <div className="space-y-6">
+                  {entries.map((event) => (
+                    <div key={event.id} className="relative pl-10">
+                      <div className="absolute left-0 top-0 h-8 w-8 rounded-full bg-background-secondary border border-border flex items-center justify-center">
+                        <Clock className="h-4 w-4 text-accent" />
+                      </div>
+                      <div className="p-4 rounded-lg bg-background-secondary">
+                        <div className="flex flex-wrap items-center gap-2 text-sm text-foreground-muted mb-1">
+                          <span>{formatDateTime(event.timestamp)}</span>
+                          <span>•</span>
+                          <span>{event.user}</span>
+                        </div>
+                        <p className="font-medium text-foreground">{event.title}</p>
+                        {event.description && <p className="text-sm text-foreground-muted">{event.description}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-foreground-muted mt-4">From the hash-chained audit trail.</p>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
 
-      {/* Dialogs */}
-      <CaseDiaryEntryDialog
-        isOpen={diaryDialogOpen}
-        onClose={() => setDiaryDialogOpen(false)}
-        onSubmit={handleAddDiaryEntry}
-        officerName={user?.name || "Unknown Officer"}
-      />
+      {/* Edit */}
+      <Modal
+        isOpen={editForm !== null}
+        onClose={() => setEditForm(null)}
+        title={`Edit ${fir.firNumber}`}
+        description="Changes are recorded in the audit trail. The incident date and time are fixed at registration."
+        size="lg"
+      >
+        {editForm && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label="Complainant Name *"
+                value={editForm.complainantName}
+                onChange={(v: string) => setEditForm({ ...editForm, complainantName: v })}
+              />
+              <Input
+                label="Complainant Phone"
+                type="tel"
+                value={editForm.complainantPhone}
+                onChange={(v: string) =>
+                  setEditForm({ ...editForm, complainantPhone: v.replace(/\D/g, "").slice(0, 10) })
+                }
+              />
+            </div>
+            <Textarea
+              label="Complainant Address"
+              rows={2}
+              value={editForm.complainantAddress}
+              onChange={(v: string) => setEditForm({ ...editForm, complainantAddress: v })}
+            />
+            <Input
+              label="Incident Location *"
+              value={editForm.incidentLocation}
+              onChange={(v: string) => setEditForm({ ...editForm, incidentLocation: v })}
+            />
+            <Textarea
+              label="Incident Description"
+              rows={5}
+              value={editForm.incidentDescription}
+              onChange={(v: string) => setEditForm({ ...editForm, incidentDescription: v })}
+            />
+            <SectionPicker
+              value={editForm.ipcSections}
+              onChange={(s) => setEditForm({ ...editForm, ipcSections: s })}
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Select
+                label="Priority"
+                options={priorityOptions}
+                value={editForm.priority}
+                onChange={(v: string) => setEditForm({ ...editForm, priority: v as FIRPriority })}
+              />
+              <Select
+                label="Investigating Officer"
+                options={officerOptions}
+                value={editForm.investigatingOfficer}
+                onChange={(v: string) => setEditForm({ ...editForm, investigatingOfficer: v })}
+              />
+            </div>
+          </div>
+        )}
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setEditForm(null)}>
+            Cancel
+          </Button>
+          <Button onClick={saveEdit} disabled={updateFIR.isPending}>
+            {updateFIR.isPending ? "Saving..." : "Save Changes"}
+          </Button>
+        </ModalFooter>
+      </Modal>
 
-      <AddPersonDialog
-        isOpen={suspectDialogOpen}
-        onClose={() => setSuspectDialogOpen(false)}
-        onSubmit={handleAddSuspect}
-        type="suspect"
-      />
-
-      <AddPersonDialog
-        isOpen={witnessDialogOpen}
-        onClose={() => setWitnessDialogOpen(false)}
-        onSubmit={handleAddWitness}
-        type="witness"
-      />
-
-      {selectedFIR && (
-        <FIRActionDialog
-          isOpen={actionDialogOpen}
-          onClose={() => setActionDialogOpen(false)}
-          onSubmit={handleFIRAction}
-          actionType={actionType}
-          firNumber={selectedFIR.firNumber}
-        />
-      )}
-
-      <CaseLinkDialog
-        firId={selectedFIR?.id || ""}
-        isOpen={showCaseLink}
-        onClose={() => setShowCaseLink(false)}
-        existingLinks={selectedFIR?.linkedCases || []}
-        onLink={async (caseIds) => {
-          if (selectedFIR) {
-            try {
-              await updateMutation.mutateAsync({ id: selectedFIR.id, data: { linkedCases: caseIds } });
-              toast.success("Cases Linked", `${caseIds.length} case(s) linked to FIR`);
-            } catch (error) {
-              toast.error("Error", "Failed to link cases");
-            }
-          }
-        }}
-      />
+      {/* Status confirmation */}
+      <Modal
+        isOpen={nextStatus !== null}
+        onClose={() => setNextStatus(null)}
+        title="Change FIR status?"
+        description={
+          nextStatus
+            ? `${fir.firNumber} will move from ${fir.status.replace(/_/g, " ")} to ${nextStatus.replace(/_/g, " ")}. The change is recorded in the audit trail.`
+            : undefined
+        }
+      >
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setNextStatus(null)}>
+            Cancel
+          </Button>
+          <Button onClick={confirmStatus} disabled={setStatus.isPending}>
+            {setStatus.isPending ? "Saving..." : "Confirm"}
+          </Button>
+        </ModalFooter>
+      </Modal>
     </DashboardLayout>
   );
 }

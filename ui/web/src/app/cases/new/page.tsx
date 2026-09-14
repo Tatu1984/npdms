@@ -1,63 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import {
-  Briefcase,
-  Users,
-  Scale,
-  MapPin,
-  AlertTriangle,
-  Check,
-  X,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { Suspense, useDeferredValue, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, FileText, Loader2, Save, Search } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { LegacySelect as Select } from "@/components/ui/select";
-import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
-import { useToastStore } from "@/stores/toastStore";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { SectionPicker } from "@/components/ui/SectionPicker";
 import { useCreateCase } from "@/hooks/use-cases";
-import { type CaseStatus } from "@/lib/db/schema";
-import { sanitizeString } from "@/lib/validations";
-import { IPCSectionSelector } from "@/components/ui/IPCSectionSelector";
-import { LocationPicker, type LocationData } from "@/components/ui/LocationPicker";
-
-// Case form validation schema
-const caseFormSchema = z.object({
-  linkedFIR: z
-    .string()
-    .min(1, "FIR number is required")
-    .regex(/^[A-Z]{2,4}\/\d{4}\/\d{5}$/, "FIR number format: XXX/YYYY/NNNNN (e.g., KOR/2024/00123)"),
-  title: z
-    .string()
-    .min(10, "Title must be at least 10 characters")
-    .max(200, "Title must be less than 200 characters")
-    .transform(sanitizeString),
-  category: z.string().min(1, "Please select a case category"),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]),
-  synopsis: z
-    .string()
-    .min(50, "Synopsis must be at least 50 characters")
-    .max(5000, "Synopsis must be less than 5000 characters")
-    .transform(sanitizeString),
-  incidentLocation: z
-    .string()
-    .min(10, "Location must be at least 10 characters")
-    .max(500, "Location must be less than 500 characters")
-    .transform(sanitizeString),
-  incidentDate: z.string().min(1, "Incident date is required"),
-  incidentTime: z.string().optional(),
-});
+import { useFIR, useFIRs } from "@/hooks/use-firs";
+import { useOfficers } from "@/hooks/use-investigation";
+import { toast } from "@/stores/toastStore";
+import type { FIR } from "@/lib/api/firs";
+import type { CasePriority } from "@/lib/api/cases";
+import { formatDate } from "@/lib/utils";
 
 const caseCategories = [
+  { value: "", label: "Select Category" },
   { value: "MURDER", label: "Murder" },
   { value: "ROBBERY", label: "Robbery" },
   { value: "THEFT", label: "Theft" },
@@ -80,447 +44,250 @@ const priorities = [
   { value: "CRITICAL", label: "Critical" },
 ];
 
-type CaseFormData = z.infer<typeof caseFormSchema>;
-
-export default function NewCasePage() {
-  const router = useRouter();
-  const { user } = useAuthStore();
-  const { addToast } = useToastStore();
-  const createCaseMutation = useCreateCase();
-  const [selectedSections, setSelectedSections] = useState<string[]>([]);
-  const [locationData, setLocationData] = useState<LocationData | null>(null);
-
-  const canCreate = user && hasMinimumRole(user.role, "SI");
-
-  const {
-    setValue,
-    watch,
-    handleSubmit: handleFormSubmit,
-    formState: { errors },
-  } = useForm<CaseFormData>({
-    resolver: zodResolver(caseFormSchema),
-    defaultValues: {
-      linkedFIR: "",
-      title: "",
-      category: "",
-      priority: "MEDIUM",
-      synopsis: "",
-      incidentLocation: "",
-      incidentDate: "",
-      incidentTime: "",
-    },
-  });
-
-  const formData = watch();
-
-  const [accused, setAccused] = useState([
-    { name: "", description: "", status: "ABSCONDING" },
-  ]);
-
-  const handleAddAccused = () => {
-    setAccused([...accused, { name: "", description: "", status: "ABSCONDING" }]);
-  };
-
-  const handleRemoveAccused = (index: number) => {
-    setAccused(accused.filter((_, i) => i !== index));
-  };
-
-  const handleAccusedChange = (index: number, field: string, value: string) => {
-    const updated = [...accused];
-    updated[index] = { ...updated[index], [field]: value };
-    setAccused(updated);
-  };
-
-  const handleLocationChange = (address: string, data?: LocationData) => {
-    setValue("incidentLocation", address);
-    if (data) {
-      setLocationData(data);
-    }
-  };
-
-  const onSubmit = async (data: CaseFormData) => {
-    if (selectedSections.length === 0) {
-      addToast({
-        type: "error",
-        title: "Validation Error",
-        message: "Please select at least one IPC section",
-      });
-      return;
-    }
-
-    try {
-      const newCase = await createCaseMutation.mutateAsync({
-        firId: data.linkedFIR,
-        title: data.title,
-        description: data.synopsis,
-        status: "INVESTIGATION" as CaseStatus,
-        stationId: user?.stationId || "default-station",
-        investigatingOfficer: user?.id,
-        prosecutingOfficer: undefined,
-        courtName: undefined,
-        nextHearing: undefined,
-      });
-
-      addToast({
-        type: "success",
-        title: "Case Created",
-        message: `Case ${newCase.caseNumber} has been registered successfully`,
-      });
-      router.push("/cases");
-    } catch (_error) {
-      addToast({
-        type: "error",
-        title: "Error",
-        message: "Failed to create case. Please try again.",
-      });
-    }
-  };
-
-  if (!canCreate) {
-    return (
-      <DashboardLayout>
-        <Card>
-          <CardContent className="p-12 text-center">
-            <AlertTriangle className="h-12 w-12 text-warning mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-foreground mb-2">Access Denied</h2>
-            <p className="text-foreground-muted">
-              You need Sub-Inspector level or above to create cases.
-            </p>
-          </CardContent>
-        </Card>
-      </DashboardLayout>
-    );
-  }
+function FIRPicker({ onPick }: { onPick: (fir: FIR) => void }) {
+  const [query, setQuery] = useState("");
+  const search = useDeferredValue(query.trim());
+  const results = useFIRs({ search: search || undefined, pageSize: 8 });
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Register New Case</h1>
-            <p className="text-foreground-muted">
-              Create a case file from an existing FIR
-            </p>
-          </div>
-          <Button variant="secondary" onClick={() => router.back()}>
-            <X className="h-4 w-4 mr-2" />
-            Cancel
-          </Button>
+    <div className="space-y-2">
+      <Input
+        label="FIR *"
+        placeholder="Search by FIR number, complainant or description"
+        value={query}
+        onChange={(v: string) => setQuery(v)}
+        icon={<Search className="h-4 w-4" />}
+      />
+      <div className="rounded-lg border border-border divide-y divide-border max-h-64 overflow-y-auto">
+        {results.isPending ? (
+          <p className="p-3 text-sm text-foreground-muted">Searching the FIR register…</p>
+        ) : results.isError ? (
+          <p className="p-3 text-sm text-error">FIRs could not be loaded: {results.error.message}</p>
+        ) : results.data.data.length === 0 ? (
+          <p className="p-3 text-sm text-foreground-muted">No matching FIRs</p>
+        ) : (
+          results.data.data.map((fir) => (
+            <button
+              key={fir.id}
+              type="button"
+              className="w-full text-left p-3 hover:bg-background-tertiary"
+              onClick={() => onPick(fir)}
+            >
+              <span className="font-mono text-sm text-foreground">{fir.firNumber}</span>
+              <span className="text-xs text-foreground-muted ml-2">{fir.status.replace(/_/g, " ")}</span>
+              <span className="block text-xs text-foreground-muted">
+                {fir.complainantName} · {formatDate(fir.incidentDate)} · {fir.ipcSections.join(", ")}
+              </span>
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NewCaseForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const createCase = useCreateCase();
+  const officers = useOfficers();
+
+  const [fir, setFir] = useState<FIR | null>(null);
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("");
+  const [priority, setPriority] = useState<CasePriority>("MEDIUM");
+  const [synopsis, setSynopsis] = useState("");
+  const [sections, setSections] = useState<string[]>([]);
+  const [investigatingOfficer, setInvestigatingOfficer] = useState("");
+
+  // /cases/new?firId=… (from an FIR's detail page) preselects that FIR.
+  const preselectedId = searchParams.get("firId") ?? "";
+  const preselected = useFIR(preselectedId);
+
+  const pick = (chosen: FIR) => {
+    setFir(chosen);
+    // Start from what the FIR records; the officer can change any of it.
+    setSections((current) => (current.length > 0 ? current : chosen.ipcSections));
+    setPriority(chosen.priority);
+    setInvestigatingOfficer((current) => current || chosen.investigatingOfficer || "");
+  };
+
+  useEffect(() => {
+    if (preselected.data && !fir) pick(preselected.data);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselected.data]);
+
+  const officerOptions = [
+    { value: "", label: "Assign later" },
+    ...(officers.data ?? []).map((o) => ({
+      value: o.id,
+      label: `${o.roleLabel} ${o.name}${o.stationName ? ` · ${o.stationName}` : ""} (${o.openCases} open)`,
+    })),
+  ];
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fir) {
+      toast.error("Validation Error", "Choose the FIR this case is registered on");
+      return;
+    }
+    if (title.trim().length < 5) {
+      toast.error("Validation Error", "Case title must be at least 5 characters");
+      return;
+    }
+    if (sections.length === 0) {
+      toast.error("Validation Error", "Select at least one section");
+      return;
+    }
+    try {
+      const created = await createCase.mutateAsync({
+        firId: fir.id,
+        title: title.trim(),
+        category: category || null,
+        priority,
+        synopsis: synopsis.trim() || null,
+        ipcSections: sections,
+        investigatingOfficer: investigatingOfficer || null,
+      });
+      toast.success("Case Registered", `${created.caseNumber} has been registered on FIR ${fir.firNumber}`);
+      router.push(`/cases/${created.id}`);
+    } catch (err) {
+      toast.error("Case not registered", err instanceof Error ? err.message : "The server rejected the request");
+    }
+  };
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-6" noValidate>
+      <div className="flex items-center gap-4">
+        <Button type="button" variant="ghost" onClick={() => router.back()} aria-label="Back">
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Register New Case</h1>
+          <p className="text-foreground-muted">A case is opened on a registered FIR; its number is issued by the server</p>
         </div>
+      </div>
 
-        <form onSubmit={handleFormSubmit(onSubmit)} className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Main Form */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Basic Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Briefcase className="h-5 w-5" />
-                    Case Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Input
-                        label="Linked FIR Number *"
-                        placeholder="e.g., KOR/2024/00123"
-                        value={formData.linkedFIR}
-                        onChange={(v: string) => setValue("linkedFIR", v)}
-                      />
-                      {errors.linkedFIR && (
-                        <p className="text-xs text-error mt-1">{errors.linkedFIR.message}</p>
-                      )}
-                    </div>
-                    <div>
-                      <Select
-                        label="Case Category *"
-                        value={formData.category}
-                        onChange={(v: string) => setValue("category", v)}
-                        options={caseCategories}
-                      />
-                      {errors.category && (
-                        <p className="text-xs text-error mt-1">{errors.category.message}</p>
-                      )}
-                    </div>
-                  </div>
-
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                FIR
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {fir ? (
+                <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border p-3">
                   <div>
-                    <Input
-                      label="Case Title *"
-                      placeholder="Brief descriptive title of the case"
-                      value={formData.title}
-                      onChange={(v: string) => setValue("title", v)}
-                    />
-                    {errors.title && (
-                      <p className="text-xs text-error mt-1">{errors.title.message}</p>
-                    )}
-                  </div>
-
-                  <Select
-                    label="Priority *"
-                    value={formData.priority}
-                    onChange={(v: string) => setValue("priority", v as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL")}
-                    options={priorities}
-                  />
-
-                  <div>
-                    <Textarea
-                      label="Case Synopsis *"
-                      placeholder="Detailed description of the incident and case background..."
-                      value={formData.synopsis}
-                      onChange={(v: string) => setValue("synopsis", v)}
-                      rows={6}
-                    />
-                    {errors.synopsis && (
-                      <p className="text-xs text-error mt-1">{errors.synopsis.message}</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Incident Details with Location Picker */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Incident Details
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <LocationPicker
-                    label="Incident Location *"
-                    value={formData.incidentLocation}
-                    onChange={handleLocationChange}
-                    placeholder="Enter address or click Auto Detect"
-                    required
-                    error={errors.incidentLocation?.message}
-                    showMap={true}
-                  />
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Input
-                        label="Incident Date *"
-                        type="date"
-                        value={formData.incidentDate}
-                        onChange={(v: string) => setValue("incidentDate", v)}
-                      />
-                      {errors.incidentDate && (
-                        <p className="text-xs text-error mt-1">{errors.incidentDate.message}</p>
-                      )}
-                    </div>
-                    <Input
-                      label="Incident Time"
-                      type="time"
-                      value={formData.incidentTime || ""}
-                      onChange={(v: string) => setValue("incidentTime", v)}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* IPC Sections - New Searchable Selector */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Scale className="h-5 w-5" />
-                    Applicable Sections
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <IPCSectionSelector
-                    value={selectedSections}
-                    onChange={setSelectedSections}
-                    label="Select IPC/Special Act Sections *"
-                    required
-                    error={selectedSections.length === 0 ? "At least one section is required" : undefined}
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Accused */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <Users className="h-5 w-5" />
-                      Accused Persons
-                    </CardTitle>
-                    <Button type="button" size="sm" onClick={handleAddAccused}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Accused
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {accused.map((person, index) => (
-                    <div
-                      key={index}
-                      className="p-4 rounded-lg bg-background-tertiary space-y-3"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-foreground">
-                          Accused #{index + 1}
-                        </span>
-                        {accused.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveAccused(index)}
-                            className="text-error hover:text-error/80"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Input
-                          placeholder="Name (or Unidentified)"
-                          value={person.name}
-                          onChange={(v: string) =>
-                            handleAccusedChange(index, "name", v)
-                          }
-                        />
-                        <Select
-                          value={person.status}
-                          onChange={(v: string) =>
-                            handleAccusedChange(index, "status", v)
-                          }
-                          options={[
-                            { value: "ABSCONDING", label: "Absconding" },
-                            { value: "ARRESTED", label: "Arrested" },
-                            { value: "BAILED", label: "On Bail" },
-                            { value: "WANTED", label: "Wanted" },
-                          ]}
-                        />
-                      </div>
-                      <Input
-                        placeholder="Description (age, height, identifying marks)"
-                        value={person.description}
-                        onChange={(v: string) =>
-                          handleAccusedChange(index, "description", v)
-                        }
-                      />
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Sidebar */}
-            <div className="space-y-6">
-              {/* Assignment */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    Case Assignment
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Input
-                    label="Lead Investigator"
-                    value={user?.name || ""}
-                    disabled
-                  />
-                  <div className="p-3 rounded bg-info/10">
-                    <p className="text-xs text-info">
-                      Case will be assigned to you as the registering officer.
-                      Assignment can be changed by SHO later.
+                    <Link href={`/fir/${fir.id}`} className="font-mono text-accent hover:underline">
+                      {fir.firNumber}
+                    </Link>
+                    <Badge variant="secondary" className="ml-2">
+                      {fir.status.replace(/_/g, " ")}
+                    </Badge>
+                    <p className="text-sm text-foreground-muted mt-1">
+                      {fir.complainantName} · {formatDate(fir.incidentDate)} · {fir.incidentLocation}
                     </p>
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Selected Sections Summary */}
-              {selectedSections.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Selected Sections ({selectedSections.length})</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedSections.map((section) => (
-                        <span
-                          key={section}
-                          className="px-2 py-1 text-xs rounded bg-accent/10 text-accent"
-                        >
-                          {section}
-                        </span>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setFir(null)}>
+                    Change
+                  </Button>
+                </div>
+              ) : preselectedId && preselected.isPending ? (
+                <p className="flex items-center gap-2 text-sm text-foreground-muted">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading FIR…
+                </p>
+              ) : (
+                <>
+                  {preselectedId && preselected.isError && (
+                    <p className="text-sm text-error mb-2">
+                      The linked FIR could not be loaded ({preselected.error.message}). Choose it from the register.
+                    </p>
+                  )}
+                  <FIRPicker onPick={pick} />
+                </>
               )}
+            </CardContent>
+          </Card>
 
-              {/* Location Summary */}
-              {locationData && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      Location Details
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="text-sm space-y-2">
-                    {locationData.city && (
-                      <div>
-                        <span className="text-foreground-muted">City: </span>
-                        <span className="text-foreground">{locationData.city}</span>
-                      </div>
-                    )}
-                    {locationData.state && (
-                      <div>
-                        <span className="text-foreground-muted">State: </span>
-                        <span className="text-foreground">{locationData.state}</span>
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-foreground-muted">Coordinates: </span>
-                      <span className="text-foreground font-mono text-xs">
-                        {locationData.latitude.toFixed(6)}, {locationData.longitude.toFixed(6)}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Case Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Input
+                label="Case Title *"
+                placeholder="e.g. Chain snatching on Rashbehari Avenue"
+                value={title}
+                onChange={(v: string) => setTitle(v)}
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select label="Category" options={caseCategories} value={category} onChange={setCategory} />
+                <Select
+                  label="Priority"
+                  options={priorities}
+                  value={priority}
+                  onChange={(v: string) => setPriority(v as CasePriority)}
+                />
+              </div>
+              <Textarea
+                label="Synopsis"
+                placeholder="Brief facts of the case"
+                rows={5}
+                value={synopsis}
+                onChange={(v: string) => setSynopsis(v)}
+              />
+              <SectionPicker value={sections} onChange={setSections} />
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Investigation</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Select
+                label="Investigating Officer"
+                options={officerOptions}
+                value={investigatingOfficer}
+                onChange={setInvestigatingOfficer}
+              />
+              {officers.isError && (
+                <p className="text-xs text-error">Officer directory could not be loaded; assign the IO later.</p>
               )}
-
-              {/* Warning */}
-              <Card className="border-warning/30 bg-warning/5">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-warning">Important</p>
-                      <p className="text-sm text-foreground-muted mt-1">
-                        Once created, the case will be tracked through the entire
-                        judicial process. Ensure all details are accurate.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Submit */}
-              <Button type="submit" className="w-full" disabled={createCaseMutation.isPending}>
-                {createCaseMutation.isPending ? (
-                  <>
-                    <span className="animate-spin mr-2">...</span>
-                    Creating Case...
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4 mr-2" />
-                    Create Case
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </form>
+              <p className="text-xs text-foreground-muted">
+                Accused and witnesses are added from the case page once it is registered.
+              </p>
+            </CardContent>
+          </Card>
+          <Button type="submit" className="w-full" disabled={createCase.isPending}>
+            <Save className="h-4 w-4 mr-2" />
+            {createCase.isPending ? "Registering..." : "Register Case"}
+          </Button>
+        </div>
       </div>
+    </form>
+  );
+}
+
+export default function NewCasePage() {
+  return (
+    <DashboardLayout>
+      <Suspense
+        fallback={
+          <div className="flex items-center gap-3 text-foreground-muted">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Loading…
+          </div>
+        }
+      >
+        <NewCaseForm />
+      </Suspense>
     </DashboardLayout>
   );
 }

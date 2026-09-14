@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -9,73 +10,44 @@ import {
   Users,
   Calendar,
   AlertTriangle,
-  CheckCircle,
-  Clock,
   Plus,
   Scale,
   Gavel,
-  Shield,
+  Loader2,
+  Package,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AddPersonDialog } from "@/components/ui/AddPersonDialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { LegacySelect as Select } from "@/components/ui/select";
+import { Modal, ModalFooter } from "@/components/ui/Modal";
+import { SectionPicker } from "@/components/ui/SectionPicker";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
-import { useCase, useUpdateCase } from "@/hooks/use-cases";
+import {
+  useAddCaseAccused,
+  useAddCaseWitness,
+  useCase,
+  useCaseAccused,
+  useCaseWitnesses,
+  useUpdateCase,
+} from "@/hooks/use-cases";
+import { useOfficers } from "@/hooks/use-investigation";
 import { toast } from "@/stores/toastStore";
+import { ApiClientError } from "@/lib/api/client";
+import {
+  ACCUSED_STATUSES,
+  CASE_STATUSES,
+  type AccusedStatus,
+  type Case,
+  type CasePriority,
+  type CaseStatus,
+} from "@/lib/api/cases";
+import { formatDate } from "@/lib/utils";
 
-// Mock case data
-const mockCase = {
-  id: "CASE-2024-00156",
-  firNumber: "KOR/2024/00089",
-  title: "Armed Robbery at SBI Main Branch",
-  status: "UNDER_INVESTIGATION",
-  priority: "HIGH",
-  category: "ROBBERY",
-  ipcSections: ["IPC 392", "IPC 397", "Arms Act 25"],
-  registeredDate: "2024-01-15",
-  courtNextHearing: "2024-02-20",
-  courtName: "Sessions Court, Koramangala",
-  caseNumber: "SC/2024/CR/156",
-  synopsis: `On 15th January 2024 at approximately 10:30 AM, three armed individuals entered the State Bank of India, Main Branch, Koramangala. The perpetrators were wearing masks and carrying country-made pistols. They held the bank staff and customers at gunpoint while one accomplice accessed the cash counter.
-
-The robbers escaped with approximately Rs. 18.5 lakhs in cash. During the escape, one security guard sustained minor injuries. CCTV footage has been recovered and is being analyzed.
-
-Initial investigation reveals this may be connected to similar incidents in neighboring districts.`,
-  investigating: {
-    officer: "SI Ramesh Kumar",
-    badgeNumber: "KAR-SI-4521",
-    team: ["HC Suresh M", "PC Venkatesh R", "PC Anjali S"],
-  },
-  accused: [
-    { name: "Suspect 1 (Unidentified)", status: "ABSCONDING", description: "Male, 25-30 years, 5'8\" height" },
-    { name: "Suspect 2 (Unidentified)", status: "ABSCONDING", description: "Male, 30-35 years, 5'10\" height" },
-    { name: "Raju Kumar", status: "ARRESTED", description: "Driver of getaway vehicle" },
-  ],
-  witnesses: [
-    { name: "Priya Sharma", type: "EYEWITNESS", statement: "Recorded" },
-    { name: "Bank Manager", type: "VICTIM", statement: "Recorded" },
-    { name: "Security Guard", type: "VICTIM", statement: "Pending" },
-  ],
-  evidence: [
-    { id: "EVD-001", type: "DIGITAL", description: "CCTV Footage", status: "UNDER_ANALYSIS" },
-    { id: "EVD-002", type: "PHYSICAL", description: "Abandoned motorcycle", status: "COLLECTED" },
-    { id: "EVD-003", type: "BIOLOGICAL", description: "Blood sample from scene", status: "AT_FSL" },
-  ],
-  timeline: [
-    { date: "2024-01-15 10:30", event: "Incident occurred", type: "incident" },
-    { date: "2024-01-15 10:45", event: "FIR registered", type: "fir" },
-    { date: "2024-01-15 14:00", event: "Case assigned to SI Ramesh Kumar", type: "assignment" },
-    { date: "2024-01-16 09:00", event: "CCTV footage collected", type: "evidence" },
-    { date: "2024-01-18 15:30", event: "Getaway vehicle located", type: "evidence" },
-    { date: "2024-01-20 11:00", event: "Suspect Raju Kumar arrested", type: "arrest" },
-    { date: "2024-01-22 10:00", event: "Chargesheet filed", type: "court" },
-    { date: "2024-01-25 14:00", event: "First court hearing", type: "court" },
-  ],
-};
-
-const statusConfig = {
+const statusConfig: Record<CaseStatus, { color: string; label: string }> = {
   REGISTERED: { color: "info", label: "Registered" },
   UNDER_INVESTIGATION: { color: "warning", label: "Under Investigation" },
   CHARGESHEET_FILED: { color: "accent", label: "Chargesheet Filed" },
@@ -85,130 +57,297 @@ const statusConfig = {
   CLOSED: { color: "muted", label: "Closed" },
 };
 
-const priorityConfig = {
+const priorityConfig: Record<CasePriority, { color: string; label: string }> = {
   LOW: { color: "success", label: "Low" },
   MEDIUM: { color: "info", label: "Medium" },
   HIGH: { color: "warning", label: "High" },
   CRITICAL: { color: "error", label: "Critical" },
 };
 
+const accusedStatusLabel: Record<AccusedStatus, string> = {
+  ABSCONDING: "Absconding",
+  ARRESTED: "Arrested",
+  IN_CUSTODY: "In Custody",
+  ON_BAIL: "On Bail",
+  RELEASED: "Released",
+};
+
+const genderOptions = [
+  { value: "", label: "Not recorded" },
+  { value: "Male", label: "Male" },
+  { value: "Female", label: "Female" },
+  { value: "Transgender", label: "Transgender" },
+];
+
+const idTypes = [
+  { value: "", label: "Not recorded" },
+  { value: "Aadhaar", label: "Aadhaar Card" },
+  { value: "PAN", label: "PAN Card" },
+  { value: "Voter ID", label: "Voter ID" },
+  { value: "Passport", label: "Passport" },
+  { value: "Driving License", label: "Driving License" },
+];
+
+const witnessTypes = [
+  { value: "", label: "Not recorded" },
+  { value: "EYEWITNESS", label: "Eyewitness" },
+  { value: "VICTIM", label: "Victim" },
+  { value: "SEIZURE", label: "Seizure witness" },
+  { value: "EXPERT", label: "Expert" },
+  { value: "OTHER", label: "Other" },
+];
+
+const toApiDate = (day: string) => `${day}T00:00:00Z`;
+
+const emptyAccused = () => ({
+  name: "",
+  alias: "",
+  age: "",
+  gender: "",
+  address: "",
+  idType: "",
+  idNumber: "",
+  status: "ABSCONDING" as AccusedStatus,
+  arrestDate: "",
+  description: "",
+});
+
+const emptyWitness = () => ({
+  name: "",
+  phone: "",
+  address: "",
+  witnessType: "",
+  statementRecorded: false,
+  statementDate: "",
+  statementText: "",
+});
+
+type EditForm = {
+  title: string;
+  synopsis: string;
+  status: CaseStatus;
+  priority: CasePriority;
+  ipcSections: string[];
+  investigatingOfficer: string;
+  courtName: string;
+  courtCaseNumber: string;
+  nextHearingDate: string;
+};
+
+const toEditForm = (c: Case): EditForm => ({
+  title: c.title,
+  synopsis: c.synopsis ?? "",
+  status: c.status,
+  priority: c.priority,
+  ipcSections: c.ipcSections,
+  investigatingOfficer: c.investigatingOfficer ?? "",
+  courtName: c.courtName ?? "",
+  courtCaseNumber: c.courtCaseNumber ?? "",
+  nextHearingDate: c.nextHearingDate ? c.nextHearingDate.split("T")[0] : "",
+});
+
 export default function CaseDetailPage() {
-  const params = useParams();
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<"overview" | "accused" | "evidence" | "timeline" | "court">("overview");
-  const [accusedDialogOpen, setAccusedDialogOpen] = useState(false);
-  const [witnessDialogOpen, setWitnessDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "accused" | "court">("overview");
 
-  // Fetch case from API using React Query
-  const caseId = typeof params.id === 'string' ? params.id : undefined;
-  const { data: currentCase, isLoading, error } = useCase(caseId);
-  const _updateCaseMutation = useUpdateCase(); // TODO: Use for case updates
+  const { data: currentCase, isPending, isError, error, refetch } = useCase(params.id);
+  const accused = useCaseAccused(params.id);
+  const witnesses = useCaseWitnesses(params.id);
+  const updateCase = useUpdateCase();
+  const addAccused = useAddCaseAccused();
+  const addWitness = useAddCaseWitness();
+  const officers = useOfficers();
 
-  // Local state for accused and witnesses (using mock data for now since API doesn't support these yet)
-  const [localAccused, setLocalAccused] = useState(mockCase.accused);
-  const [localWitnesses, setLocalWitnesses] = useState(mockCase.witnesses);
+  const [editForm, setEditForm] = useState<EditForm | null>(null);
+  const [accusedForm, setAccusedForm] = useState<ReturnType<typeof emptyAccused> | null>(null);
+  const [witnessForm, setWitnessForm] = useState<ReturnType<typeof emptyWitness> | null>(null);
 
   const canEdit = user && hasMinimumRole(user.role, "SI");
 
-  const handleAddAccused = async (person: { name: string; phone?: string; address?: string; description?: string; status?: string }) => {
-    // For now, just update local state since the API doesn't support accused/witness management yet
-    setLocalAccused([...localAccused, {
-      name: person.name,
-      status: person.status || "ABSCONDING",
-      description: person.description || "",
-    }]);
-    setAccusedDialogOpen(false);
-    toast.success("Accused Added", `${person.name} has been added to the case`);
-  };
-
-  const handleAddWitness = async (person: { name: string; phone?: string; address?: string; description?: string; status?: string }) => {
-    // For now, just update local state since the API doesn't support accused/witness management yet
-    setLocalWitnesses([...localWitnesses, {
-      name: person.name,
-      type: "WITNESS",
-      statement: person.status === "RECORDED" ? "Recorded" : "Pending",
-    }]);
-    setWitnessDialogOpen(false);
-    toast.success("Witness Added", `${person.name} has been registered as a witness`);
-  };
-
-  const tabs = [
-    { id: "overview", label: "Overview", icon: FileText },
-    { id: "accused", label: "Accused & Witnesses", icon: Users },
-    { id: "evidence", label: "Evidence", icon: Shield },
-    { id: "timeline", label: "Timeline", icon: Clock },
-    { id: "court", label: "Court", icon: Gavel },
-  ];
-
-  // Show loading state
-  if (isLoading) {
+  if (isPending) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
+        <div className="flex items-center justify-center py-12 gap-3 text-foreground-muted">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading case…
         </div>
       </DashboardLayout>
     );
   }
 
-  // Show error state
-  if (error || !currentCase) {
+  if (isError) {
+    const notFound = error instanceof ApiClientError && error.code === 404;
     return (
       <DashboardLayout>
         <Card>
           <CardContent className="p-12 text-center">
             <AlertTriangle className="h-12 w-12 text-error mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-foreground mb-2">Error Loading Case</h2>
-            <p className="text-foreground-muted mb-4">
-              {error ? "Failed to load case details. Please try again." : "Case not found."}
-            </p>
-            <Button onClick={() => router.back()}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Go Back
-            </Button>
+            <h2 className="text-xl font-bold text-foreground mb-2">
+              {notFound ? "Case Not Found" : "Case could not be loaded"}
+            </h2>
+            <p className="text-foreground-muted mb-4">{notFound ? "The requested case does not exist." : error.message}</p>
+            <div className="flex justify-center gap-2">
+              {!notFound && (
+                <Button variant="secondary" onClick={() => refetch()}>
+                  Try again
+                </Button>
+              )}
+              <Link href="/cases">
+                <Button>Back to Cases</Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </DashboardLayout>
     );
   }
 
-  // Use currentCase from API or fallback to mockCase for display fields not in schema
-  const displayCase = {
-    ...mockCase,
-    ...currentCase,
+  const officerOptions = [
+    { value: "", label: "Unassigned" },
+    ...(officers.data ?? []).map((o) => ({
+      value: o.id,
+      label: `${o.roleLabel} ${o.name}${o.stationName ? ` · ${o.stationName}` : ""} (${o.openCases} open)`,
+    })),
+  ];
+
+  const saveEdit = async () => {
+    if (!editForm) return;
+    if (editForm.title.trim().length < 5) {
+      toast.error("Validation Error", "Case title must be at least 5 characters");
+      return;
+    }
+    try {
+      await updateCase.mutateAsync({
+        current: currentCase,
+        changes: {
+          title: editForm.title.trim(),
+          synopsis: editForm.synopsis.trim() || null,
+          status: editForm.status,
+          priority: editForm.priority,
+          ipcSections: editForm.ipcSections,
+          investigatingOfficer: editForm.investigatingOfficer || null,
+          courtName: editForm.courtName.trim() || null,
+          courtCaseNumber: editForm.courtCaseNumber.trim() || null,
+          nextHearingDate: editForm.nextHearingDate ? toApiDate(editForm.nextHearingDate) : null,
+        },
+      });
+      toast.success("Case Updated", `${currentCase.caseNumber} has been updated`);
+      setEditForm(null);
+    } catch (err) {
+      toast.error("Case not updated", err instanceof Error ? err.message : "The server rejected the request");
+    }
   };
+
+  const saveAccused = async () => {
+    if (!accusedForm) return;
+    if (accusedForm.name.trim().length < 2) {
+      toast.error("Validation Error", "Name must be at least 2 characters");
+      return;
+    }
+    const age = accusedForm.age ? Number(accusedForm.age) : null;
+    if (age !== null && (!Number.isInteger(age) || age < 7 || age > 120)) {
+      toast.error("Validation Error", "Age must be a whole number between 7 and 120");
+      return;
+    }
+    try {
+      const added = await addAccused.mutateAsync({
+        caseId: currentCase.id,
+        input: {
+          firId: currentCase.firId,
+          name: accusedForm.name.trim(),
+          alias: accusedForm.alias.trim() || null,
+          age,
+          gender: accusedForm.gender || null,
+          address: accusedForm.address.trim() || null,
+          idType: accusedForm.idType || null,
+          idNumber: accusedForm.idNumber.trim() || null,
+          status: accusedForm.status,
+          arrestDate: accusedForm.arrestDate ? toApiDate(accusedForm.arrestDate) : null,
+          description: accusedForm.description.trim() || null,
+        },
+      });
+      toast.success("Accused Added", `${added.name} has been added to ${currentCase.caseNumber}`);
+      setAccusedForm(null);
+    } catch (err) {
+      toast.error("Accused not added", err instanceof Error ? err.message : "The server rejected the request");
+    }
+  };
+
+  const saveWitness = async () => {
+    if (!witnessForm) return;
+    if (witnessForm.name.trim().length < 2) {
+      toast.error("Validation Error", "Name must be at least 2 characters");
+      return;
+    }
+    if (witnessForm.phone && !/^[6-9]\d{9}$/.test(witnessForm.phone)) {
+      toast.error("Validation Error", "Phone must be 10 digits starting with 6-9");
+      return;
+    }
+    try {
+      const added = await addWitness.mutateAsync({
+        caseId: currentCase.id,
+        input: {
+          firId: currentCase.firId,
+          name: witnessForm.name.trim(),
+          phone: witnessForm.phone || null,
+          address: witnessForm.address.trim() || null,
+          witnessType: witnessForm.witnessType || null,
+          statementRecorded: witnessForm.statementRecorded,
+          statementDate:
+            witnessForm.statementRecorded && witnessForm.statementDate ? toApiDate(witnessForm.statementDate) : null,
+          statementText: witnessForm.statementRecorded ? witnessForm.statementText.trim() || null : null,
+        },
+      });
+      toast.success("Witness Added", `${added.name} has been added to ${currentCase.caseNumber}`);
+      setWitnessForm(null);
+    } catch (err) {
+      toast.error("Witness not added", err instanceof Error ? err.message : "The server rejected the request");
+    }
+  };
+
+  const accusedRows = accused.data ?? [];
+  const witnessRows = witnesses.data ?? [];
+  const status = statusConfig[currentCase.status];
+  const priority = priorityConfig[currentCase.priority];
+
+  const tabs = [
+    { id: "overview", label: "Overview", icon: FileText },
+    { id: "accused", label: "Accused & Witnesses", icon: Users },
+    { id: "court", label: "Court", icon: Gavel },
+  ] as const;
+
+  const count = (q: { isPending: boolean; isError: boolean; data?: unknown[] }) =>
+    q.isError ? "—" : q.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : q.data?.length ?? 0;
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-4">
-            <Button variant="ghost" size="sm" onClick={() => router.back()}>
+            <Button variant="ghost" size="sm" onClick={() => router.back()} aria-label="Back">
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground">{currentCase.caseNumber}</h1>
-                <Badge variant={statusConfig[currentCase.status as keyof typeof statusConfig]?.color as any}>
-                  {statusConfig[currentCase.status as keyof typeof statusConfig]?.label || currentCase.status}
-                </Badge>
-                <Badge variant={priorityConfig[displayCase.priority as keyof typeof priorityConfig]?.color as any}>
-                  {displayCase.priority} Priority
-                </Badge>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-2xl font-bold text-foreground font-mono">{currentCase.caseNumber}</h1>
+                <Badge variant={status?.color as any}>{status?.label ?? currentCase.status}</Badge>
+                <Badge variant={priority?.color as any}>{priority?.label ?? currentCase.priority} Priority</Badge>
               </div>
               <p className="text-foreground-muted mt-1">{currentCase.title}</p>
               <p className="text-sm text-foreground-muted mt-1">
-                FIR: {currentCase.firNumber || currentCase.firId} | Registered: {new Date(currentCase.createdAt).toLocaleDateString("en-IN")}
+                FIR:{" "}
+                <Link href={`/fir/${currentCase.firId}`} className="font-mono text-accent hover:underline">
+                  {currentCase.firNumber || "View FIR"}
+                </Link>{" "}
+                | Registered: {formatDate(currentCase.createdAt)}
               </p>
             </div>
           </div>
           {canEdit && (
-            <Button onClick={() => {
-              toast.success("Edit Mode", "You can now edit case details. Changes will be saved automatically.");
-              // In a full implementation, this would open an edit form
-            }}>
+            <Button onClick={() => setEditForm(toEditForm(currentCase))}>
               <Edit className="h-4 w-4 mr-2" />
               Edit Case
             </Button>
@@ -216,7 +355,7 @@ export default function CaseDetailPage() {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -224,21 +363,8 @@ export default function CaseDetailPage() {
                   <Users className="h-5 w-5 text-error" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{localAccused.length}</p>
+                  <p className="text-2xl font-bold text-foreground">{count(accused)}</p>
                   <p className="text-xs text-foreground-muted">Accused</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-info/10">
-                  <Shield className="h-5 w-5 text-info" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">{displayCase.evidence.length}</p>
-                  <p className="text-xs text-foreground-muted">Evidence Items</p>
                 </div>
               </div>
             </CardContent>
@@ -250,7 +376,7 @@ export default function CaseDetailPage() {
                   <Users className="h-5 w-5 text-warning" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{localWitnesses.length}</p>
+                  <p className="text-2xl font-bold text-foreground">{count(witnesses)}</p>
                   <p className="text-xs text-foreground-muted">Witnesses</p>
                 </div>
               </div>
@@ -264,7 +390,7 @@ export default function CaseDetailPage() {
                 </div>
                 <div>
                   <p className="text-sm font-bold text-foreground">
-                    {currentCase.nextHearing ? new Date(currentCase.nextHearing).toLocaleDateString("en-IN") : "Not Set"}
+                    {currentCase.nextHearingDate ? formatDate(currentCase.nextHearingDate) : "Not Set"}
                   </p>
                   <p className="text-xs text-foreground-muted">Next Hearing</p>
                 </div>
@@ -274,13 +400,15 @@ export default function CaseDetailPage() {
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-border">
-          <nav className="flex gap-4">
+        <div className="border-b border-border overflow-x-auto">
+          <nav className="flex gap-4" role="tablist">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-3 border-b-2 whitespace-nowrap transition-colors ${
                   activeTab === tab.id
                     ? "border-accent text-accent"
                     : "border-transparent text-foreground-muted hover:text-foreground"
@@ -293,24 +421,20 @@ export default function CaseDetailPage() {
           </nav>
         </div>
 
-        {/* Tab Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {activeTab === "overview" && (
             <>
               <div className="lg:col-span-2 space-y-6">
-                {/* Synopsis */}
                 <Card>
                   <CardHeader>
                     <CardTitle>Case Synopsis</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-foreground-muted whitespace-pre-line">
-                      {currentCase.description || displayCase.synopsis}
+                      {currentCase.synopsis || "No synopsis recorded."}
                     </p>
                   </CardContent>
                 </Card>
-
-                {/* IPC Sections */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -319,64 +443,55 @@ export default function CaseDetailPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {displayCase.ipcSections.map((section) => (
-                        <Badge key={section} variant="muted" className="text-sm">
-                          {section}
-                        </Badge>
-                      ))}
-                    </div>
+                    {currentCase.ipcSections.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {currentCase.ipcSections.map((section) => (
+                          <Badge key={section} variant="muted" className="text-sm">
+                            {section}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-foreground-muted">No sections recorded.</p>
+                    )}
                   </CardContent>
                 </Card>
               </div>
-
-              {/* Sidebar */}
               <div className="space-y-6">
-                {/* Investigating Team */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Investigating Team</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="p-3 rounded-lg bg-background-tertiary">
-                      <p className="font-medium text-foreground">{mockCase.investigating.officer}</p>
-                      <p className="text-sm text-foreground-muted">{mockCase.investigating.badgeNumber}</p>
-                      <Badge variant="accent" className="mt-2">Lead Investigator</Badge>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium text-foreground-muted">Team Members</p>
-                      {mockCase.investigating.team.map((member) => (
-                        <div key={member} className="text-sm text-foreground">{member}</div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Court Info */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Gavel className="h-5 w-5" />
-                      Court Details
-                    </CardTitle>
+                    <CardTitle>Investigation</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div>
-                      <p className="text-sm text-foreground-muted">Court</p>
-                      <p className="text-foreground">{currentCase.courtName || "Not assigned"}</p>
+                    <div className="p-3 rounded-lg bg-background-tertiary">
+                      <p className="text-sm text-foreground-muted">Investigating Officer</p>
+                      <p className="font-medium text-foreground">{currentCase.ioName || "Unassigned"}</p>
                     </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Case Number</p>
-                      <p className="text-foreground">{currentCase.caseNumber}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Next Hearing</p>
-                      <p className="text-foreground font-medium">
-                        {currentCase.nextHearing
-                          ? new Date(currentCase.nextHearing).toLocaleDateString("en-IN")
-                          : "Not scheduled"}
-                      </p>
-                    </div>
+                    {currentCase.category && (
+                      <div>
+                        <p className="text-sm text-foreground-muted">Category</p>
+                        <p className="text-foreground">{currentCase.category.replace(/_/g, " ")}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Follow-up</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <Link href="/evidence/new" className="block">
+                      <Button variant="secondary" className="w-full justify-start">
+                        <Package className="h-4 w-4 mr-2" />
+                        Register Evidence
+                      </Button>
+                    </Link>
+                    <Link href="/court" className="block">
+                      <Button variant="secondary" className="w-full justify-start">
+                        <Gavel className="h-4 w-4 mr-2" />
+                        Court Diary
+                      </Button>
+                    </Link>
                   </CardContent>
                 </Card>
               </div>
@@ -385,13 +500,12 @@ export default function CaseDetailPage() {
 
           {activeTab === "accused" && (
             <div className="lg:col-span-3 space-y-6">
-              {/* Accused */}
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle>Accused Persons</CardTitle>
                     {canEdit && (
-                      <Button size="sm" onClick={() => setAccusedDialogOpen(true)}>
+                      <Button size="sm" onClick={() => setAccusedForm(emptyAccused())}>
                         <Plus className="h-4 w-4 mr-2" />
                         Add Accused
                       </Button>
@@ -399,34 +513,58 @@ export default function CaseDetailPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {localAccused.map((person, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-4 rounded-lg bg-background-tertiary"
-                      >
-                        <div>
-                          <p className="font-medium text-foreground">{person.name}</p>
-                          <p className="text-sm text-foreground-muted">{person.description}</p>
-                        </div>
-                        <Badge
-                          variant={person.status === "ARRESTED" ? "success" : "error"}
+                  {accused.isPending ? (
+                    <p className="flex items-center gap-2 text-foreground-muted">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading accused…
+                    </p>
+                  ) : accused.isError ? (
+                    <p className="text-error">Accused could not be loaded: {accused.error.message}</p>
+                  ) : accusedRows.length === 0 ? (
+                    <p className="text-foreground-muted">No accused recorded on this case.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {accusedRows.map((person) => (
+                        <div
+                          key={person.id}
+                          className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-lg bg-background-tertiary"
                         >
-                          {person.status}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
+                          <div>
+                            <p className="font-medium text-foreground">
+                              {person.name}
+                              {person.alias && <span className="text-foreground-muted"> alias {person.alias}</span>}
+                            </p>
+                            <p className="text-sm text-foreground-muted">
+                              {[
+                                person.age !== null && `${person.age} yrs`,
+                                person.gender,
+                                person.address,
+                                person.arrestDate && `arrested ${formatDate(person.arrestDate)}`,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ") || "No further details recorded"}
+                            </p>
+                            {person.description && <p className="text-sm text-foreground-muted">{person.description}</p>}
+                          </div>
+                          <Badge
+                            variant={
+                              person.status === "ABSCONDING" ? "error" : person.status === "ARRESTED" || person.status === "IN_CUSTODY" ? "success" : "warning"
+                            }
+                          >
+                            {accusedStatusLabel[person.status] ?? person.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
-              {/* Witnesses */}
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle>Witnesses</CardTitle>
                     {canEdit && (
-                      <Button size="sm" onClick={() => setWitnessDialogOpen(true)}>
+                      <Button size="sm" onClick={() => setWitnessForm(emptyWitness())}>
                         <Plus className="h-4 w-4 mr-2" />
                         Add Witness
                       </Button>
@@ -434,164 +572,73 @@ export default function CaseDetailPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {localWitnesses.map((witness, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-4 rounded-lg bg-background-tertiary"
-                      >
-                        <div>
-                          <p className="font-medium text-foreground">{witness.name}</p>
-                          <p className="text-sm text-foreground-muted">{witness.type}</p>
-                        </div>
-                        <Badge variant={witness.statement === "Recorded" ? "success" : "warning"}>
-                          Statement: {witness.statement}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {activeTab === "evidence" && (
-            <div className="lg:col-span-3">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Evidence Items</CardTitle>
-                    {canEdit && (
-                      <Button size="sm" onClick={() => router.push("/evidence/new")}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Evidence
-                      </Button>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {mockCase.evidence.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between p-4 rounded-lg bg-background-tertiary cursor-pointer hover:bg-background-secondary transition-colors"
-                        onClick={() => router.push(`/evidence/${item.id}`)}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="p-2 rounded-lg bg-accent/10">
-                            <Shield className="h-5 w-5 text-accent" />
-                          </div>
+                  {witnesses.isPending ? (
+                    <p className="flex items-center gap-2 text-foreground-muted">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading witnesses…
+                    </p>
+                  ) : witnesses.isError ? (
+                    <p className="text-error">Witnesses could not be loaded: {witnesses.error.message}</p>
+                  ) : witnessRows.length === 0 ? (
+                    <p className="text-foreground-muted">No witnesses recorded on this case.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {witnessRows.map((w) => (
+                        <div
+                          key={w.id}
+                          className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-lg bg-background-tertiary"
+                        >
                           <div>
-                            <p className="font-medium text-foreground">{item.id}</p>
-                            <p className="text-sm text-foreground-muted">{item.description}</p>
+                            <p className="font-medium text-foreground">{w.name}</p>
+                            <p className="text-sm text-foreground-muted">
+                              {[w.witnessType?.replace(/_/g, " ").toLowerCase(), w.phone, w.address].filter(Boolean).join(" · ") ||
+                                "No further details recorded"}
+                            </p>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Badge variant="muted">{item.type}</Badge>
-                          <Badge
-                            variant={
-                              item.status === "COLLECTED"
-                                ? "success"
-                                : item.status === "AT_FSL"
-                                ? "warning"
-                                : "info"
-                            }
-                          >
-                            {item.status.replace("_", " ")}
+                          <Badge variant={w.statementRecorded ? "success" : "warning"}>
+                            Statement: {w.statementRecorded ? `Recorded${w.statementDate ? ` ${formatDate(w.statementDate)}` : ""}` : "Pending"}
                           </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {activeTab === "timeline" && (
-            <div className="lg:col-span-3">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Case Timeline</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="relative">
-                    <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
-                    <div className="space-y-6">
-                      {mockCase.timeline.map((event, index) => (
-                        <div key={index} className="relative pl-10">
-                          <div
-                            className={`absolute left-2 w-5 h-5 rounded-full border-2 border-background ${
-                              event.type === "incident"
-                                ? "bg-error"
-                                : event.type === "arrest"
-                                ? "bg-success"
-                                : event.type === "court"
-                                ? "bg-accent"
-                                : "bg-info"
-                            }`}
-                          />
-                          <div className="p-4 rounded-lg bg-background-tertiary">
-                            <p className="text-xs text-foreground-muted">{event.date}</p>
-                            <p className="font-medium text-foreground mt-1">{event.event}</p>
-                          </div>
                         </div>
                       ))}
                     </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
           )}
 
           {activeTab === "court" && (
-            <div className="lg:col-span-3 space-y-6">
+            <div className="lg:col-span-3">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Gavel className="h-5 w-5" />
-                    Court Proceedings
+                    Court Details
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-3 gap-6">
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="p-4 rounded-lg bg-background-tertiary">
                       <p className="text-sm text-foreground-muted">Court Name</p>
                       <p className="font-medium text-foreground mt-1">{currentCase.courtName || "Not assigned"}</p>
                     </div>
                     <div className="p-4 rounded-lg bg-background-tertiary">
-                      <p className="text-sm text-foreground-muted">Case Number</p>
-                      <p className="font-medium text-foreground mt-1">{currentCase.caseNumber}</p>
+                      <p className="text-sm text-foreground-muted">Court Case Number</p>
+                      <p className="font-medium text-foreground mt-1">{currentCase.courtCaseNumber || "Not recorded"}</p>
                     </div>
                     <div className="p-4 rounded-lg bg-accent/10 border border-accent/20">
                       <p className="text-sm text-accent">Next Hearing</p>
                       <p className="font-bold text-accent mt-1">
-                        {currentCase.nextHearing
-                          ? new Date(currentCase.nextHearing).toLocaleDateString("en-IN")
-                          : "Not scheduled"}
+                        {currentCase.nextHearingDate ? formatDate(currentCase.nextHearingDate) : "Not scheduled"}
                       </p>
                     </div>
                   </div>
-
-                  <div>
-                    <h4 className="font-medium text-foreground mb-4">Hearing History</h4>
-                    <div className="space-y-3">
-                      {mockCase.timeline
-                        .filter((e) => e.type === "court")
-                        .map((hearing, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center justify-between p-4 rounded-lg bg-background-tertiary"
-                          >
-                            <div>
-                              <p className="font-medium text-foreground">{hearing.event}</p>
-                              <p className="text-sm text-foreground-muted">{hearing.date}</p>
-                            </div>
-                            <CheckCircle className="h-5 w-5 text-success" />
-                          </div>
-                        ))}
-                    </div>
-                  </div>
+                  <p className="text-sm text-foreground-muted">
+                    Hearings and orders are recorded in the{" "}
+                    <Link href="/court" className="text-accent hover:underline">
+                      court diary
+                    </Link>
+                    .
+                  </p>
                 </CardContent>
               </Card>
             </div>
@@ -599,20 +646,245 @@ export default function CaseDetailPage() {
         </div>
       </div>
 
-      {/* Dialogs */}
-      <AddPersonDialog
-        isOpen={accusedDialogOpen}
-        onClose={() => setAccusedDialogOpen(false)}
-        onSubmit={handleAddAccused}
-        type="suspect"
-      />
+      {/* Edit case */}
+      <Modal
+        isOpen={editForm !== null}
+        onClose={() => setEditForm(null)}
+        title={`Edit ${currentCase.caseNumber}`}
+        description="Changes are recorded in the audit trail."
+        size="lg"
+      >
+        {editForm && (
+          <div className="space-y-4">
+            <Input
+              label="Case Title *"
+              value={editForm.title}
+              onChange={(v: string) => setEditForm({ ...editForm, title: v })}
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Select
+                label="Status"
+                options={CASE_STATUSES.map((s) => ({ value: s, label: statusConfig[s].label }))}
+                value={editForm.status}
+                onChange={(v: string) => setEditForm({ ...editForm, status: v as CaseStatus })}
+              />
+              <Select
+                label="Priority"
+                options={(Object.keys(priorityConfig) as CasePriority[]).map((p) => ({
+                  value: p,
+                  label: priorityConfig[p].label,
+                }))}
+                value={editForm.priority}
+                onChange={(v: string) => setEditForm({ ...editForm, priority: v as CasePriority })}
+              />
+            </div>
+            <Textarea
+              label="Synopsis"
+              rows={4}
+              value={editForm.synopsis}
+              onChange={(v: string) => setEditForm({ ...editForm, synopsis: v })}
+            />
+            <SectionPicker
+              value={editForm.ipcSections}
+              onChange={(s) => setEditForm({ ...editForm, ipcSections: s })}
+            />
+            <Select
+              label="Investigating Officer"
+              options={officerOptions}
+              value={editForm.investigatingOfficer}
+              onChange={(v: string) => setEditForm({ ...editForm, investigatingOfficer: v })}
+            />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Input
+                label="Court"
+                placeholder="e.g. City Sessions Court, Calcutta"
+                value={editForm.courtName}
+                onChange={(v: string) => setEditForm({ ...editForm, courtName: v })}
+              />
+              <Input
+                label="Court Case Number"
+                value={editForm.courtCaseNumber}
+                onChange={(v: string) => setEditForm({ ...editForm, courtCaseNumber: v })}
+              />
+              <Input
+                label="Next Hearing"
+                type="date"
+                value={editForm.nextHearingDate}
+                onChange={(v: string) => setEditForm({ ...editForm, nextHearingDate: v })}
+              />
+            </div>
+          </div>
+        )}
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setEditForm(null)}>
+            Cancel
+          </Button>
+          <Button onClick={saveEdit} disabled={updateCase.isPending}>
+            {updateCase.isPending ? "Saving..." : "Save Changes"}
+          </Button>
+        </ModalFooter>
+      </Modal>
 
-      <AddPersonDialog
-        isOpen={witnessDialogOpen}
-        onClose={() => setWitnessDialogOpen(false)}
-        onSubmit={handleAddWitness}
-        type="witness"
-      />
+      {/* Add accused */}
+      <Modal
+        isOpen={accusedForm !== null}
+        onClose={() => setAccusedForm(null)}
+        title="Add Accused"
+        description={`Recorded against ${currentCase.caseNumber} and its FIR.`}
+        size="lg"
+      >
+        {accusedForm && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label="Name *"
+                value={accusedForm.name}
+                onChange={(v: string) => setAccusedForm({ ...accusedForm, name: v })}
+              />
+              <Input
+                label="Alias"
+                value={accusedForm.alias}
+                onChange={(v: string) => setAccusedForm({ ...accusedForm, alias: v })}
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Input
+                label="Age"
+                type="number"
+                value={accusedForm.age}
+                onChange={(v: string) => setAccusedForm({ ...accusedForm, age: v })}
+              />
+              <Select
+                label="Gender"
+                options={genderOptions}
+                value={accusedForm.gender}
+                onChange={(v: string) => setAccusedForm({ ...accusedForm, gender: v })}
+              />
+              <Select
+                label="Status *"
+                options={ACCUSED_STATUSES.map((s) => ({ value: s, label: accusedStatusLabel[s] }))}
+                value={accusedForm.status}
+                onChange={(v: string) => setAccusedForm({ ...accusedForm, status: v as AccusedStatus })}
+              />
+            </div>
+            <Textarea
+              label="Address"
+              rows={2}
+              value={accusedForm.address}
+              onChange={(v: string) => setAccusedForm({ ...accusedForm, address: v })}
+            />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Select
+                label="ID Type"
+                options={idTypes}
+                value={accusedForm.idType}
+                onChange={(v: string) => setAccusedForm({ ...accusedForm, idType: v })}
+              />
+              <Input
+                label="ID Number"
+                value={accusedForm.idNumber}
+                disabled={!accusedForm.idType}
+                onChange={(v: string) => setAccusedForm({ ...accusedForm, idNumber: v })}
+              />
+              <Input
+                label="Arrest Date"
+                type="date"
+                value={accusedForm.arrestDate}
+                max={new Date().toISOString().split("T")[0]}
+                onChange={(v: string) => setAccusedForm({ ...accusedForm, arrestDate: v })}
+              />
+            </div>
+            <Textarea
+              label="Description"
+              placeholder="Physical description, role in the offence"
+              rows={2}
+              value={accusedForm.description}
+              onChange={(v: string) => setAccusedForm({ ...accusedForm, description: v })}
+            />
+          </div>
+        )}
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setAccusedForm(null)}>
+            Cancel
+          </Button>
+          <Button onClick={saveAccused} disabled={addAccused.isPending}>
+            {addAccused.isPending ? "Adding..." : "Add Accused"}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Add witness */}
+      <Modal
+        isOpen={witnessForm !== null}
+        onClose={() => setWitnessForm(null)}
+        title="Add Witness"
+        description={`Recorded against ${currentCase.caseNumber} and its FIR.`}
+        size="lg"
+      >
+        {witnessForm && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Input
+                label="Name *"
+                value={witnessForm.name}
+                onChange={(v: string) => setWitnessForm({ ...witnessForm, name: v })}
+              />
+              <Input
+                label="Phone"
+                type="tel"
+                value={witnessForm.phone}
+                onChange={(v: string) => setWitnessForm({ ...witnessForm, phone: v.replace(/\D/g, "").slice(0, 10) })}
+              />
+              <Select
+                label="Type"
+                options={witnessTypes}
+                value={witnessForm.witnessType}
+                onChange={(v: string) => setWitnessForm({ ...witnessForm, witnessType: v })}
+              />
+            </div>
+            <Textarea
+              label="Address"
+              rows={2}
+              value={witnessForm.address}
+              onChange={(v: string) => setWitnessForm({ ...witnessForm, address: v })}
+            />
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                className="rounded"
+                checked={witnessForm.statementRecorded}
+                onChange={(e) => setWitnessForm({ ...witnessForm, statementRecorded: e.target.checked })}
+              />
+              Statement recorded (BNSS 180)
+            </label>
+            {witnessForm.statementRecorded && (
+              <div className="space-y-4">
+                <Input
+                  label="Statement Date"
+                  type="date"
+                  value={witnessForm.statementDate}
+                  max={new Date().toISOString().split("T")[0]}
+                  onChange={(v: string) => setWitnessForm({ ...witnessForm, statementDate: v })}
+                />
+                <Textarea
+                  label="Statement"
+                  rows={4}
+                  value={witnessForm.statementText}
+                  onChange={(v: string) => setWitnessForm({ ...witnessForm, statementText: v })}
+                />
+              </div>
+            )}
+          </div>
+        )}
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setWitnessForm(null)}>
+            Cancel
+          </Button>
+          <Button onClick={saveWitness} disabled={addWitness.isPending}>
+            {addWitness.isPending ? "Adding..." : "Add Witness"}
+          </Button>
+        </ModalFooter>
+      </Modal>
     </DashboardLayout>
   );
 }
