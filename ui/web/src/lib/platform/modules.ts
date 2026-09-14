@@ -315,9 +315,8 @@ export const MODULES: PlatformModule[] = [
     icon: Gauge,
     nameKey: "modules.workload",
     descKey: "modules.workloadDesc",
-    status: "preview",
+    status: "live",
     minRole: "SHO",
-    aiAssisted: true,
   },
 
   {
