@@ -50,12 +50,6 @@ const STATUS_TONE = {
   closed: "neutral",
 } as const;
 
-const STATUS_LABEL = {
-  active: { en: "Under investigation", bn: "তদন্তাধীন" },
-  chargesheet: { en: "Chargesheet stage", bn: "চার্জশিট পর্যায়" },
-  "supervisory-review": { en: "Supervisory review", bn: "ঊর্ধ্বতন পর্যালোচনা" },
-  closed: { en: "Closed", bn: "সমাপ্ত" },
-} as const;
 
 export default function InvestigationPage() {
   const router = useRouter();
@@ -85,7 +79,7 @@ export default function InvestigationPage() {
   const columns: Column<Workspace>[] = [
     {
       id: "case",
-      header: "Case",
+      header: t("investigationScreen.list.colCase"),
       sortValue: (w) => w.caseNumber,
       cell: (w) => (
         <div className="min-w-0">
@@ -101,7 +95,7 @@ export default function InvestigationPage() {
     },
     {
       id: "sections",
-      header: "Provisions",
+      header: t("investigationScreen.list.colProvisions"),
       hideBelow: "lg",
       sortValue: (w) => w.sections.join(" "),
       cell: (w) => (
@@ -123,12 +117,12 @@ export default function InvestigationPage() {
     },
     {
       id: "io",
-      header: "Investigating officer",
+      header: t("investigationScreen.list.colIo"),
       hideBelow: "md",
       sortValue: (w) => w.ioName ?? "",
       cell: (w) => (
         <div className="min-w-0">
-          <p className="truncate text-sm">{w.ioName || "Unassigned"}</p>
+          <p className="truncate text-sm">{w.ioName || t("investigationScreen.list.unassigned")}</p>
           {w.stationName && (
             <p className="truncate text-xs text-foreground-subtle">{w.stationName}</p>
           )}
@@ -137,7 +131,7 @@ export default function InvestigationPage() {
     },
     {
       id: "signals",
-      header: "Open items",
+      header: t("investigationScreen.list.colOpenItems"),
       sortValue: (w) => w.counts.contradictions * 10 + w.counts.gaps,
       cell: (w) => (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -160,14 +154,14 @@ export default function InvestigationPage() {
             </StatusPill>
           )}
           {w.counts.contradictions + w.counts.gaps + w.counts.openTasks === 0 && (
-            <span className="text-xs text-foreground-subtle">None</span>
+            <span className="text-xs text-foreground-subtle">{t("investigationScreen.list.none")}</span>
           )}
         </div>
       ),
     },
     {
       id: "progress",
-      header: "Progress",
+      header: t("investigationScreen.list.colProgress"),
       sortValue: (w) => w.progress,
       cell: (w) => (
         <div className="flex items-center gap-2">
@@ -180,11 +174,11 @@ export default function InvestigationPage() {
     },
     {
       id: "status",
-      header: "Status",
+      header: t("investigationScreen.list.colStatus"),
       sortValue: (w) => w.status,
       cell: (w) => (
         <div className="flex flex-col items-start gap-1">
-          <StatusPill tone={STATUS_TONE[w.status]}>{pick(STATUS_LABEL[w.status])}</StatusPill>
+          <StatusPill tone={STATUS_TONE[w.status]}>{t(`investigationScreen.status.${w.status}`)}</StatusPill>
           <SeverityBadge level={w.priority} />
         </div>
       ),
@@ -193,27 +187,27 @@ export default function InvestigationPage() {
 
   const rowActions = (w: Workspace): Action[] => [
     act.label("hdr", w.caseNumber),
-    act.link("open", "Open workspace", `/investigation/${w.id}`, { icon: Brain }),
-    act.link("timeline", "Case timeline", `/investigation/${w.id}?tab=timeline`, {
+    act.link("open", t("investigationScreen.list.openWorkspace"), `/investigation/${w.id}`, { icon: Brain }),
+    act.link("timeline", t("investigationScreen.list.caseTimeline"), `/investigation/${w.id}?tab=timeline`, {
       icon: ClipboardList,
-      description: `${w.counts.timeline} entries`,
+      description: t("investigationScreen.list.nEntries", { n: w.counts.timeline }),
     }),
-    act.link("contradictions", "Contradictions", `/investigation/${w.id}?tab=contradictions`, {
+    act.link("contradictions", t("investigationScreen.list.contradictions"), `/investigation/${w.id}?tab=contradictions`, {
       icon: GitCompareArrows,
-      description: `${w.counts.contradictions} recorded`,
+      description: t("investigationScreen.list.nRecorded", { n: w.counts.contradictions }),
     }),
-    act.link("gaps", "Investigation gaps", `/investigation/${w.id}?tab=gaps`, {
+    act.link("gaps", t("investigationScreen.list.investigationGaps"), `/investigation/${w.id}?tab=gaps`, {
       icon: ScanSearch,
-      description: `${w.counts.gaps} open`,
+      description: t("investigationScreen.list.nOpen", { n: w.counts.gaps }),
     }),
     act.sep("s1"),
-    act.link("evidence", "Linked evidence", `/investigation/${w.id}?tab=evidence`, {
+    act.link("evidence", t("investigationScreen.list.linkedEvidence"), `/investigation/${w.id}?tab=evidence`, {
       icon: ClipboardList,
-      description: `${w.counts.evidence} items`,
+      description: t("investigationScreen.list.nItems", { n: w.counts.evidence }),
     }),
-    act.run("assign", "Reassign officer", () => setAssignFor(w), { icon: Users }),
+    act.run("assign", t("investigationScreen.list.reassignOfficer"), () => setAssignFor(w), { icon: Users }),
     act.sep("s2"),
-    act.link("casefile", "Case file & court readiness", `/case-file/${w.id}`, {
+    act.link("casefile", t("investigationScreen.list.caseFile"), `/case-file/${w.id}`, {
       icon: ClipboardList,
     }),
   ];
@@ -233,12 +227,12 @@ export default function InvestigationPage() {
           actions={
             <Button onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
-              New workspace
+              {t("investigationScreen.list.newWorkspace")}
             </Button>
           }
           menu={[
-            act.link("casefiles", "Case files", "/case-file", { icon: ClipboardList }),
-            act.link("audit", "Audit trail", "/audit", { icon: ClipboardList }),
+            act.link("casefiles", t("investigationScreen.list.caseFiles"), "/case-file", { icon: ClipboardList }),
+            act.link("audit", t("investigationScreen.list.auditTrail"), "/audit", { icon: ClipboardList }),
           ]}
         />
 
@@ -248,9 +242,9 @@ export default function InvestigationPage() {
           <Alert variant="danger">
             <ScanSearch />
             <div>
-              <AlertTitle>Could not load workspaces</AlertTitle>
+              <AlertTitle>{t("investigationScreen.list.couldNotLoad")}</AlertTitle>
               <AlertDescription>
-                {error instanceof Error ? error.message : "The API did not respond."}
+                {error instanceof Error ? error.message : t("investigationScreen.list.apiNoResponse")}
                 <Button variant="outline" size="sm" className="mt-2" onClick={() => refetch()}>
                   {t("common.retry")}
                 </Button>
@@ -261,30 +255,30 @@ export default function InvestigationPage() {
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatTile
-            label="Active workspaces"
+            label={t("investigationScreen.list.activeWorkspaces")}
             value={workspaces.filter((w) => w.status !== "closed").length}
             icon={Brain}
             tone="info"
           />
           <StatTile
-            label="Recorded contradictions"
+            label={t("investigationScreen.list.recordedContradictions")}
             value={totals.contradictions}
             icon={GitCompareArrows}
             tone="danger"
-            deltaLabel="awaiting officer decision"
+            deltaLabel={t("investigationScreen.list.awaitingDecision")}
           />
           <StatTile
-            label="Open gaps"
+            label={t("investigationScreen.list.openGaps")}
             value={totals.gaps}
             icon={ScanSearch}
             tone="warning"
-            deltaLabel="identified by the case rules"
+            deltaLabel={t("investigationScreen.list.identifiedByRules")}
           />
           <StatTile
-            label="Open tasks"
+            label={t("investigationScreen.list.openTasks")}
             value={totals.tasks}
             icon={ListChecks}
-            deltaLabel="assigned to officers"
+            deltaLabel={t("investigationScreen.list.assignedToOfficers")}
           />
         </div>
 
@@ -296,13 +290,13 @@ export default function InvestigationPage() {
           </div>
         ) : workspaces.length === 0 ? (
           <EmptyState
-            title="No investigation workspaces yet"
-            description="Open a workspace against an FIR, GD or case number. The case rules will immediately show what the file is missing."
+            title={t("investigationScreen.list.emptyTitle")}
+            description={t("investigationScreen.list.emptyDesc")}
             icon={FolderPlus}
             action={
               <Button onClick={() => setCreateOpen(true)}>
                 <Plus className="h-4 w-4" />
-                New workspace
+                {t("investigationScreen.list.newWorkspace")}
               </Button>
             }
           />
@@ -313,7 +307,7 @@ export default function InvestigationPage() {
             rowKey={(w) => w.id}
             rowHref={(w) => `/investigation/${w.id}`}
             rowActions={rowActions}
-            searchPlaceholder="Search by case number, title or offence…"
+            searchPlaceholder={t("investigationScreen.list.searchPlaceholder")}
           />
         )}
       </div>
@@ -324,7 +318,9 @@ export default function InvestigationPage() {
         pending={createWorkspace.isPending}
         error={createWorkspace.error}
         onSubmit={async (values) => {
-          const created = await createWorkspace.mutateAsync(values);
+          // A rejected create stays in the dialog, where its error is shown.
+          const created = await createWorkspace.mutateAsync(values).catch(() => null);
+          if (!created) return;
           setCreateOpen(false);
           router.push(`/investigation/${created.id}`);
         }}
@@ -382,51 +378,49 @@ function CreateWorkspaceDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New investigation workspace</DialogTitle>
-          <DialogDescription>
-            A workspace binds evidence, persons, chronology and tasks to one case record.
-          </DialogDescription>
+          <DialogTitle>{t("investigationScreen.create.title")}</DialogTitle>
+          <DialogDescription>{t("investigationScreen.create.description")}</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-3">
           <div className="grid gap-1.5">
-            <Label htmlFor="ws-case">FIR / GD / case number</Label>
+            <Label htmlFor="ws-case">{t("investigationScreen.create.caseNumber")}</Label>
             <Input
               id="ws-case"
               value={caseNumber}
               onChange={(v: string) => setCaseNumber(v)}
-              placeholder="e.g. PS-BHW/2024/0412"
+              placeholder={t("investigationScreen.create.caseNumberHint")}
             />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="ws-title">Case title</Label>
+            <Label htmlFor="ws-title">{t("investigationScreen.create.caseTitle")}</Label>
             <Input
               id="ws-title"
               value={title}
               onChange={(v: string) => setTitle(v)}
-              placeholder="Short description of the occurrence"
+              placeholder={t("investigationScreen.create.caseTitleHint")}
             />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="ws-offence">Offence</Label>
+            <Label htmlFor="ws-offence">{t("investigationScreen.create.offence")}</Label>
             <Input
               id="ws-offence"
               value={offence}
               onChange={(v: string) => setOffence(v)}
-              placeholder="e.g. Robbery with deadly weapon"
+              placeholder={t("investigationScreen.create.offenceHint")}
             />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="ws-sections">Provisions applied</Label>
+            <Label htmlFor="ws-sections">{t("investigationScreen.create.provisions")}</Label>
             <Input
               id="ws-sections"
               value={sections}
               onChange={(v: string) => setSections(v)}
-              placeholder="Comma separated, e.g. BNS 309, BNS 310"
+              placeholder={t("investigationScreen.create.provisionsHint")}
             />
           </div>
           <div className="grid gap-1.5">
-            <Label>Investigating officer</Label>
+            <Label>{t("investigationScreen.create.io")}</Label>
             <OfficerPicker
               value={ioId}
               onChange={(id, name) => {
@@ -436,22 +430,22 @@ function CreateWorkspaceDialog({
             />
             {ioName && (
               <p className="text-xs text-foreground-muted">
-                Assigning <span className="font-medium text-foreground">{ioName}</span>
+                {t("investigationScreen.create.assigning")} <span className="font-medium text-foreground">{ioName}</span>
               </p>
             )}
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="ws-priority">Priority</Label>
+            <Label htmlFor="ws-priority">{t("investigationScreen.create.priority")}</Label>
             <select
               id="ws-priority"
               value={priority}
               onChange={(e) => setPriority(e.target.value as typeof priority)}
               className="h-10 rounded-md border border-border bg-surface px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
+              <option value="low">{t("investigationScreen.priority.low")}</option>
+              <option value="medium">{t("investigationScreen.priority.medium")}</option>
+              <option value="high">{t("investigationScreen.priority.high")}</option>
+              <option value="critical">{t("investigationScreen.priority.critical")}</option>
             </select>
           </div>
 
@@ -483,7 +477,7 @@ function CreateWorkspaceDialog({
               })
             }
           >
-            Create workspace
+            {t("investigationScreen.create.submit")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -516,17 +510,17 @@ function ReassignDialog({
     <Dialog open={workspace !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Reassign investigating officer</DialogTitle>
+          <DialogTitle>{t("investigationScreen.reassign.title")}</DialogTitle>
           <DialogDescription>
             {workspace
-              ? `${workspace.caseNumber} · currently ${workspace.ioName || "unassigned"}`
+              ? `${workspace.caseNumber} · ${t("investigationScreen.reassign.currently")} ${workspace.ioName || t("investigationScreen.reassign.unassigned")}`
               : ""}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-3">
           <div className="grid gap-1.5">
-            <Label>New investigating officer</Label>
+            <Label>{t("investigationScreen.reassign.newIo")}</Label>
             <OfficerPicker
               value={officerId}
               excludeId={workspace?.ioId}
@@ -538,18 +532,18 @@ function ReassignDialog({
             />
             {officerName && (
               <p className="text-xs text-foreground-muted">
-                Reassigning to <span className="font-medium text-foreground">{officerName}</span>
+                {t("investigationScreen.reassign.reassigningTo")} <span className="font-medium text-foreground">{officerName}</span>
               </p>
             )}
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="as-reason">Reason for reassignment</Label>
+            <Label htmlFor="as-reason">{t("investigationScreen.reassign.reason")}</Label>
             <Textarea
               id="as-reason"
               rows={3}
               value={reason}
               onChange={(v: string) => setReason(v)}
-              placeholder="Written to the audit trail"
+              placeholder={t("investigationScreen.reassign.reasonHint")}
             />
           </div>
           {update.error instanceof Error && (
@@ -566,15 +560,13 @@ function ReassignDialog({
           <Button
             isLoading={update.isPending}
             disabled={!officerId.trim() || update.isPending}
-            onClick={async () => {
-              await update.mutateAsync({
-                ioId: officerId.trim(),
-                reassignReason: reason.trim() || undefined,
-              });
-              onClose();
-            }}
+            onClick={() =>
+              update
+                .mutateAsync({ ioId: officerId.trim(), reassignReason: reason.trim() || undefined })
+                .then(onClose, () => undefined)
+            }
           >
-            Reassign
+            {t("investigationScreen.reassign.submit")}
           </Button>
         </DialogFooter>
       </DialogContent>

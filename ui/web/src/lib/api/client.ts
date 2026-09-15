@@ -207,7 +207,9 @@ class ApiClient {
         message: `Request failed with status ${response.status}`,
         code: response.status,
       }));
-      throw new ApiClientError(error.message, error.code, error.error);
+      // Not every error body carries `code` — the rate limiter's 429 does not — so
+      // fall back to the HTTP status; callers branch on it (retry, not-found).
+      throw new ApiClientError(error.message, error.code ?? response.status, error.error);
     }
 
     // Handle empty responses

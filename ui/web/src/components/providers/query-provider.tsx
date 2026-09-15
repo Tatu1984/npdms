@@ -32,6 +32,12 @@ const defaultOptions = {
       // Don't retry on 4xx errors. ApiClientError carries the HTTP status as
       // `code`; checking only `status` let every 404 and 403 retry three times.
       const status = error?.code ?? error?.status;
+      // 429 is the exception: the request was valid but throttled, and a read
+      // is safe to repeat. Without this a throttled panel stayed empty until
+      // the page was reloaded.
+      if (status === 429) {
+        return failureCount < 3;
+      }
       if (status >= 400 && status < 500) {
         return false;
       }
@@ -41,7 +47,11 @@ const defaultOptions = {
     },
 
     // Retry delay with exponential backoff
-    retryDelay: (attemptIndex: number) => {
+    retryDelay: (attemptIndex: number, error: any) => {
+      // The API's rate-limit window is a minute; back off in steps across it.
+      if ((error?.code ?? error?.status) === 429) {
+        return 20000 * (attemptIndex + 1);
+      }
       return Math.min(1000 * 2 ** attemptIndex, 30000);
     },
 

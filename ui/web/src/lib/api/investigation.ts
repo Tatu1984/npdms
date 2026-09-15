@@ -94,6 +94,10 @@ export interface TimelineEntry {
   origin: Origin;
   confidence?: number;
   reviewState: ReviewState;
+  reviewedBy?: string;
+  /** Name of the officer who reviewed it — never inferred from the case IO. */
+  reviewedByName?: string;
+  reviewedAt?: string;
   sources: WorkspaceSource[];
   createdAt: string;
 }
@@ -111,6 +115,9 @@ export interface Contradiction {
   origin: Origin;
   confidence?: number;
   reviewState: ReviewState;
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
   resolutionNote?: string;
   sources: WorkspaceSource[];
   createdAt: string;
@@ -310,7 +317,18 @@ export const investigationApi = {
     update: (
       id: string,
       personId: string,
-      body: { role?: string; statementsCount?: number; phone?: string; address?: string; riskNote?: string },
+      body: {
+        name?: string;
+        role?: WorkspacePerson["role"];
+        aliases?: string[];
+        age?: number;
+        gender?: string;
+        statementsCount?: number;
+        phone?: string;
+        address?: string;
+        vehicles?: string[];
+        riskNote?: string;
+      },
     ) => apiClient.patch<Listed<WorkspacePerson>>(`/investigation/${id}/persons/${personId}`, body),
     remove: (id: string, personId: string) =>
       apiClient.delete<void>(`/investigation/${id}/persons/${personId}`),

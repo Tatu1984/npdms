@@ -1,5 +1,6 @@
 import type { Dictionary } from "./en";
 import { custodyBn } from "./custody.bn";
+import { investigationBn } from "./investigation.bn";
 
 /**
  * Bengali dictionary.
@@ -14,6 +15,7 @@ type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]>
 
 export const bn: DeepPartial<Dictionary> = {
   custodyScreen: custodyBn,
+  investigationScreen: investigationBn,
 
   common: {
     appName: "কলকাতা পুলিশ ডিজিটাল ইন্টেলিজেন্স প্ল্যাটফর্ম",

@@ -11,9 +11,14 @@ import investigationApi, {
  * React Query bindings for Phase 01.
  *
  * Mutations that can change derived state — gaps recompute when persons,
- * timeline entries, evidence links or tasks change — invalidate the whole
- * workspace subtree rather than patching caches by hand, so the screen never
- * shows a gap list that disagrees with the record.
+ * timeline entries, evidence links or tasks change — invalidate the gap list,
+ * the workspace counts and the brief along with the rows they touched, rather
+ * than patching caches by hand, so the screen never shows a gap list that
+ * disagrees with the record.
+ *
+ * They do not invalidate the whole subtree: that refetched every panel on the
+ * screen after each change — seven requests per action — which runs an officer
+ * into the API's per-address rate limit within a few minutes of ordinary work.
  */
 
 export const investigationKeys = {
@@ -27,7 +32,22 @@ export const investigationKeys = {
   tasks: (id: string) => ["investigation", id, "tasks"] as const,
   evidence: (id: string) => ["investigation", id, "evidence"] as const,
   brief: (id: string) => ["investigation", id, "brief"] as const,
+  links: (id: string) => ["investigation", id, "links"] as const,
 };
+
+type Part = "persons" | "timeline" | "contradictions" | "gaps" | "tasks" | "evidence" | "brief" | "links";
+
+/** Refreshes the named parts of one workspace, its header counts and the workspace lists. */
+function refresh(qc: ReturnType<typeof useQueryClient>, id: string, parts: Part[]) {
+  const keys = [
+    investigationKeys.workspace(id),
+    ["investigation", "list"] as const,
+    ...parts.map((part) => ["investigation", id, part] as const),
+  ];
+  return Promise.all(keys.map((queryKey) => qc.invalidateQueries({ queryKey })));
+}
+
+const DERIVED: Part[] = ["gaps", "brief"];
 
 export function useWorkspaces(query: WorkspaceQuery = {}) {
   return useQuery({
@@ -65,7 +85,7 @@ export function useUpdateWorkspace(id: string) {
       ioId?: string;
       reassignReason?: string;
     }) => investigationApi.update(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, ["brief"]),
   });
 }
 
@@ -85,7 +105,7 @@ export function useCreatePerson(id: string) {
     mutationFn: (body: Parameters<typeof investigationApi.persons.create>[1]) =>
       investigationApi.persons.create(id, body),
     // Adding a witness can open the statement gap — refresh the whole subtree.
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, ["persons", "links", ...DERIVED]),
   });
 }
 
@@ -97,7 +117,7 @@ export function useUpdatePerson(id: string) {
       ...body
     }: { personId: string } & Parameters<typeof investigationApi.persons.update>[2]) =>
       investigationApi.persons.update(id, personId, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, ["persons", "links", ...DERIVED]),
   });
 }
 
@@ -105,7 +125,7 @@ export function useDeletePerson(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (personId: string) => investigationApi.persons.remove(id, personId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, ["persons", "links", ...DERIVED]),
   });
 }
 
@@ -124,7 +144,7 @@ export function useCreateTimelineEntry(id: string) {
   return useMutation({
     mutationFn: (body: Parameters<typeof investigationApi.timeline.create>[1]) =>
       investigationApi.timeline.create(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, ["timeline", "links", ...DERIVED]),
   });
 }
 
@@ -133,7 +153,7 @@ export function useReviewTimelineEntry(id: string) {
   return useMutation({
     mutationFn: ({ entryId, state }: { entryId: string; state: "accepted" | "rejected" }) =>
       investigationApi.timeline.review(id, entryId, state),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.timeline(id) }),
+    onSuccess: () => refresh(qc, id, ["timeline", "brief"]),
   });
 }
 
@@ -141,7 +161,7 @@ export function useDeleteTimelineEntry(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (entryId: string) => investigationApi.timeline.remove(id, entryId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, ["timeline", "links", ...DERIVED]),
   });
 }
 
@@ -160,7 +180,7 @@ export function useCreateContradiction(id: string) {
   return useMutation({
     mutationFn: (body: Parameters<typeof investigationApi.contradictions.create>[1]) =>
       investigationApi.contradictions.create(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, ["contradictions", "brief"]),
   });
 }
 
@@ -176,7 +196,7 @@ export function useReviewContradiction(id: string) {
       state: "accepted" | "rejected";
       note?: string;
     }) => investigationApi.contradictions.review(id, contradictionId, state, note),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, ["contradictions", "brief"]),
   });
 }
 
@@ -194,7 +214,7 @@ export function useRecomputeGaps(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => investigationApi.gaps.recompute(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, DERIVED),
   });
 }
 
@@ -203,7 +223,7 @@ export function useCreateGap(id: string) {
   return useMutation({
     mutationFn: (body: Parameters<typeof investigationApi.gaps.create>[1]) =>
       investigationApi.gaps.create(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, DERIVED),
   });
 }
 
@@ -212,7 +232,7 @@ export function useSetGapStatus(id: string) {
   return useMutation({
     mutationFn: ({ gapId, status }: { gapId: string; status: "open" | "closed" | "dismissed" }) =>
       investigationApi.gaps.setStatus(id, gapId, status),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, DERIVED),
   });
 }
 
@@ -231,7 +251,7 @@ export function useCreateTask(id: string) {
   return useMutation({
     mutationFn: (body: Parameters<typeof investigationApi.tasks.create>[1]) =>
       investigationApi.tasks.create(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, ["tasks", ...DERIVED]),
   });
 }
 
@@ -244,7 +264,7 @@ export function useUpdateTask(id: string) {
     }: { taskId: string } & Parameters<typeof investigationApi.tasks.update>[2]) =>
       investigationApi.tasks.update(id, taskId, body),
     // Completing a task can close a gap and moves progress — refresh everything.
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, ["tasks", ...DERIVED]),
   });
 }
 
@@ -252,7 +272,7 @@ export function useDeleteTask(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (taskId: string) => investigationApi.tasks.remove(id, taskId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, ["tasks", ...DERIVED]),
   });
 }
 
@@ -271,7 +291,7 @@ export function useLinkEvidence(id: string) {
   return useMutation({
     mutationFn: ({ evidenceId, note }: { evidenceId: string; note?: string }) =>
       investigationApi.evidence.link(id, evidenceId, note),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, ["evidence", "links", ...DERIVED]),
   });
 }
 
@@ -279,7 +299,7 @@ export function useUnlinkEvidence(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (evidenceId: string) => investigationApi.evidence.unlink(id, evidenceId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: investigationKeys.all }),
+    onSuccess: () => refresh(qc, id, ["evidence", "links", ...DERIVED]),
   });
 }
 
@@ -311,7 +331,7 @@ export function useOfficers(search?: string, stationId?: string) {
 /** Relationships recorded on the case, assembled by the server from stored rows. */
 export function useLinkGraph(id: string, enabled = true) {
   return useQuery({
-    queryKey: ["investigation", id, "links"],
+    queryKey: investigationKeys.links(id),
     queryFn: () => investigationApi.links(id),
     enabled: Boolean(id) && enabled,
   });

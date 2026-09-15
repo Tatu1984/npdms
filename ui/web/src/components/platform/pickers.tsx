@@ -33,7 +33,7 @@ export function OfficerPicker({
   emptyLabel?: string;
 }) {
   const [search, setSearch] = React.useState("");
-  const { data, isLoading } = useOfficers(search || undefined, stationId);
+  const { data, isLoading, isError, error } = useOfficers(search || undefined, stationId);
 
   const officers = (data ?? []).filter((o) => o.id !== excludeId);
 
@@ -56,6 +56,11 @@ export function OfficerPicker({
               <Skeleton key={i} className="h-10 w-full" />
             ))}
           </div>
+        ) : isError ? (
+          <p className="px-3 py-6 text-center text-sm text-danger">
+            The officer directory could not be loaded
+            {error instanceof Error ? `: ${error.message}` : ""}
+          </p>
         ) : officers.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-foreground-muted">
             {search ? "No officer matches that search" : emptyLabel}
@@ -121,7 +126,7 @@ export function EvidencePicker({
   const { t } = useI18n();
   const [search, setSearch] = React.useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["evidence-register", search],
     // The Phase 02 register searches server-side; GET /evidence ignores search.
     queryFn: () => custodyApi.list({ search: search || undefined, pageSize: 50 }),
@@ -150,6 +155,11 @@ export function EvidencePicker({
               <Skeleton key={i} className="h-10 w-full" />
             ))}
           </div>
+        ) : isError ? (
+          <p className="px-3 py-6 text-center text-sm text-danger">
+            The evidence register could not be loaded
+            {error instanceof Error ? `: ${error.message}` : ""}
+          </p>
         ) : records.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-foreground-muted">
             {search
