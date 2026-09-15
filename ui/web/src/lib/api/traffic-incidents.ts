@@ -120,6 +120,10 @@ export interface PlateRead {
   cameraRef: string | null;
   source: PlateReadSource;
   sourceDetail: string;
+  /** Set when attached from vehicle detection: the machine read, its model and confidence. */
+  anprPlateReadId: string | null;
+  modelVersion: string | null;
+  readConfidence: number | null;
   matchedVehicleId: string | null;
   createdByName: string;
   createdAt: string;
@@ -347,6 +351,8 @@ export const trafficIncidentsApi = {
   addCamera: (id: string, input: CameraInput) => apiClient.post<IncidentCamera>(`${base(id)}/cameras`, input),
   plateReads: (id: string) => listOf<PlateRead>(`${base(id)}/plate-reads`),
   addPlateRead: (id: string, input: PlateReadInput) => apiClient.post<PlateRead>(`${base(id)}/plate-reads`, input),
+  attachAnprRead: (id: string, input: { plateReadId: string; location?: string }) =>
+    apiClient.post<PlateRead>(`${base(id)}/plate-reads/from-anpr`, input),
   signalPhases: (id: string) => listOf<SignalPhase>(`${base(id)}/signal-phases`),
   addSignalPhase: (id: string, input: SignalPhaseInput) =>
     apiClient.post<SignalPhase>(`${base(id)}/signal-phases`, input),

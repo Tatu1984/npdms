@@ -20,7 +20,7 @@ export const accidentEn = {
   notFoundDesc: "No traffic incident exists with this reference.",
   back: "Back to incidents",
   laterLayer:
-    "Trajectory reconstruction, speed derivation from footage and automatic detection are later AI layers. Nothing on this screen is computed by a model: every entry is a stored record with its source.",
+    "Trajectory reconstruction and speed derivation from footage are later AI layers. Plate reads attached from vehicle detection are machine reads, marked AI-assisted with their model and confidence; nothing else on this screen is computed by a model. Every entry is a stored record with its source.",
 
   stats: {
     total: "Incidents",

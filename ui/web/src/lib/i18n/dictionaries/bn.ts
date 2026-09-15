@@ -12,6 +12,7 @@ import { malkhanaBn } from "./malkhana.bn";
 import { legalBn } from "./legal.bn";
 import { missingBoardBn } from "./missing-board.bn";
 import { faceRecognitionBn } from "./face-recognition.bn";
+import { anprBn } from "./anpr.bn";
 
 /**
  * Bengali dictionary.
@@ -38,6 +39,7 @@ export const bn: DeepPartial<Dictionary> = {
   legalScreen: legalBn,
   missingBoard: missingBoardBn,
   faceRecognitionScreen: faceRecognitionBn,
+  anprScreen: anprBn,
 
   common: {
     appName: "কলকাতা পুলিশ ডিজিটাল ইন্টেলিজেন্স প্ল্যাটফর্ম",
@@ -172,6 +174,9 @@ export const bn: DeepPartial<Dictionary> = {
     caseFile: "কেস ফাইল ও আদালত প্রস্তুতি",
     caseFileDesc:
       "কেস ফাইল সংকলন, সাক্ষ্য ও সাক্ষী তালিকা, সম্পূর্ণতা যাচাই ও দাখিল প্যাক",
+    vehicleDetection: "যানবাহন শনাক্তকরণ ও ANPR",
+    vehicleDetectionDesc:
+      "ফুটেজ ও ক্যামেরা স্ন্যাপশটে যানবাহন শনাক্তকরণ ও নম্বর প্লেট পাঠ, যানবাহন ওয়াচলিস্ট এবং অপারেটর-নিশ্চিত হিট",
     bodycam: "বডি-ওর্ন ক্যামেরা",
     bodycamDesc:
       "ক্যামেরা রেজিস্টার, শিফটে দেওয়া ও ফেরত, সুরক্ষিত ডক ও প্রমাণের সঙ্গে সংযুক্তি",

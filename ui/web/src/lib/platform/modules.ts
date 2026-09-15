@@ -4,6 +4,7 @@ import {
   Brain,
   BookOpenCheck,
   Camera,
+  CarFront,
   ClipboardList,
   FileSearch,
   FileText,
@@ -233,6 +234,18 @@ export const MODULES: PlatformModule[] = [
     descKey: "modules.videoIntelligenceDesc",
     status: "preview",
     ops: true,
+    aiAssisted: true,
+  },
+  {
+    // AI layer A4 — not a delivery phase of its own; it builds on Phases 03 and 06.
+    id: "vehicle-detection",
+    href: "/vehicle-detection",
+    group: "surveillance",
+    icon: CarFront,
+    nameKey: "modules.vehicleDetection",
+    descKey: "modules.vehicleDetectionDesc",
+    status: "live",
+    minRole: "ASI",
     aiAssisted: true,
   },
   {

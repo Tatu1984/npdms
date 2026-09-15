@@ -59,6 +59,8 @@ export const useAddPerson = (id: string) => useTrafficMutation((input: PersonInp
 export const useAddCamera = (id: string) => useTrafficMutation((input: CameraInput) => api.addCamera(id, input));
 export const useAddPlateRead = (id: string) =>
   useTrafficMutation((input: PlateReadInput) => api.addPlateRead(id, input));
+export const useAttachAnprRead = (id: string) =>
+  useTrafficMutation((input: { plateReadId: string; location?: string }) => api.attachAnprRead(id, input));
 export const useAddSignalPhase = (id: string) =>
   useTrafficMutation((input: SignalPhaseInput) => api.addSignalPhase(id, input));
 export const useAddFact = (id: string) => useTrafficMutation((input: FactInput) => api.addFact(id, input));

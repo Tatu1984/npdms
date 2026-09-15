@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import type { RecordLink } from "@/components/platform/pickers";
 import { ApiClientError } from "@/lib/api/client";
+import { AttachReadDialog } from "@/components/anpr/attach-read-dialog";
 import { hasMinimumRole, useAuthStore } from "@/stores/authStore";
 import {
   useAddCamera,
@@ -240,6 +241,7 @@ export default function TrafficIncidentPage() {
     quantity: "" as Quantity | "", value: "", valueLow: "", valueHigh: "", ranged: false,
   }));
 
+  const [attachAnprOpen, setAttachAnprOpen] = React.useState(false);
   const [removing, setRemoving] = React.useState<{ kind: ChildKind; recordId: string; label: string } | null>(null);
   const [removeError, setRemoveError] = React.useState<string | null>(null);
 
@@ -457,7 +459,17 @@ export default function TrafficIncidentPage() {
           <Panel
             title={<span className="flex items-center gap-2"><CarFront className="h-4 w-4" />{t("accidentScreen.sections.plateReads")}</span>}
             description={t("accidentScreen.sections.plateReadsDesc")}
-            actions={addButton(t("accidentScreen.plate.add"), () => plateDlg.openWith())}
+            actions={
+              <>
+                {canRecord && (
+                  <Button variant="outline" size="sm" onClick={() => setAttachAnprOpen(true)} data-testid="open-attach-anpr">
+                    <Plus className="h-4 w-4" />
+                    {t("anprScreen.attach.button")}
+                  </Button>
+                )}
+                {addButton(t("accidentScreen.plate.add"), () => plateDlg.openWith())}
+              </>
+            }
           >
             {listState(plateReads, (plateReads.data ?? []).length === 0) ?? (
               <ul className="divide-y divide-border" data-testid="plate-reads">
@@ -471,6 +483,12 @@ export default function TrafficIncidentPage() {
                         {formatWhen(p.readAt, true)} · {t(`accidentScreen.enums.plateSource.${p.source}`)}
                         {p.cameraRef ? ` · ${p.cameraRef}` : ""}
                       </p>
+                      {p.anprPlateReadId && p.readConfidence != null && (
+                        <p className="flex flex-wrap items-center gap-1 text-xs text-foreground-muted">
+                          <StatusPill tone="ai">{t("anprScreen.attach.aiRead", { confidence: `${Math.round(p.readConfidence * 100)}%` })}</StatusPill>
+                          <span className="text-foreground-subtle">{p.modelVersion}</span>
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-1">
                       <StatusPill tone={p.matchedVehicleId ? "success" : "neutral"}>
@@ -710,6 +728,8 @@ export default function TrafficIncidentPage() {
         <TextField id="cam-notes" label={t("accidentScreen.camera.notes")} value={cameraDlg.form.notes}
           onChange={(v) => cameraDlg.setForm({ ...cameraDlg.form, notes: v })} />
       </FormDialog>
+
+      {canRecord && <AttachReadDialog incidentId={id} open={attachAnprOpen} onOpenChange={setAttachAnprOpen} />}
 
       {/* add plate read */}
       <FormDialog

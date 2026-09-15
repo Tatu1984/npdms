@@ -11,6 +11,7 @@ import { malkhanaEn } from "./malkhana.en";
 import { legalEn } from "./legal.en";
 import { missingBoardEn } from "./missing-board.en";
 import { faceRecognitionEn } from "./face-recognition.en";
+import { anprEn } from "./anpr.en";
 
 /**
  * English dictionary — the source of truth for translation keys.
@@ -32,6 +33,7 @@ export const en = {
   legalScreen: legalEn,
   missingBoard: missingBoardEn,
   faceRecognitionScreen: faceRecognitionEn,
+  anprScreen: anprEn,
 
   common: {
     appName: "Kolkata Police Digital Intelligence Platform",
@@ -166,6 +168,9 @@ export const en = {
     caseFile: "Case File & Court Readiness",
     caseFileDesc:
       "Case file assembly, evidence and witness matrices, completeness checks and submission packs",
+    vehicleDetection: "Vehicle Detection & ANPR",
+    vehicleDetectionDesc:
+      "Vehicle detection and number-plate reading on footage and camera snapshots, a vehicle watchlist and operator-confirmed hits",
     bodycam: "Body-Worn Camera",
     bodycamDesc:
       "Camera register, shift issue and return, secure docking and evidence association",
