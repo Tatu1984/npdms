@@ -444,48 +444,6 @@ export const MISSING_PERSONS: MissingPerson[] = [
   { id: "mp-4", refNumber: "MP/WBP/2024/1142", name: { en: "Ashima Bibi", bn: "আসিমা বিবি" }, age: 31, gender: "F", station: "Bidhannagar North", lastSeen: { en: "Karunamoyee bus terminus", bn: "করুণাময়ী বাস টার্মিনাস" }, lastSeenAt: "2024-11-25T18:15:00", status: "active", sightings: 2, verifiedSightings: 0, clothing: { en: "Green saree, black handbag", bn: "সবুজ শাড়ি, কালো হাতব্যাগ" } },
 ];
 
-/* ---------------------------------------- 05 Cyber & financial fraud */
-
-export interface FraudCase {
-  id: string;
-  refNumber: string;
-  complainant: Bilingual;
-  modus: Bilingual;
-  lossAmount: number;
-  recovered: number;
-  frozen: number;
-  status: "intake" | "tracing" | "frozen" | "chargesheet";
-  entities: { phones: number; upi: number; accounts: number; domains: number; devices: number };
-  linkedVictims: number;
-  reportedOn: string;
-}
-
-export const FRAUD_CASES: FraudCase[] = [
-  { id: "fc-1", refNumber: "CYB/KP/2024/1187", complainant: { en: "Tanmoy Bhattacharya", bn: "তন্ময় ভট্টাচার্য" }, modus: { en: "Investment app with guaranteed returns", bn: "নিশ্চিত রিটার্নের প্রতিশ্রুতি দেওয়া বিনিয়োগ অ্যাপ" }, lossAmount: 1840000, recovered: 210000, frozen: 640000, status: "tracing", entities: { phones: 14, upi: 9, accounts: 21, domains: 4, devices: 6 }, linkedVictims: 17, reportedOn: "2024-11-12" },
-  { id: "fc-2", refNumber: "CYB/KP/2024/1163", complainant: { en: "Nabanita Saha", bn: "নবনীতা সাহা" }, modus: { en: "Digital arrest — impersonation of enforcement officials", bn: "ডিজিটাল অ্যারেস্ট — প্রয়োগকারী আধিকারিকের ছদ্মবেশ" }, lossAmount: 920000, recovered: 0, frozen: 380000, status: "frozen", entities: { phones: 6, upi: 4, accounts: 11, domains: 1, devices: 3 }, linkedVictims: 5, reportedOn: "2024-11-04" },
-  { id: "fc-3", refNumber: "CYB/KP/2024/1109", complainant: { en: "Pradip Kundu", bn: "প্রদীপ কুন্ডু" }, modus: { en: "Fake customer-care number, remote access app", bn: "ভুয়ো কাস্টমার কেয়ার নম্বর, রিমোট অ্যাক্সেস অ্যাপ" }, lossAmount: 148000, recovered: 148000, frozen: 0, status: "chargesheet", entities: { phones: 3, upi: 2, accounts: 4, domains: 2, devices: 1 }, linkedVictims: 1, reportedOn: "2024-10-18" },
-  { id: "fc-4", refNumber: "CYB/WBP/2024/0842", complainant: { en: "Ishita Chowdhury", bn: "ইশিতা চৌধুরী" }, modus: { en: "Job offer fraud via messaging group", bn: "মেসেজিং গ্রুপে চাকরির প্রস্তাবে প্রতারণা" }, lossAmount: 267000, recovered: 40000, frozen: 90000, status: "intake", entities: { phones: 8, upi: 6, accounts: 7, domains: 0, devices: 2 }, linkedVictims: 9, reportedOn: "2024-11-29" },
-];
-
-export interface MuleAccount {
-  id: string;
-  account: string;
-  bank: string;
-  holder: Bilingual;
-  inflow: number;
-  outflow: number;
-  victims: number;
-  velocityScore: number;
-  flag: "confirmed" | "probable" | "watch";
-}
-
-export const MULE_ACCOUNTS: MuleAccount[] = [
-  { id: "ma-1", account: "XXXXXXXX4419", bank: "UCO Bank, Burrabazar", holder: { en: "S. K. Traders", bn: "এস. কে. ট্রেডার্স" }, inflow: 4120000, outflow: 4098000, victims: 23, velocityScore: 0.94, flag: "confirmed" },
-  { id: "ma-2", account: "XXXXXXXX8872", bank: "Bandhan Bank, Howrah", holder: { en: "Rehana Khatun", bn: "রেহানা খাতুন" }, inflow: 1760000, outflow: 1712000, victims: 11, velocityScore: 0.88, flag: "confirmed" },
-  { id: "ma-3", account: "XXXXXXXX2210", bank: "SBI, Sealdah", holder: { en: "Dipankar Jana", bn: "দীপঙ্কর জানা" }, inflow: 640000, outflow: 590000, victims: 4, velocityScore: 0.71, flag: "probable" },
-  { id: "ma-4", account: "XXXXXXXX9035", bank: "Axis Bank, Salt Lake", holder: { en: "Green Leaf Enterprise", bn: "গ্রিন লিফ এন্টারপ্রাইজ" }, inflow: 310000, outflow: 244000, victims: 2, velocityScore: 0.52, flag: "watch" },
-];
-
 /* --------------------------------------------- 06 Accident reconstruction */
 
 export interface AccidentCase {

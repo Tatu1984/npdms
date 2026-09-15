@@ -52,7 +52,7 @@ const navigation: NavItem[] = [
   { name: "Bail Processing", href: "/bail", icon: Scale },
   { name: "Court", href: "/court", icon: Gavel },
   { name: "Forensics", href: "/forensics", icon: Microscope },
-  { name: "Cyber Crime", href: "/cyber-crime", icon: Globe },
+  { name: "Cyber Crime", href: "/cyber-intelligence", icon: Globe },
   { name: "Networks", href: "/networks", icon: Network, minRole: "SHO" },
   { name: "Personnel", href: "/personnel", icon: Users, minRole: "SHO" },
   { name: "Attendance", href: "/attendance", icon: Fingerprint, minRole: "SHO" },
