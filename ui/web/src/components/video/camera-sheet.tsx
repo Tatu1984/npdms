@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Activity, Clapperboard, KeyRound, Loader2, Pencil, PowerOff, VideoOff } from "lucide-react";
+import { Activity, Clapperboard, KeyRound, Loader2, Pencil, PowerOff } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -21,6 +21,7 @@ import { RETENTION_DAYS } from "@/lib/api/video";
 import { formatDateTime } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
 import { HEALTH_LABEL, OWNER_LABEL, RETENTION_LABEL } from "./labels";
+import { LiveCameraPanel, StreamingControls } from "./live-streaming";
 
 export function CameraSheet({
   cameraId,
@@ -105,19 +106,20 @@ export function CameraSheet({
                   {c.maskingRequired && <StatusPill tone="info">{t("video.masking")}</StatusPill>}
                 </div>
 
-                {/* Honest feed panel: nothing is played or simulated. */}
-                <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-border bg-surface-sunken px-4 py-6 text-center">
-                  <VideoOff className="h-7 w-7 text-foreground-subtle" />
-                  <p className="text-xs font-medium uppercase tracking-wide text-foreground-subtle">{t("video.feedTitle")}</p>
-                  <p className="text-sm text-foreground-muted">
-                    {c.streamType === "NONE"
-                      ? t("video.feedNone")
-                      : t("video.feedNotPlayable", {
-                          type: c.streamType,
-                          target: `${c.streamHost}:${c.streamPort}${c.streamPath ?? ""}`,
-                        })}
-                  </p>
-                </div>
+                {/* Live feed: only what the Edge Agent actually delivered, under a stated purpose. */}
+                <section className="flex flex-col gap-2">
+                  <h3 className="text-sm font-semibold text-foreground">{t("liveVideo.sectionTitle")}</h3>
+                  <LiveCameraPanel camera={c} />
+                  {canEdit && <StreamingControls camera={c} />}
+                  {c.streamType !== "NONE" && (
+                    <p className="text-xs text-foreground-subtle">
+                      {t("video.feedNotPlayable", {
+                        type: c.streamType,
+                        target: `${c.streamHost}:${c.streamPort}${c.streamPath ?? ""}`,
+                      })}
+                    </p>
+                  )}
+                </section>
 
                 {c.status === "DECOMMISSIONED" && c.decommissionNote && (
                   <p className="rounded-md border border-danger/25 bg-danger-subtle px-3 py-2 text-sm text-foreground">

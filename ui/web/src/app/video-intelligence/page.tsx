@@ -39,9 +39,11 @@ import { CameraSheet } from "@/components/video/camera-sheet";
 import { RaiseEventDialog } from "@/components/video/raise-event-dialog";
 import { EventsPanel } from "@/components/video/events-panel";
 import { PurposeLogPanel } from "@/components/video/purpose-log-panel";
+import { LiveWall } from "@/components/video/live-wall";
+import { LiveStatusPill } from "@/components/video/live-streaming";
 
 const PAGE_SIZE = 20;
-type Tab = "cameras" | "events" | "purpose-log";
+type Tab = "live" | "cameras" | "events" | "purpose-log";
 
 /** Opens a dialog once the details sheet has finished closing, so two modal layers never overlap. */
 const afterSheetCloses = (open: () => void) => window.setTimeout(open, 250);
@@ -121,6 +123,7 @@ export default function VideoIntelligencePage() {
 
   const tabs: { id: Tab; label: string; show: boolean }[] = [
     { id: "cameras", label: t("video.tabCameras"), show: true },
+    { id: "live", label: t("liveVideo.tabLive"), show: true },
     { id: "events", label: t("video.tabEvents"), show: true },
     { id: "purpose-log", label: t("video.tabPurposeLog"), show: canGovern },
   ];
@@ -272,6 +275,7 @@ export default function VideoIntelligencePage() {
                       <th className="px-4 py-2 font-medium">{t("video.colLocation")}</th>
                       <th className="px-4 py-2 font-medium">{t("video.colStream")}</th>
                       <th className="px-4 py-2 font-medium">{t("video.colHealth")}</th>
+                      <th className="px-4 py-2 font-medium">{t("liveVideo.colLive")}</th>
                       <th className="px-4 py-2 text-right font-medium">{t("video.colOpenEvents")}</th>
                       <th className="px-2 py-2" />
                     </tr>
@@ -319,6 +323,9 @@ export default function VideoIntelligencePage() {
                             </>
                           )}
                         </td>
+                        <td className="px-4 py-2">
+                          {c.status === "ACTIVE" && <LiveStatusPill camera={c} />}
+                        </td>
                         <td className="px-4 py-2 text-right tabular-nums text-foreground">{c.openEvents}</td>
                         <td className="px-2 py-2 text-right">
                           <ActionMenu size="sm" actions={cameraActions(c)} />
@@ -345,6 +352,8 @@ export default function VideoIntelligencePage() {
             )}
           </Panel>
         )}
+
+        {tab === "live" && <LiveWall onOpenCamera={(id) => setSheetId(id)} />}
 
         {tab === "events" && (
           <EventsPanel

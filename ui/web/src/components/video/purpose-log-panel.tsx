@@ -54,13 +54,22 @@ export function PurposeLogPanel() {
                     {a.actorBadge && <span className="block font-mono text-xs text-foreground-subtle">{a.actorBadge}</span>}
                   </td>
                   <td className="px-4 py-2">
-                    <StatusPill tone={a.accessType === "SEARCH" ? "info" : "neutral"}>
-                      {a.accessType === "SEARCH" ? t("video.accessSearch") : t("video.accessView")}
+                    <StatusPill tone={a.accessType === "SEARCH" ? "info" : a.accessType === "VIEW_LIVE" ? "warning" : "neutral"}>
+                      {a.accessType === "SEARCH"
+                        ? t("video.accessSearch")
+                        : a.accessType === "VIEW_LIVE"
+                          ? t("liveVideo.accessLive")
+                          : t("video.accessView")}
                     </StatusPill>
                   </td>
                   <td className="px-4 py-2 text-foreground">{a.purpose}</td>
                   <td className="whitespace-nowrap px-4 py-2 text-foreground-muted">
-                    {a.accessType === "SEARCH" ? t("video.results", { n: a.resultCount ?? 0 }) : a.eventNumber || "—"}
+                    {a.accessType === "SEARCH"
+                      ? t("video.results", { n: a.resultCount ?? 0 })
+                      : a.accessType === "VIEW_LIVE"
+                        ? ((a.filters.cameraCodes as string[] | undefined)?.join(", ") ??
+                          t("liveVideo.liveCameras", { n: a.cameraIds.length }))
+                        : a.eventNumber || "—"}
                   </td>
                 </tr>
               ))}

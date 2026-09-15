@@ -49,6 +49,54 @@ export interface Camera {
   openEvents: number;
   createdAt: string;
   updatedAt: string;
+  // Live streaming through the Edge Agent. The upload token is never here.
+  streamingEnabled: boolean;
+  /** The Edge Agent's Camera ID / stream key. Useless without the token. */
+  ingestKey: string | null;
+  streamingEnabledAt: string | null;
+  tokenRotatedAt: string | null;
+  lastSegmentAt: string | null;
+  /** Judged by the server from the playlist the Edge Agent last wrote. */
+  liveStatus: LiveStatus;
+  liveAvailable: boolean;
+  /** Playlist URL; playback needs an open, purpose-logged viewing session. */
+  liveUrl: string | null;
+  liveCheckedAt: string | null;
+}
+
+/**
+ * ONLINE: segments arriving. CONNECTING: the agent wrote a playlist, no video
+ * yet. STOPPED: the feed ended or the agent went quiet. OFFLINE: nothing stored.
+ */
+export type LiveStatus = "ONLINE" | "CONNECTING" | "STOPPED" | "OFFLINE";
+
+/** Shown exactly once — on enabling streaming or rotating the token. */
+export interface EdgeAgentConfig {
+  /** Edge Agent → Portal Connection → Ingest URL */
+  ingestUrl: string;
+  /** Edge Agent → camera → Ingest token. Only its hash is stored. */
+  ingestToken: string;
+  /** Edge Agent → camera → Camera ID and Stream key */
+  cameraId: string;
+  /** The full target the agent builds from the two above. */
+  publishUrl: string;
+}
+
+export type CameraWithEdgeAgent = Camera & { edgeAgent?: EdgeAgentConfig };
+
+export interface LiveViewSession {
+  id: string;
+  cameraIds: string[];
+  purpose: string;
+  startedAt: string;
+  expiresAt: string;
+  maxUntil: string;
+}
+
+export interface LiveMediaStatus {
+  configured: boolean;
+  backend: string;
+  message?: string;
 }
 
 export interface CameraHealthCheck {
@@ -70,6 +118,7 @@ export interface CameraStats {
   unreachable: number;
   unchecked: number;
   noStream: number;
+  streaming: number;
   eventsRaised: number;
   eventsExpired: number;
 }
@@ -151,12 +200,14 @@ export interface VideoAccessEntry {
   actorId: string;
   actorName: string;
   actorBadge: string;
-  accessType: "SEARCH" | "VIEW_EVENT";
+  accessType: "SEARCH" | "VIEW_EVENT" | "VIEW_LIVE";
   purpose: string;
   filters: Record<string, unknown>;
   eventId: string | null;
   eventNumber: string;
   resultCount: number | null;
+  /** The cameras a live viewing session covered. */
+  cameraIds: string[];
   ipAddress: string;
   accessedAt: string;
 }
@@ -194,9 +245,11 @@ export interface CameraInput {
   credentialSecret: string | null;
   retentionClass: CameraRetention;
   maskingRequired: boolean;
+  /** Issue Edge Agent settings with the registration (register only). */
+  enableStreaming?: boolean;
 }
 
-export type CameraUpdateInput = Omit<CameraInput, "code"> & { clearCredentials: boolean };
+export type CameraUpdateInput = Omit<CameraInput, "code" | "enableStreaming"> & { clearCredentials: boolean };
 
 export interface RaiseEventInput {
   cameraId: string;
@@ -221,6 +274,11 @@ export interface EventSearch {
 
 export const MIN_PURPOSE_LENGTH = 10;
 
+/** Server floors for live viewing (see LiveViewMinRank in the API). */
+export const LIVE_VIEW_MIN_ROLE = "ASI" as const;
+export const LIVE_VIEW_MASKED_MIN_ROLE = "SHO" as const;
+export const MAX_LIVE_VIEW_CAMERAS = 64;
+
 export const videoApi = {
   cameras: (query: CameraQuery = {}) => {
     const params: Record<string, string | number> = {};
@@ -230,10 +288,24 @@ export const videoApi = {
   camera: (id: string) => apiClient.get<Camera>(`/video/cameras/${id}`),
   cameraStats: () => apiClient.get<CameraStats>("/video/cameras/stats"),
   healthChecks: (id: string) => apiClient.get<{ data: CameraHealthCheck[] }>(`/video/cameras/${id}/health-checks`),
-  registerCamera: (input: CameraInput) => apiClient.post<Camera>("/video/cameras", input),
+  registerCamera: (input: CameraInput) => apiClient.post<CameraWithEdgeAgent>("/video/cameras", input),
   updateCamera: (id: string, input: CameraUpdateInput) => apiClient.put<Camera>(`/video/cameras/${id}`, input),
   decommission: (id: string, note: string) => apiClient.post<Camera>(`/video/cameras/${id}/decommission`, { note }),
   checkHealth: (id: string) => apiClient.post<CameraHealthCheck>(`/video/cameras/${id}/health-check`, {}),
+
+  // Live streaming through the Edge Agent
+  liveCameras: () => apiClient.get<{ data: Camera[]; media: LiveMediaStatus }>("/video/live/cameras"),
+  mediaStatus: () => apiClient.get<LiveMediaStatus>("/video/live/media-status"),
+  enableStreaming: (id: string) =>
+    apiClient.post<{ edgeAgent: EdgeAgentConfig }>(`/video/cameras/${id}/streaming/enable`, {}),
+  rotateIngestToken: (id: string) =>
+    apiClient.post<{ edgeAgent: EdgeAgentConfig }>(`/video/cameras/${id}/streaming/rotate-token`, {}),
+  disableStreaming: (id: string, reason: string) =>
+    apiClient.post<{ streamingEnabled: false }>(`/video/cameras/${id}/streaming/disable`, { reason }),
+  /** Purpose-logged once per session; playback is refused outside one. */
+  startLiveViewing: (purpose: string, cameraIds: string[]) =>
+    apiClient.post<LiveViewSession>("/video/live/sessions", { purpose, cameraIds }),
+  endLiveViewing: (id: string) => apiClient.post<{ ended: true }>(`/video/live/sessions/${id}/end`, {}),
 
   raiseEvent: (input: RaiseEventInput) => apiClient.post<VideoEvent>("/video/events", input),
   eventStats: () => apiClient.get<VideoEventStats>("/video/events/stats"),

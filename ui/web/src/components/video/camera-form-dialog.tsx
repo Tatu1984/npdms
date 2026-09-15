@@ -28,6 +28,8 @@ import {
 } from "@/lib/api/video";
 import { toast } from "@/stores/toastStore";
 import { OWNER_LABEL, RETENTION_LABEL, inputClass } from "./labels";
+import { EdgeAgentSettingsDialog } from "./live-streaming";
+import type { EdgeAgentConfig } from "@/lib/api/video";
 
 interface FormState {
   code: string;
@@ -45,6 +47,7 @@ interface FormState {
   clearCredentials: boolean;
   retentionClass: CameraRetention;
   maskingRequired: boolean;
+  enableStreaming: boolean;
 }
 
 const blank: FormState = {
@@ -63,6 +66,7 @@ const blank: FormState = {
   clearCredentials: false,
   retentionClass: "STANDARD",
   maskingRequired: false,
+  enableStreaming: true,
 };
 
 function fromCamera(c: Camera): FormState {
@@ -82,6 +86,7 @@ function fromCamera(c: Camera): FormState {
     clearCredentials: false,
     retentionClass: c.retentionClass,
     maskingRequired: c.maskingRequired,
+    enableStreaming: c.streamingEnabled,
   };
 }
 
@@ -104,6 +109,9 @@ export function CameraFormDialog({
   const register = useRegisterCamera();
   const update = useUpdateCamera();
   const pending = register.isPending || update.isPending;
+  // One-time Edge Agent settings from a registration. Kept outside the form
+  // dialog so closing the form cannot take the token with it.
+  const [issued, setIssued] = React.useState<{ config: EdgeAgentConfig; code: string } | null>(null);
 
   React.useEffect(() => {
     if (open) setForm(camera ? fromCamera(camera) : blank);
@@ -136,8 +144,11 @@ export function CameraFormDialog({
         });
         toast.success(t("video.editCamera"), `${saved.code} — ${saved.name}`);
       } else {
-        const saved = await register.mutateAsync({ ...shared, code: form.code });
+        const saved = await register.mutateAsync({ ...shared, code: form.code, enableStreaming: form.enableStreaming });
         toast.success(t("video.registerCamera"), `${saved.cameraNumber} · ${saved.code}`);
+        // Shown once the form has finished closing, so two modal layers never overlap.
+        const edgeAgent = saved.edgeAgent;
+        if (edgeAgent) window.setTimeout(() => setIssued({ config: edgeAgent, code: saved.code }), 250);
       }
       onOpenChange(false);
     } catch (err) {
@@ -147,6 +158,8 @@ export function CameraFormDialog({
   };
 
   return (
+    <>
+    <EdgeAgentSettingsDialog config={issued?.config ?? null} code={issued?.code ?? ""} onClose={() => setIssued(null)} />
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -283,6 +296,18 @@ export function CameraFormDialog({
             </label>
             <p className="text-xs text-foreground-subtle">{t("video.maskingHint")}</p>
           </div>
+          {!editing && (
+            <div className="flex flex-col gap-1 sm:col-span-2">
+              <label className="flex items-center gap-2 text-sm text-foreground">
+                <Checkbox
+                  checked={form.enableStreaming}
+                  onCheckedChange={(v) => set("enableStreaming", v === true)}
+                />
+                {t("liveVideo.registerStreaming")}
+              </label>
+              <p className="text-xs text-foreground-subtle">{t("liveVideo.registerStreamingHint")}</p>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -296,5 +321,6 @@ export function CameraFormDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

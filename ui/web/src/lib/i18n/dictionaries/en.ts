@@ -12,6 +12,7 @@ import { legalEn } from "./legal.en";
 import { missingBoardEn } from "./missing-board.en";
 import { faceRecognitionEn } from "./face-recognition.en";
 import { anprEn } from "./anpr.en";
+import { liveVideoEn } from "./live-video.en";
 
 /**
  * English dictionary — the source of truth for translation keys.
@@ -34,6 +35,7 @@ export const en = {
   missingBoard: missingBoardEn,
   faceRecognitionScreen: faceRecognitionEn,
   anprScreen: anprEn,
+  liveVideo: liveVideoEn,
 
   common: {
     appName: "Kolkata Police Digital Intelligence Platform",
@@ -235,7 +237,7 @@ export const en = {
     registerCamera: "Register camera",
     raiseEvent: "Raise event",
     layerNote:
-      "Functional layer over cameras the force already operates. Automatic detection, natural-language search and multi-camera tracking are the AI layer and are not built yet. Live playback needs a media gateway, which is not deployed — streams are opened in the control-room VMS.",
+      "Functional layer over cameras the force already operates. Automatic detection, natural-language search and multi-camera tracking are the AI layer and are not built yet. Live video arrives only from cameras whose Edge Agent pushes it to the platform, and is watched under a stated, recorded purpose.",
     tabCameras: "Camera register",
     tabEvents: "Events",
     tabPurposeLog: "Purpose log",
@@ -268,7 +270,7 @@ export const en = {
     feedTitle: "Feed",
     feedNone: "No stream is configured for this camera, so there is no feed to show.",
     feedNotPlayable:
-      "A {type} stream is configured at {target}. It is not played in the browser: no media gateway is deployed. Open it in the control-room VMS.",
+      "A {type} stream is configured at {target}. The browser does not open it directly: live video reaches the platform only through an Edge Agent on the camera's network.",
     reachabilityExplained:
       "A check opens a TCP connection to the stream port. Reachable means the port answered — not that video is flowing.",
     credentials: "Stream credentials",

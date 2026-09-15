@@ -13,6 +13,7 @@ import { legalBn } from "./legal.bn";
 import { missingBoardBn } from "./missing-board.bn";
 import { faceRecognitionBn } from "./face-recognition.bn";
 import { anprBn } from "./anpr.bn";
+import { liveVideoBn } from "./live-video.bn";
 
 /**
  * Bengali dictionary.
@@ -40,6 +41,7 @@ export const bn: DeepPartial<Dictionary> = {
   missingBoard: missingBoardBn,
   faceRecognitionScreen: faceRecognitionBn,
   anprScreen: anprBn,
+  liveVideo: liveVideoBn,
 
   common: {
     appName: "কলকাতা পুলিশ ডিজিটাল ইন্টেলিজেন্স প্ল্যাটফর্ম",
@@ -241,7 +243,7 @@ export const bn: DeepPartial<Dictionary> = {
     registerCamera: "ক্যামেরা নথিভুক্ত করুন",
     raiseEvent: "ঘটনা নথিভুক্ত করুন",
     layerNote:
-      "বাহিনীর বিদ্যমান ক্যামেরার উপর কার্যকরী স্তর। স্বয়ংক্রিয় শনাক্তকরণ, স্বাভাবিক ভাষায় অনুসন্ধান ও বহু-ক্যামেরা অনুসরণ এআই স্তর — এখনও তৈরি হয়নি। সরাসরি সম্প্রচারের জন্য মিডিয়া গেটওয়ে প্রয়োজন, যা স্থাপিত নয় — স্ট্রিম কন্ট্রোল রুমের ভিএমএস-এ খোলা হয়।",
+      "বাহিনীর বিদ্যমান ক্যামেরার উপর কার্যকরী স্তর। স্বয়ংক্রিয় শনাক্তকরণ, স্বাভাবিক ভাষায় অনুসন্ধান ও বহু-ক্যামেরা অনুসরণ এআই স্তর — এখনও তৈরি হয়নি। সরাসরি ভিডিও কেবল সেই ক্যামেরাগুলি থেকে আসে যাদের এজ এজেন্ট প্ল্যাটফর্মে ভিডিও পাঠায়, এবং তা বিবৃত ও নথিভুক্ত উদ্দেশ্যে দেখা হয়।",
     tabCameras: "ক্যামেরা নথি",
     tabEvents: "ঘটনা",
     tabPurposeLog: "উদ্দেশ্য খতিয়ান",
@@ -274,7 +276,7 @@ export const bn: DeepPartial<Dictionary> = {
     feedTitle: "ফিড",
     feedNone: "এই ক্যামেরার কোনো স্ট্রিম নির্ধারিত নেই, তাই দেখানোর মতো ফিড নেই।",
     feedNotPlayable:
-      "{target}-এ একটি {type} স্ট্রিম নির্ধারিত আছে। ব্রাউজারে এটি চালানো হয় না: কোনো মিডিয়া গেটওয়ে স্থাপিত নেই। কন্ট্রোল রুমের ভিএমএস-এ খুলুন।",
+      "{target}-এ একটি {type} স্ট্রিম নির্ধারিত আছে। ব্রাউজার এটি সরাসরি খোলে না: সরাসরি ভিডিও কেবল ক্যামেরার নেটওয়ার্কে থাকা এজ এজেন্টের মাধ্যমে প্ল্যাটফর্মে আসে।",
     reachabilityExplained:
       "পরীক্ষাটি স্ট্রিম পোর্টে একটি টিসিপি সংযোগ খোলে। সংযোগযোগ্য মানে পোর্ট সাড়া দিয়েছে — ভিডিও চলছে এমন নয়।",
     credentials: "স্ট্রিম পরিচয়পত্র",

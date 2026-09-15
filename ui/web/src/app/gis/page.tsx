@@ -11,7 +11,8 @@ import { useI18n } from "@/lib/i18n";
 import { useStations } from "@/hooks/use-legacy-registers";
 import vehiclesApi from "@/lib/api/vehicles";
 import { dispatchApi } from "@/lib/api/dispatch";
-import { videoApi } from "@/lib/api/video";
+import { videoApi, type Camera as CameraRecord } from "@/lib/api/video";
+import { LiveCameraPanel } from "@/components/video/live-streaming";
 import { trafficIncidentsApi } from "@/lib/api/traffic-incidents";
 import { KOLKATA_CENTER } from "@/lib/platform/wb";
 import type { MapMarker } from "@/components/ui/Map";
@@ -52,11 +53,13 @@ const L = {
   },
 };
 
+type GisMarker = MapMarker & { href?: string; camera?: CameraRecord };
+
 interface LayerState {
   id: LayerId;
   label: { en: string; bn: string };
   type: MapMarker["type"];
-  markers: (MapMarker & { href?: string })[];
+  markers: GisMarker[];
   withoutPosition: number;
   capped: boolean;
   isPending: boolean;
@@ -72,7 +75,7 @@ export default function GISPage() {
     cameras: true,
     traffic: false,
   });
-  const [selected, setSelected] = useState<(MapMarker & { href?: string }) | null>(null);
+  const [selected, setSelected] = useState<GisMarker | null>(null);
 
   const stations = useStations();
   const vehicles = useQuery({
@@ -106,10 +109,10 @@ export default function GISPage() {
       type: MapMarker["type"],
       q: { data?: T[]; isPending: boolean; error: Error | null },
       total: number | undefined,
-      toMarker: (row: T) => (MapMarker & { href?: string }) | null,
+      toMarker: (row: T) => GisMarker | null,
     ): LayerState => {
       const rows = q.data ?? [];
-      const markers = rows.map(toMarker).filter((m): m is MapMarker & { href?: string } => m !== null);
+      const markers = rows.map(toMarker).filter((m): m is GisMarker => m !== null);
       return {
         id,
         label,
@@ -165,6 +168,7 @@ export default function GISPage() {
               description: `${c.location} · ${c.status}`,
               type: "patrol",
               href: "/video-intelligence",
+              camera: c,
             }
           : null,
       ),
@@ -265,6 +269,12 @@ export default function GISPage() {
                     <Link href={selected.href} className="text-accent hover:underline">
                       {pick(L.open)}
                     </Link>
+                  )}
+                  {selected.camera && (
+                    <div className="w-full max-w-xl">
+                      {/* Keyed by camera so a new selection never inherits the last viewing session. */}
+                      <LiveCameraPanel key={selected.camera.id} camera={selected.camera} compact />
+                    </div>
                   )}
                 </div>
               ) : (

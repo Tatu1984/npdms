@@ -26,6 +26,7 @@ export const videoKeys = {
   eventStats: () => ["video", "event-stats"] as const,
   search: (search: EventSearch) => ["video", "events", search] as const,
   accessLog: (page: number) => ["video", "access-log", page] as const,
+  liveCameras: () => ["video", "live-cameras"] as const,
 };
 
 export function useCameras(query: CameraQuery = {}) {
@@ -121,3 +122,36 @@ export const useSetEventRetention = () =>
   );
 
 export const usePurgeExpiredEvents = () => useVideoMutation((_: void) => videoApi.purgeExpired());
+
+/* ------------------------------------------------------------ live video -- */
+
+/**
+ * Cameras with streaming enabled and their liveness. The status is re-read
+ * gently — the server reads each camera's playlist to answer — and the poll
+ * pauses while a one-time token panel is open, so a refresh cannot re-render
+ * the dialog away before the token is copied.
+ */
+export function useLiveCameras(options: { paused?: boolean } = {}) {
+  return useQuery({
+    queryKey: videoKeys.liveCameras(),
+    queryFn: videoApi.liveCameras,
+    refetchInterval: options.paused ? false : 12000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
+// Streaming changes alter the register, stats and the wall; the Edge Agent
+// settings come back in the mutation result and are never cached.
+export const useEnableStreaming = () => useVideoMutation((id: string) => videoApi.enableStreaming(id));
+export const useRotateIngestToken = () => useVideoMutation((id: string) => videoApi.rotateIngestToken(id));
+export const useDisableStreaming = () =>
+  useVideoMutation(({ id, reason }: { id: string; reason: string }) => videoApi.disableStreaming(id, reason));
+
+/** Starting and ending a viewing session changes no list, so nothing is invalidated. */
+export const useStartLiveViewing = () =>
+  useMutation({
+    mutationFn: ({ purpose, cameraIds }: { purpose: string; cameraIds: string[] }) =>
+      videoApi.startLiveViewing(purpose, cameraIds),
+  });
+export const useEndLiveViewing = () => useMutation({ mutationFn: (id: string) => videoApi.endLiveViewing(id) });

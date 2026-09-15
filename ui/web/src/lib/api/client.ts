@@ -95,6 +95,24 @@ class ApiClient {
     }
   }
 
+  /**
+   * The current access token, for requests this client does not make itself —
+   * hls.js fetches live video playlists and segments with its own XHRs.
+   */
+  getAccessToken(): string | null {
+    return this.accessToken;
+  }
+
+  /** Renews the access token with the refresh token; false when that is not possible. */
+  async renewAccessToken(): Promise<boolean> {
+    try {
+      await this.refreshAccessToken();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** True when a token is held that can authenticate or renew a session. */
   hasTokens(): boolean {
     return Boolean(this.accessToken || this.refreshToken);
