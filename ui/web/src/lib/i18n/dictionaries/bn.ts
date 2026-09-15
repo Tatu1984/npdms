@@ -3,6 +3,7 @@ import { custodyBn } from "./custody.bn";
 import { investigationBn } from "./investigation.bn";
 import { accidentBn } from "./accident.bn";
 import { dispatchBn } from "./dispatch.bn";
+import { grievanceBn } from "./grievance.bn";
 
 /**
  * Bengali dictionary.
@@ -20,6 +21,7 @@ export const bn: DeepPartial<Dictionary> = {
   investigationScreen: investigationBn,
   accidentScreen: accidentBn,
   dispatchScreen: dispatchBn,
+  grievanceScreen: grievanceBn,
 
   common: {
     appName: "কলকাতা পুলিশ ডিজিটাল ইন্টেলিজেন্স প্ল্যাটফর্ম",
