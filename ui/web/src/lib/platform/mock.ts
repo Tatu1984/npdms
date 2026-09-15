@@ -686,51 +686,6 @@ export const RISK_AREAS: RiskArea[] = [
   },
 ];
 
-/* ------------------------------------------------ 11 Knowledge assistant */
-
-export interface KnowledgeDoc {
-  id: string;
-  title: Bilingual;
-  type: "sop" | "circular" | "manual" | "act" | "form" | "order";
-  reference: string;
-  issuedBy: Bilingual;
-  issuedOn: string;
-  pages: number;
-  indexed: boolean;
-}
-
-export const KNOWLEDGE_DOCS: KnowledgeDoc[] = [
-  { id: "kd-1", title: { en: "Bharatiya Nagarik Suraksha Sanhita, 2023 — investigation chapters", bn: "ভারতীয় নাগরিক সুরক্ষা সংহিতা, ২০২৩ — তদন্ত অধ্যায়" }, type: "act", reference: "BNSS 2023", issuedBy: { en: "Government of India", bn: "ভারত সরকার" }, issuedOn: "2023-12-25", pages: 412, indexed: true },
-  { id: "kd-2", title: { en: "Audio-video recording of search and seizure — standing order", bn: "তল্লাশি ও বাজেয়াপ্তকরণের অডিও-ভিডিও রেকর্ডিং — স্থায়ী আদেশ" }, type: "order", reference: "KP/SO/2024/17", issuedBy: { en: "Commissioner of Police, Kolkata", bn: "পুলিশ কমিশনার, কলকাতা" }, issuedOn: "2024-04-11", pages: 14, indexed: true },
-  { id: "kd-3", title: { en: "Handling of digital evidence — SOP", bn: "ডিজিটাল সাক্ষ্য পরিচালনা — এসওপি" }, type: "sop", reference: "KP/SOP/DE/2023/04", issuedBy: { en: "Cyber Cell, Lalbazar", bn: "সাইবার সেল, লালবাজার" }, issuedOn: "2023-09-02", pages: 38, indexed: true },
-  { id: "kd-4", title: { en: "Missing person — first 24 hours checklist", bn: "নিখোঁজ ব্যক্তি — প্রথম ২৪ ঘণ্টার চেকলিস্ট" }, type: "sop", reference: "WBP/SOP/MP/2022/11", issuedBy: { en: "West Bengal Police", bn: "পশ্চিমবঙ্গ পুলিশ" }, issuedOn: "2022-06-17", pages: 9, indexed: true },
-  { id: "kd-5", title: { en: "Malkhana management and periodic audit", bn: "মালখানা ব্যবস্থাপনা ও পর্যায়ক্রমিক নিরীক্ষা" }, type: "circular", reference: "KP/CIR/2024/58", issuedBy: { en: "Commissioner of Police, Kolkata", bn: "পুলিশ কমিশনার, কলকাতা" }, issuedOn: "2024-08-29", pages: 22, indexed: false },
-];
-
-export interface KnowledgeAnswer {
-  question: Bilingual;
-  answer: Bilingual;
-  sources: EvidenceSource[];
-  confidence: number;
-}
-
-export const SAMPLE_ANSWERS: KnowledgeAnswer[] = [
-  {
-    question: { en: "When must search and seizure be video recorded?", bn: "কখন তল্লাশি ও বাজেয়াপ্তকরণের ভিডিও রেকর্ডিং বাধ্যতামূলক?" },
-    answer: {
-      en: "BNSS section 105 requires audio-video recording of search and seizure, preferably on a mobile phone, and the recording must be forwarded to the District Magistrate without delay. Kolkata Police standing order KP/SO/2024/17 additionally requires the recording officer to be named in the seizure list and the file hash to be registered in the evidence ledger the same day.",
-      bn: "বিএনএসএস ১০৫ ধারা অনুযায়ী তল্লাশি ও বাজেয়াপ্তকরণের অডিও-ভিডিও রেকর্ডিং বাধ্যতামূলক, বিশেষত মোবাইল ফোনে, এবং রেকর্ডিং বিলম্ব না করে জেলা ম্যাজিস্ট্রেটের কাছে পাঠাতে হবে। কলকাতা পুলিশের স্থায়ী আদেশ KP/SO/2024/17 অনুযায়ী রেকর্ডিংকারী আধিকারিকের নাম বাজেয়াপ্ত তালিকায় উল্লেখ করতে হবে এবং ফাইল হ্যাশ একই দিনে সাক্ষ্য খতিয়ানে নথিভুক্ত করতে হবে।",
-    },
-    sources: [
-      { id: "ks-1", label: "BNSS 2023", type: "circular", locator: "s. 105" },
-      { id: "ks-2", label: "KP/SO/2024/17", type: "circular", locator: "para 3-4" },
-    ],
-    confidence: 0.93,
-  },
-];
-
-/* ------------------------------------------- 12 Case file & court readiness */
-
 export interface CaseFileDoc {
   id: string;
   serial: string;

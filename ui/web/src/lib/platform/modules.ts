@@ -328,8 +328,8 @@ export const MODULES: PlatformModule[] = [
     icon: Search,
     nameKey: "modules.knowledge",
     descKey: "modules.knowledgeDesc",
-    status: "preview",
-    aiAssisted: true,
+    status: "live",
+    aiAssisted: false,
   },
   {
     id: "audit",

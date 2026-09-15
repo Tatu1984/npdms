@@ -1,4 +1,5 @@
 import type { Dictionary } from "./en";
+import { knowledgeBn } from "./knowledge.bn";
 import { custodyBn } from "./custody.bn";
 
 /**
@@ -14,6 +15,7 @@ type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]>
 
 export const bn: DeepPartial<Dictionary> = {
   custodyScreen: custodyBn,
+  knowledgeScreen: knowledgeBn,
 
   common: {
     appName: "কলকাতা পুলিশ ডিজিটাল ইন্টেলিজেন্স প্ল্যাটফর্ম",
@@ -140,7 +142,7 @@ export const bn: DeepPartial<Dictionary> = {
       "স্বচ্ছ কারণ-বিশ্লেষণ সহ এলাকাভিত্তিক ঝুঁকি নির্ধারণ ও টহল সুপারিশ",
     knowledge: "জ্ঞান সহায়ক",
     knowledgeDesc:
-      "এসওপি, সার্কুলার ও বিএনএস/বিএনএসএস/বিএসএ ধারার উপর সূত্র-সহ উত্তর",
+      "এসওপি, সার্কুলার, স্থায়ী আদেশ ও বিএনএস/বিএনএসএস/বিএসএ পাঠ খুঁজুন; পদ্ধতির চেকলিস্ট অনুসরণ করুন",
     caseFile: "কেস ফাইল ও আদালত প্রস্তুতি",
     caseFileDesc:
       "কেস ফাইল সংকলন, সাক্ষ্য ও সাক্ষী তালিকা, সম্পূর্ণতা যাচাই ও দাখিল প্যাক",

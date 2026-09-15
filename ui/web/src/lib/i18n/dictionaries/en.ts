@@ -1,4 +1,5 @@
 import { custodyEn } from "./custody.en";
+import { knowledgeEn } from "./knowledge.en";
 
 /**
  * English dictionary — the source of truth for translation keys.
@@ -8,6 +9,7 @@ import { custodyEn } from "./custody.en";
  */
 export const en = {
   custodyScreen: custodyEn,
+  knowledgeScreen: knowledgeEn,
 
   common: {
     appName: "Kolkata Police Digital Intelligence Platform",
@@ -134,7 +136,7 @@ export const en = {
       "Area risk scoring with transparent contributing factors and patrol recommendations",
     knowledge: "Knowledge Assistant",
     knowledgeDesc:
-      "Source-cited answers over SOPs, circulars and BNS/BNSS/BSA provisions",
+      "Search SOPs, circulars, standing orders and BNS/BNSS/BSA text; follow procedure checklists",
     caseFile: "Case File & Court Readiness",
     caseFileDesc:
       "Case file assembly, evidence and witness matrices, completeness checks and submission packs",
