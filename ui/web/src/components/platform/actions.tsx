@@ -111,10 +111,16 @@ export function ActionMenu({
             <DropdownMenuItem
               key={action.id}
               disabled={action.disabled}
-              onSelect={(e) => {
-                e.preventDefault();
-                if (action.kind === "link") router.push(action.href);
-                else action.onSelect();
+              onSelect={() => {
+                if (action.kind === "link") {
+                  router.push(action.href);
+                  return;
+                }
+                // Let the menu close before the handler runs. Opening a dialog
+                // while the menu was still open (the old preventDefault) stacked
+                // two modal layers, and closing them left pointer-events: none
+                // on <body> — the whole page stopped responding to clicks.
+                setTimeout(action.onSelect, 0);
               }}
               className={cn(
                 "items-start",
