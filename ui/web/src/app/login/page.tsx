@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -50,6 +50,13 @@ export default function LoginPage() {
       password: "",
     },
   });
+
+  // Explain why the officer is back at sign-in when a session ended.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("reason") === "expired") {
+      setError("Your session has ended. Sign in again to continue.");
+    }
+  }, []);
 
   // Fill demo credentials
   const fillDemoCredentials = () => {

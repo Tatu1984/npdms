@@ -10,7 +10,8 @@ interface ApiError {
 
 interface RefreshResponse {
   accessToken: string;
-  expiresAt: string;
+  refreshToken?: string;
+  expiresAt?: string;
 }
 
 // CSRF Token management
@@ -55,6 +56,7 @@ class ApiClient {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
   private refreshPromise: Promise<string> | null = null;
+  private sessionExpiredHandler: (() => void) | null = null;
   private csrfToken: string | null = null;
   private rateLimiter: RateLimiter;
 
@@ -90,6 +92,28 @@ class ApiClient {
     if (typeof window !== 'undefined') {
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
+    }
+  }
+
+  /** True when a token is held that can authenticate or renew a session. */
+  hasTokens(): boolean {
+    return Boolean(this.accessToken || this.refreshToken);
+  }
+
+  /** Called when the session can no longer be used, so the UI can sign the officer out. */
+  setSessionExpiredHandler(handler: () => void) {
+    this.sessionExpiredHandler = handler;
+  }
+
+  /**
+   * Ends a session the API will no longer accept. Without this, the screen kept
+   * showing a signed-in officer while every request failed with 401.
+   */
+  private expireSession() {
+    this.clearTokens();
+    this.sessionExpiredHandler?.();
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login?reason=expired';
     }
   }
 
@@ -129,8 +153,11 @@ class ApiClient {
 
         const data: RefreshResponse = await response.json();
         this.accessToken = data.accessToken;
+        // The server issues a new refresh token with each refresh; keep it.
+        if (data.refreshToken) this.refreshToken = data.refreshToken;
         if (typeof window !== 'undefined') {
           localStorage.setItem('accessToken', data.accessToken);
+          if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
         }
         return data.accessToken;
       } finally {
@@ -181,23 +208,28 @@ class ApiClient {
       credentials: 'same-origin', // Include cookies for CSRF validation
     });
 
-    // Handle 401 - try to refresh token
-    if (response.status === 401 && this.refreshToken) {
+    // 401: renew the session once with the refresh token, then retry. A sign-in
+    // attempt is exempt — its 401 means wrong credentials, not an expired session.
+    const isSignIn = endpoint.startsWith('/auth/login');
+    if (response.status === 401 && !isSignIn) {
+      if (!this.refreshToken) {
+        this.expireSession();
+        throw new ApiClientError('Your session has ended. Sign in again.', 401, 'session_expired');
+      }
       try {
         await this.refreshAccessToken();
-        // Retry the request with new token
         (headers as Record<string, string>)['Authorization'] = `Bearer ${this.accessToken}`;
         response = await fetch(url, {
           ...options,
           headers,
         });
       } catch {
-        // Refresh failed, redirect to login
-        this.clearTokens();
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
-        }
-        throw new Error('Session expired. Please login again.');
+        this.expireSession();
+        throw new ApiClientError('Your session has ended. Sign in again.', 401, 'session_expired');
+      }
+      if (response.status === 401) {
+        this.expireSession();
+        throw new ApiClientError('Your session has ended. Sign in again.', 401, 'session_expired');
       }
     }
 

@@ -20,6 +20,8 @@ interface AuthState {
   setUser: (user: User) => void;
   setSyncStatus: (status: SyncState["status"]) => void;
   setHasHydrated: (state: boolean) => void;
+  /** Forget the signed-in officer locally, without calling the API. */
+  clearSession: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -83,6 +85,10 @@ export const useAuthStore = create<AuthState>()(
         });
       },
 
+      clearSession: () => {
+        set({ user: null, isAuthenticated: false });
+      },
+
       setUser: (user: User) => {
         set({ user, isAuthenticated: true });
       },
@@ -105,6 +111,12 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {
+        // A remembered officer with no tokens cannot make a single request —
+        // for example a session saved by an older build that signed in without
+        // the API. Treat it as signed out so the officer is sent to sign in.
+        if (state?.isAuthenticated && !apiClient.hasTokens()) {
+          state.clearSession();
+        }
         state?.setHasHydrated(true);
       },
     }
@@ -148,3 +160,7 @@ export function getRoleDisplayName(role: Role): string {
   };
   return names[role];
 }
+
+// When the API rejects a session that cannot be renewed, sign the officer out
+// here too, so no screen keeps showing a session that no longer works.
+apiClient.setSessionExpiredHandler(() => useAuthStore.getState().clearSession());
