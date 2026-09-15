@@ -10,8 +10,10 @@ import {
   Clock,
   FileSearch,
   Lock,
+  Map as MapIcon,
   MapPin,
   MessageSquare,
+  Radio,
   Pencil,
   Route,
   ScanFace,
@@ -49,7 +51,13 @@ import {
   useRecordMissingSighting,
   useStartSearch,
   useUpdateMissingPerson,
+  useMissingBoard,
 } from "@/hooks/use-missing-persons";
+import { LocationPicker, type LocationValue } from "@/components/ui/LocationPicker";
+import { PhotoGallery } from "../photos";
+import { SearchMapPanel } from "../search-map";
+import { StationCheckDialog, StationChecksPanel } from "../station-checks";
+import { BoardCard } from "../board-card";
 import { EmptyState, Field as InfoField, PageHeader, Panel, PhaseBadge, StatTile, StatusPill } from "@/components/platform/primitives";
 import { act } from "@/components/platform/actions";
 import { OfficerPicker } from "@/components/platform/pickers";
@@ -78,7 +86,7 @@ type DialogKind = null | "edit" | "close" | "lookout" | "start" | "sighting" | "
 export default function MissingPersonDetailPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
-  const { pick } = useI18n();
+  const { pick, t } = useI18n();
   const { user } = useAuthStore();
   const id = params.id;
 
@@ -93,9 +101,14 @@ export default function MissingPersonDetailPage() {
   const [dialog, setDialog] = React.useState<DialogKind>(null);
   const [completing, setCompleting] = React.useState<ChecklistItem | null>(null);
   const [rejecting, setRejecting] = React.useState<MissingSighting | null>(null);
+  const [checking, setChecking] = React.useState(false);
 
   const canSI = Boolean(user && hasMinimumRole(user.role, "SI"));
   const canASI = Boolean(user && hasMinimumRole(user.role, "ASI"));
+  const restricted = report.error instanceof ApiClientError && report.error.code === 403;
+  // A child's record refused to this officer: the broadcast view still applies.
+  const board = useMissingBoard(restricted);
+  const myStationId = user?.stationId ?? null;
 
   if (report.isLoading) {
     return (
@@ -108,7 +121,46 @@ export default function MissingPersonDetailPage() {
     );
   }
 
-  if (report.isError) {
+  const broadcastEntry = restricted ? board.data?.data.find((e) => e.id === id) : undefined;
+  if (restricted && broadcastEntry && board.data) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col gap-5">
+          <PageHeader
+            title={broadcastEntry.personName}
+            description={`${broadcastEntry.reportNumber} · ${broadcastEntry.stationName}`}
+            icon={Radio}
+            badge={<PhaseBadge phase={4} />}
+            breadcrumb={[{ label: pick(L.back), href: "/missing-persons" }, { label: broadcastEntry.reportNumber }]}
+          />
+          <Alert variant="info">
+            <Lock />
+            <AlertDescription>{pick(L.broadcastOnly)}</AlertDescription>
+          </Alert>
+          <BoardCard
+            entry={broadcastEntry}
+            stations={board.data.stations}
+            myStation={board.data.viewerStationId}
+            now={board.dataUpdatedAt}
+            onCheck={canASI && board.data.viewerStationId ? () => setChecking(true) : undefined}
+          />
+          <StationChecksPanel reportId={id} />
+        </div>
+        {checking && (
+          <StationCheckDialog
+            open
+            onClose={() => setChecking(false)}
+            reportId={id}
+            reportNumber={broadcastEntry.reportNumber}
+            personName={broadcastEntry.personName}
+            stationName={board.data.stations.find((s) => s.id === board.data?.viewerStationId)?.name ?? ""}
+          />
+        )}
+      </DashboardLayout>
+    );
+  }
+
+  if (report.isError && !(restricted && board.isLoading)) {
     const code = report.error instanceof ApiClientError ? report.error.code : 0;
     return (
       <DashboardLayout>
@@ -133,7 +185,16 @@ export default function MissingPersonDetailPage() {
     );
   }
 
+  if (!report.data) {
+    return (
+      <DashboardLayout>
+        <Skeleton className="h-64 w-full" />
+      </DashboardLayout>
+    );
+  }
+
   const p = report.data as MissingPerson;
+  const canCheckHere = canASI && (p.status === "REPORTED" || p.status === "SEARCHING") && Boolean(myStationId) && p.stationId !== myStationId;
   const open = p.status === "REPORTED" || p.status === "SEARCHING";
   const hoursSince = Math.max(0, Math.round((Date.now() - new Date(p.lastSeenAt).getTime()) / 3_600_000));
   const pendingDecisions = (sightings.data ?? []).filter((s) => !s.decision).length;
@@ -149,6 +210,12 @@ export default function MissingPersonDetailPage() {
           breadcrumb={[{ label: pick(L.back), href: "/missing-persons" }, { label: p.reportNumber }]}
           actions={
             <>
+              {canCheckHere && (
+                <Button variant="outline" onClick={() => setChecking(true)} data-testid="detail-record-check">
+                  <Radio className="h-4 w-4" />
+                  {t("missingBoard.board.recordCheck")}
+                </Button>
+              )}
               {p.status === "REPORTED" && canASI && (
                 <Button onClick={() => setDialog("start")}>
                   <ShieldCheck className="h-4 w-4" />
@@ -203,6 +270,8 @@ export default function MissingPersonDetailPage() {
           </Alert>
         )}
 
+        <PhotoGallery person={p} canUpload={canASI} canRetire={canSI} />
+
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="overview">{pick(L.overview)}</TabsTrigger>
@@ -212,7 +281,12 @@ export default function MissingPersonDetailPage() {
             <TabsTrigger value="sightings">
               {pick(L.sightings)} ({p.sightingCount})
             </TabsTrigger>
+            <TabsTrigger value="map">
+              <MapIcon className="mr-1 h-3.5 w-3.5" />
+              {t("missingBoard.map.tab")}
+            </TabsTrigger>
             <TabsTrigger value="movement">{pick(L.movement)}</TabsTrigger>
+            <TabsTrigger value="checks">{pick(L.stationChecks)}</TabsTrigger>
             <TabsTrigger value="family">{pick(L.family)}</TabsTrigger>
           </TabsList>
 
@@ -373,6 +447,24 @@ export default function MissingPersonDetailPage() {
             </Panel>
           </TabsContent>
 
+          <TabsContent value="map">
+            {tab === "map" && <SearchMapPanel person={p} canSetPoint={canSI} />}
+          </TabsContent>
+
+          <TabsContent value="checks">
+            <StationChecksPanel
+              reportId={p.id}
+              actions={
+                canCheckHere ? (
+                  <Button size="sm" variant="outline" onClick={() => setChecking(true)}>
+                    <Radio className="h-3.5 w-3.5" />
+                    {t("missingBoard.board.recordCheck")}
+                  </Button>
+                ) : undefined
+              }
+            />
+          </TabsContent>
+
           <TabsContent value="family">
             <Panel
               title={pick(L.family)}
@@ -410,6 +502,16 @@ export default function MissingPersonDetailPage() {
       <ContactDialog open={dialog === "contact"} onClose={() => setDialog(null)} person={p} />
       <CompleteItemDialog item={completing} onClose={() => setCompleting(null)} person={p} />
       <RejectDialog sighting={rejecting} onClose={() => setRejecting(null)} person={p} />
+      {checking && (
+        <StationCheckDialog
+          open
+          onClose={() => setChecking(false)}
+          reportId={p.id}
+          reportNumber={p.reportNumber}
+          personName={p.personName}
+          stationName={user?.stationName ?? ""}
+        />
+      )}
     </DashboardLayout>
   );
 }
@@ -745,19 +847,15 @@ function SightingDialog({ open, onClose, person }: { open: boolean; onClose: () 
   const record = useRecordMissingSighting();
   const { error, setError, run } = useDialogSubmit(onClose);
   const [source, setSource] = React.useState<SightingSource>("OFFICER_OBSERVATION");
-  const [location, setLocation] = React.useState("");
+  const [place, setPlace] = React.useState<LocationValue>({ location: "", latitude: null, longitude: null });
   const [sightedAt, setSightedAt] = React.useState("");
-  const [lat, setLat] = React.useState("");
-  const [lng, setLng] = React.useState("");
   const [details, setDetails] = React.useState("");
   React.useEffect(() => {
     if (open) {
       setError(null);
       setSource("OFFICER_OBSERVATION");
-      setLocation("");
+      setPlace({ location: "", latitude: null, longitude: null });
       setSightedAt(nowLocal());
-      setLat("");
-      setLng("");
       setDetails("");
     }
   }, [open, setError]);
@@ -771,7 +869,7 @@ function SightingDialog({ open, onClose, person }: { open: boolean; onClose: () 
       confirmLabel={pick(L.recordSighting)}
       error={error}
       onConfirm={() => {
-        if (!location.trim() || !sightedAt) {
+        if (!place.location.trim() || !sightedAt) {
           setError(pick(L.requiredMissing));
           return;
         }
@@ -780,10 +878,10 @@ function SightingDialog({ open, onClose, person }: { open: boolean; onClose: () 
             id: person.id,
             input: {
               source,
-              location,
+              location: place.location,
               sightedAt: toApiTime(sightedAt),
-              latitude: lat === "" ? null : Number(lat),
-              longitude: lng === "" ? null : Number(lng),
+              latitude: place.latitude,
+              longitude: place.longitude,
               details,
             },
           }),
@@ -799,20 +897,10 @@ function SightingDialog({ open, onClose, person }: { open: boolean; onClose: () 
           ))}
         </select>
       </Field>
-      <Field id="sg-location" label={`${pick(L.location)} *`}>
-        <Input id="sg-location" value={location} onChange={(v: string) => setLocation(v)} />
-      </Field>
+      <LocationPicker value={place} onChange={setPlace} label={`${pick(L.location)} *`} mapHeight="240px" />
       <Field id="sg-time" label={`${pick(L.sightedAt)} *`}>
         <Input id="sg-time" type="datetime-local" value={sightedAt} onChange={(v: string) => setSightedAt(v)} />
       </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field id="sg-lat" label={pick(L.latitude)}>
-          <Input id="sg-lat" type="number" step="any" value={lat} onChange={(v: string) => setLat(v)} />
-        </Field>
-        <Field id="sg-lng" label={pick(L.longitude)}>
-          <Input id="sg-lng" type="number" step="any" value={lng} onChange={(v: string) => setLng(v)} />
-        </Field>
-      </div>
       <Field id="sg-details" label={pick(L.details)}>
         <Textarea id="sg-details" rows={2} value={details} onChange={(v: string) => setDetails(v)} />
       </Field>

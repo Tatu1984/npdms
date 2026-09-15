@@ -8,7 +8,9 @@ import {
   ClipboardList,
   Clock,
   FileSearch,
+  ImagePlus,
   Inbox,
+  Radio,
   Search,
   ShieldAlert,
   UserPlus,
@@ -18,7 +20,11 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useI18n } from "@/lib/i18n";
 import {
   GENDERS,
+  PHOTO_MAX_BYTES,
+  PHOTO_SOURCES,
+  PHOTO_TYPES,
   VULNERABILITIES,
+  type PhotoSource,
   type Gender,
   type MissingPerson,
   type MissingPersonStatus,
@@ -28,7 +34,9 @@ import {
   useMissingPersons,
   useMissingPersonStats,
   useRegisterMissingPerson,
+  useUploadPhoto,
 } from "@/hooks/use-missing-persons";
+import { LocationPicker, type LocationValue } from "@/components/ui/LocationPicker";
 import { DataTable, type Column } from "@/components/platform/data-table";
 import { act, type Action } from "@/components/platform/actions";
 import { EmptyState, PageHeader, PhaseBadge, StatTile, StatusPill } from "@/components/platform/primitives";
@@ -51,6 +59,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { hasMinimumRole, useAuthStore } from "@/stores/authStore";
 import { GENDER, L, PRIORITY, STATUS, VULNERABILITY } from "./labels";
 import { errorMessage, Field, selectClass, toApiTime } from "./shared";
+import { PersonThumb } from "./photos";
 
 const PAGE_SIZE = 20;
 
@@ -58,6 +67,8 @@ export default function MissingPersonsPage() {
   const router = useRouter();
   const { t, pick } = useI18n();
   const { user } = useAuthStore();
+  const uploadPhoto = useUploadPhoto();
+  const [photoFailure, setPhotoFailure] = React.useState<{ id: string; message: string } | null>(null);
   const canRegister = Boolean(user && hasMinimumRole(user.role, "ASI"));
 
   const [search, setSearch] = React.useState("");
@@ -90,12 +101,15 @@ export default function MissingPersonsPage() {
       id: "person",
       header: pick(L.person),
       cell: (p) => (
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-3">
+          <PersonThumb reportId={p.id} photoId={p.primaryPhotoId} name={p.personName} />
+          <div className="min-w-0">
           <p className="truncate font-medium text-foreground">
             {p.personName}
             {p.masked && <span className="ml-2 text-xs font-normal text-foreground-subtle">({pick(L.masked)})</span>}
           </p>
           <p className="mt-0.5 font-mono text-xs text-foreground-subtle">{p.reportNumber}</p>
+          </div>
         </div>
       ),
     },
@@ -184,18 +198,39 @@ export default function MissingPersonsPage() {
           badge={<PhaseBadge phase={4} />}
           breadcrumb={[{ label: t("nav.surveillanceGroup") }, { label: t("modules.missingPersons") }]}
           actions={
-            canRegister ? (
-              <Button onClick={() => setRegisterOpen(true)}>
-                <UserPlus className="h-4 w-4" />
-                {pick(L.register)}
+            <>
+              <Button variant="outline" onClick={() => router.push("/missing-persons/board")} data-testid="open-board">
+                <Radio className="h-4 w-4" />
+                {t("missingBoard.board.open")}
               </Button>
-            ) : undefined
+              {canRegister && (
+                <Button onClick={() => setRegisterOpen(true)}>
+                  <UserPlus className="h-4 w-4" />
+                  {pick(L.register)}
+                </Button>
+              )}
+            </>
           }
           menu={[
             act.link("lookout", pick(L.lookoutRegister), "/lookout", { icon: Users }),
             act.link("audit", pick(L.audit), "/audit", { icon: ClipboardList }),
           ]}
         />
+
+        {photoFailure && (
+          <Alert variant="danger">
+            <AlertTriangle />
+            <div>
+              <AlertTitle>{pick(L.photoNotAdded)}</AlertTitle>
+              <AlertDescription>
+                {photoFailure.message}
+                <Button size="sm" variant="outline" className="mt-2" onClick={() => router.push(`/missing-persons/${photoFailure.id}`)}>
+                  {pick(L.overview)}
+                </Button>
+              </AlertDescription>
+            </div>
+          </Alert>
+        )}
 
         <Alert variant="info">
           <ShieldAlert />
@@ -303,8 +338,18 @@ export default function MissingPersonsPage() {
         onOpenChange={setRegisterOpen}
         pending={register.isPending}
         error={register.error}
-        onSubmit={async (input) => {
+        onSubmit={async (input, photo) => {
           const created = await register.mutateAsync(input);
+          if (photo) {
+            try {
+              await uploadPhoto.mutateAsync({ id: created.id, input: photo });
+            } catch (err) {
+              // The report stands; say plainly that the photograph did not.
+              setRegisterOpen(false);
+              setPhotoFailure({ id: created.id, message: `${created.reportNumber}: ${errorMessage(err) ?? ""}` });
+              return;
+            }
+          }
           setRegisterOpen(false);
           router.push(`/missing-persons/${created.id}`);
         }}
@@ -322,11 +367,14 @@ function RegisterDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (input: Parameters<ReturnType<typeof useRegisterMissingPerson>["mutateAsync"]>[0]) => Promise<void>;
+  onSubmit: (
+    input: Parameters<ReturnType<typeof useRegisterMissingPerson>["mutateAsync"]>[0],
+    photo: Parameters<ReturnType<typeof useUploadPhoto>["mutateAsync"]>[0]["input"] | null,
+  ) => Promise<void>;
   pending: boolean;
   error: unknown;
 }) {
-  const { pick } = useI18n();
+  const { pick, t } = useI18n();
   const empty = {
     personName: "",
     age: "",
@@ -347,9 +395,21 @@ function RegisterDialog({
   const [officer, setOfficer] = React.useState<{ id: string; name: string } | null>(null);
   const [fir, setFir] = React.useState<RecordLink | null>(null);
   const [localError, setLocalError] = React.useState<string | null>(null);
+  const [place, setPlace] = React.useState<LocationValue>({ location: "", latitude: null, longitude: null });
+  const [photoFile, setPhotoFile] = React.useState<File | null>(null);
+  const [photoSource, setPhotoSource] = React.useState<PhotoSource>("FAMILY");
+  const [photoProvider, setPhotoProvider] = React.useState("");
+  const [photoRelation, setPhotoRelation] = React.useState("");
+  const [photoConsent, setPhotoConsent] = React.useState(false);
 
   React.useEffect(() => {
     if (open) {
+      setPlace({ location: "", latitude: null, longitude: null });
+      setPhotoFile(null);
+      setPhotoSource("FAMILY");
+      setPhotoProvider("");
+      setPhotoRelation("");
+      setPhotoConsent(false);
       setForm(empty);
       setFlags([]);
       setOfficer(null);
@@ -368,9 +428,16 @@ function RegisterDialog({
 
   const submit = async () => {
     setLocalError(null);
-    const required = [form.personName, form.age, form.lastSeenLocation, form.lastSeenAt, form.reporterName, form.reporterPhone, form.reporterRelation];
+    const required = [form.personName, form.age, place.location, form.lastSeenAt, form.reporterName, form.reporterPhone, form.reporterRelation];
     if (required.some((v) => v.trim() === "")) {
       setLocalError(pick(L.requiredMissing));
+      return;
+    }
+    // The photograph's giver defaults to the informant when left blank.
+    const provider = (photoProvider || form.reporterName).trim();
+    const relation = (photoRelation || form.reporterRelation).trim();
+    if (photoFile && (!provider || !relation)) {
+      setLocalError(t("missingBoard.upload.required"));
       return;
     }
     const opt = (v: string) => (v.trim() === "" ? null : v.trim());
@@ -382,7 +449,9 @@ function RegisterDialog({
         height: opt(form.height),
         complexion: opt(form.complexion),
         identifyingMarks: opt(form.identifyingMarks),
-        lastSeenLocation: form.lastSeenLocation.trim(),
+        lastSeenLocation: place.location.trim(),
+        lastSeenLatitude: place.latitude,
+        lastSeenLongitude: place.longitude,
         lastSeenAt: toApiTime(form.lastSeenAt),
         lastSeenWearing: opt(form.lastSeenWearing),
         circumstances: opt(form.circumstances),
@@ -392,7 +461,7 @@ function RegisterDialog({
         reporterRelation: form.reporterRelation.trim(),
         assignedTo: officer?.id ?? null,
         firId: fir ? (fir.kind === "fir" ? fir.id : fir.firId) : null,
-      });
+      }, photoFile ? { file: photoFile, source: photoSource, providedByName: provider, relationship: relation, consentRecorded: photoConsent } : null);
     } catch {
       // The mutation error is shown below from `error`.
     }
@@ -437,9 +506,9 @@ function RegisterDialog({
             <Field id="mp-marks" label={pick(L.marks)} wide>
               <Input id="mp-marks" value={form.identifyingMarks} onChange={set("identifyingMarks")} />
             </Field>
-            <Field id="mp-place" label={`${pick(L.lastSeenPlace)} *`}>
-              <Input id="mp-place" value={form.lastSeenLocation} onChange={set("lastSeenLocation")} />
-            </Field>
+            <div className="sm:col-span-2">
+              <LocationPicker value={place} onChange={setPlace} label={`${pick(L.lastSeenPlace)} *`} mapHeight="220px" />
+            </div>
             <Field id="mp-time" label={`${pick(L.lastSeenTime)} *`}>
               <Input id="mp-time" type="datetime-local" value={form.lastSeenAt} onChange={set("lastSeenAt")} />
             </Field>
@@ -483,6 +552,54 @@ function RegisterDialog({
             <Field id="mp-rrel" label={`${pick(L.relation)} *`}>
               <Input id="mp-rrel" value={form.reporterRelation} onChange={set("reporterRelation")} />
             </Field>
+          </section>
+
+          <section className="grid gap-3 sm:grid-cols-2" data-testid="register-photo">
+            <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-foreground-subtle sm:col-span-2">
+              <ImagePlus className="h-3.5 w-3.5" />
+              {pick(L.photoOptional)}
+            </h3>
+            <p className="text-xs text-foreground-muted sm:col-span-2">{t("missingBoard.upload.description")}</p>
+            <div className="grid gap-1.5 sm:col-span-2">
+              <label htmlFor="mp-photo" className="text-sm font-medium text-foreground">{t("missingBoard.upload.file")}</label>
+              <input
+                id="mp-photo"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  setLocalError(null);
+                  if (!f) return setPhotoFile(null);
+                  if (!PHOTO_TYPES.includes(f.type)) return setLocalError(t("missingBoard.upload.wrongType"));
+                  if (f.size > PHOTO_MAX_BYTES) return setLocalError(t("missingBoard.upload.tooLarge"));
+                  setPhotoFile(f);
+                }}
+                className="text-sm text-foreground-muted file:mr-3 file:rounded-md file:border file:border-border file:bg-background-secondary file:px-3 file:py-1.5 file:text-sm file:text-foreground"
+              />
+            </div>
+            {photoFile && (
+              <>
+                <Field id="mp-photo-source" label={t("missingBoard.upload.source")}>
+                  <select id="mp-photo-source" className={selectClass} value={photoSource} onChange={(e) => setPhotoSource(e.target.value as PhotoSource)}>
+                    {PHOTO_SOURCES.map((s) => (
+                      <option key={s} value={s}>
+                        {t(`missingBoard.photos.source.${s}`)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field id="mp-photo-provider" label={t("missingBoard.upload.providerName")}>
+                  <Input id="mp-photo-provider" placeholder={form.reporterName} value={photoProvider} onChange={(v: string) => setPhotoProvider(v)} />
+                </Field>
+                <Field id="mp-photo-relation" label={t("missingBoard.upload.relationship")}>
+                  <Input id="mp-photo-relation" placeholder={form.reporterRelation} value={photoRelation} onChange={(v: string) => setPhotoRelation(v)} />
+                </Field>
+                <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                  <Checkbox checked={photoConsent} onCheckedChange={(c) => setPhotoConsent(c === true)} aria-label={t("missingBoard.upload.consent")} />
+                  {t("missingBoard.upload.consent")}
+                </label>
+              </>
+            )}
           </section>
 
           <section className="grid gap-3">

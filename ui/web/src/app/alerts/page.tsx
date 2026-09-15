@@ -132,6 +132,14 @@ function AlertCard({
                 </Button>
               )
             )}
+            {alert.resourceType === "missing_person" && alert.resourceId && (
+              <Link href={`/missing-persons/${alert.resourceId}`} data-testid="alert-open-report">
+                <Button variant="outline" size="sm">
+                  <Radio className="h-4 w-4 mr-1" />
+                  Open missing-person report
+                </Button>
+              </Link>
+            )}
             <Link href={`/alerts/${alert.id}`}>
               <Button variant="ghost" size="sm">
                 <Eye className="h-4 w-4 mr-1" />

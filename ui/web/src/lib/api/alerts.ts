@@ -36,6 +36,9 @@ export interface Alert {
   priority: AlertPriority;
   image: boolean;
   stationId: string | null;
+  /** The record the platform raised the alert from ("missing_person" → the report). */
+  resourceType: string | null;
+  resourceId: string | null;
   createdAt: string;
   updatedAt: string;
 }

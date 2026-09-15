@@ -2,6 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import missingPersonsApi, {
+  type RecordStationCheckInput,
+  type UploadPhotoInput,
   type CloseInput,
   type MissingPersonQuery,
   type RecordContactInput,
@@ -25,7 +27,17 @@ export const missingPersonKeys = {
   sightings: (id: string) => ["missing-persons", id, "sightings"] as const,
   movement: (id: string) => ["missing-persons", id, "movement"] as const,
   contacts: (id: string) => ["missing-persons", id, "contacts"] as const,
+  board: () => ["missing-persons", "board"] as const,
+  photos: (id: string, includeRetired: boolean) => ["missing-persons", id, "photos", includeRetired] as const,
+  checks: (id: string) => ["missing-persons", id, "checks"] as const,
+  map: (id: string) => ["missing-persons", id, "map"] as const,
 };
+
+/**
+ * Image bytes live under their own root, so invalidating a report never
+ * re-downloads its photographs (a photograph's bytes never change).
+ */
+export const photoBlobKey = (photoId: string, variant: "image" | "thumbnail") => ["missing-person-photo", photoId, variant] as const;
 
 export const useMissingPersons = (query: MissingPersonQuery = {}) =>
   useQuery({ queryKey: missingPersonKeys.list(query), queryFn: () => missingPersonsApi.list(query) });
@@ -87,3 +99,82 @@ export const useCloseMissingPerson = () =>
   useMissingMutation(({ id, input }: { id: string; input: CloseInput }) => missingPersonsApi.close(id, input));
 
 export const useIssueMissingLookout = () => useMissingMutation((id: string) => missingPersonsApi.issueLookout(id));
+
+/* ------------------------------------------------ photographs, board, map */
+
+/** Polling interval of the city-wide board. */
+export const BOARD_POLL_MS = 20_000;
+
+export const useMissingBoard = (enabled = true) =>
+  useQuery({
+    queryKey: missingPersonKeys.board(),
+    queryFn: missingPersonsApi.board,
+    enabled,
+    refetchInterval: BOARD_POLL_MS,
+    refetchIntervalInBackground: true,
+  });
+
+export const useMissingPhotos = (id: string, includeRetired = false, enabled = true) =>
+  useQuery({
+    queryKey: missingPersonKeys.photos(id, includeRetired),
+    queryFn: () => missingPersonsApi.photos(id, includeRetired),
+    enabled: Boolean(id) && enabled,
+  });
+
+/** An object URL for a photograph, fetched once with the officer's credentials. */
+export const usePhotoUrl = (reportId: string, photoId: string | null | undefined, variant: "image" | "thumbnail") =>
+  useQuery({
+    queryKey: photoBlobKey(photoId ?? "none", variant),
+    queryFn: async () => URL.createObjectURL(await missingPersonsApi.photoBlob(reportId, photoId as string, variant)),
+    enabled: Boolean(reportId && photoId),
+    staleTime: Infinity,
+    gcTime: 30 * 60_000,
+    retry: false,
+  });
+
+export const useStationChecks = (id: string, enabled = true) =>
+  useQuery({ queryKey: missingPersonKeys.checks(id), queryFn: () => missingPersonsApi.stationChecks(id), enabled: Boolean(id) && enabled });
+
+export const useSearchMap = (id: string, enabled = true) =>
+  useQuery({ queryKey: missingPersonKeys.map(id), queryFn: () => missingPersonsApi.searchMap(id), enabled: Boolean(id) && enabled });
+
+/** Invalidates only what a photograph change affects. */
+function usePhotoMutation<TVars extends { id: string }, TResult>(fn: (vars: TVars) => Promise<TResult>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: (_r, vars) => {
+      qc.invalidateQueries({ queryKey: ["missing-persons", vars.id, "photos"] });
+      qc.invalidateQueries({ queryKey: missingPersonKeys.detail(vars.id) });
+      qc.invalidateQueries({ queryKey: ["missing-persons", "list"] });
+      qc.invalidateQueries({ queryKey: missingPersonKeys.board() });
+    },
+  });
+}
+
+export const useUploadPhoto = () =>
+  usePhotoMutation(({ id, input }: { id: string; input: UploadPhotoInput }) => missingPersonsApi.uploadPhoto(id, input));
+
+export const useSetPrimaryPhoto = () =>
+  usePhotoMutation(({ id, photoId }: { id: string; photoId: string }) => missingPersonsApi.setPrimaryPhoto(id, photoId));
+
+export const useRetirePhoto = () =>
+  usePhotoMutation(({ id, photoId, reason }: { id: string; photoId: string; reason: string }) =>
+    missingPersonsApi.retirePhoto(id, photoId, reason),
+  );
+
+export const useRecordStationCheck = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: RecordStationCheckInput }) => missingPersonsApi.recordStationCheck(id, input),
+    onSuccess: (check, { id }) => {
+      qc.invalidateQueries({ queryKey: missingPersonKeys.board() });
+      qc.invalidateQueries({ queryKey: missingPersonKeys.checks(id) });
+      if (check.sightingId) {
+        qc.invalidateQueries({ queryKey: missingPersonKeys.sightings(id) });
+        qc.invalidateQueries({ queryKey: missingPersonKeys.map(id) });
+        qc.invalidateQueries({ queryKey: missingPersonKeys.detail(id) });
+      }
+    },
+  });
+};

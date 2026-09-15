@@ -240,4 +240,14 @@ export const L = {
   closedBy: { en: "Closed by", bn: "বন্ধ করেছেন" },
   audit: { en: "Audit trail", bn: "নিরীক্ষা নথি" },
   lookoutRegister: { en: "Lookout register", bn: "লুকআউট রেজিস্টার" },
+  photoOptional: { en: "Photograph (optional)", bn: "ছবি (ঐচ্ছিক)" },
+  photoNotAdded: {
+    en: "The report was registered, but the photograph was not added",
+    bn: "অভিযোগ নথিভুক্ত হয়েছে, কিন্তু ছবি যোগ করা যায়নি",
+  },
+  stationChecks: { en: "Station checks", bn: "থানাগুলির যাচাই" },
+  broadcastOnly: {
+    en: "This report concerns a child. You are seeing the broadcast details every officer receives while the search is open.",
+    bn: "এই অভিযোগ একটি শিশুর। খোঁজ চলাকালীন প্রত্যেক আধিকারিক যে তথ্য পান আপনি সেটুকুই দেখছেন।",
+  },
 } satisfies Record<string, B>;
