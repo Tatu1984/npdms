@@ -1,0 +1,233 @@
+import type { accidentEn } from "./accident.en";
+
+type Widen<T> = T extends string ? string : { [K in keyof T]: Widen<T[K]> };
+
+/**
+ * Bengali strings for the Phase 06 accident-reconstruction screens, in the
+ * vocabulary of West Bengal Police paperwork — থানা, এজাহার, চালান.
+ */
+export const accidentBn: Widen<typeof accidentEn> = {
+  register: "ঘটনা নথিভুক্ত করুন",
+  registerTitle: "ট্রাফিক দুর্ঘটনা নথিভুক্ত করুন",
+  registerDesc:
+    "কোথায় ও কখন ঘটেছে এবং তখনকার অবস্থা লিখুন। যানবাহন, ব্যক্তি, ক্যামেরা ফুটেজ, নম্বর প্লেট পাঠ, সিগন্যালের দশা ও সময়রেখার তথ্য ঘটনার পাতায় যুক্ত করা হয়।",
+  editTitle: "ঘটনার বিবরণ সম্পাদনা",
+  save: "সংরক্ষণ",
+  saving: "সংরক্ষণ হচ্ছে…",
+  cancel: "বাতিল",
+  remove: "সরান",
+  add: "যোগ করুন",
+  none: "কিছু নথিভুক্ত নেই",
+  loadFailed: "লোড করা যায়নি",
+  retry: "আবার চেষ্টা করুন",
+  notFound: "ঘটনা পাওয়া যায়নি",
+  notFoundDesc: "এই রেফারেন্সে কোনো ট্রাফিক ঘটনা নেই।",
+  back: "ঘটনার তালিকায় ফিরুন",
+  laterLayer:
+    "গতিপথ পুনর্গঠন, ফুটেজ থেকে গতি নির্ণয় ও স্বয়ংক্রিয় শনাক্তকরণ পরবর্তী এআই স্তর। এই পাতার কিছুই কোনো মডেল হিসাব করেনি: প্রতিটি এন্ট্রি উৎসসহ সংরক্ষিত নথি।",
+
+  stats: {
+    total: "ঘটনা",
+    fatalities: "মৃত্যু",
+    grievous: "গুরুতর আহত",
+    awaiting: "অনুমোদনের অপেক্ষায় রিপোর্ট",
+    withoutReport: "রিপোর্ট ছাড়া",
+  },
+
+  list: {
+    search: "রেফারেন্স, স্থান বা রেজিস্ট্রেশন নম্বর দিয়ে খুঁজুন",
+    incident: "ঘটনা",
+    when: "কখন",
+    vehicles: "যানবাহন",
+    casualties: "হতাহত",
+    evidence: "যুক্ত",
+    report: "রিপোর্ট",
+    filterAll: "সব রিপোর্ট",
+    fatalOnly: "শুধু মৃত্যুজনিত",
+    empty: "কোনো ট্রাফিক ঘটনা নেই",
+    emptyDesc: "নথিভুক্ত ঘটনা এখানে দেখা যাবে।",
+    page: "পাতা {page} / {pages}",
+    previous: "আগের",
+    next: "পরের",
+    open: "ঘটনা খুলুন",
+    linkedFir: "যুক্ত এজাহার খুলুন",
+  },
+
+  fields: {
+    occurredAt: "তারিখ ও সময়",
+    location: "স্থান",
+    locationHint: "মোড়, রাস্তা বা চিহ্নিত স্থান",
+    latitude: "অক্ষাংশ",
+    longitude: "দ্রাঘিমাংশ",
+    fir: "যুক্ত এজাহার",
+    collisionType: "সংঘর্ষের ধরন",
+    roadCondition: "রাস্তার অবস্থা",
+    weather: "আবহাওয়া",
+    lighting: "আলো",
+    description: "বিবরণ",
+    station: "থানা",
+    reportedBy: "নথিভুক্তকারী",
+  },
+
+  sections: {
+    overview: "ঘটনা",
+    vehicles: "জড়িত যানবাহন",
+    persons: "জড়িত ব্যক্তি",
+    cameras: "ক্যামেরা ফুটেজ",
+    camerasDesc:
+      "ঘটনাস্থলের কাছের ক্যামেরার ফুটেজের সময়সীমা। ক্যামেরার রেফারেন্স যেমন দেওয়া হয়েছে তেমনই রাখা হয়; ক্যামেরা রেজিস্টার যুক্ত হলে মিলিয়ে নেওয়া হবে।",
+    plateReads: "নম্বর প্লেট পাঠ",
+    plateReadsDesc: "এএনপিআর, পর্যালোচিত ফুটেজ বা অফিসারের পড়া রেজিস্ট্রেশন নম্বর।",
+    signals: "সিগন্যালের দশা",
+    signalsDesc: "প্রতিটি দিকের সিগন্যালের অবস্থা, প্রতিটি পর্যবেক্ষণের উৎসসহ।",
+    facts: "সময়রেখার তথ্য",
+    factsDesc: "উৎসের ধরনসহ ঘটনা ও মান। অনুমানের ক্ষেত্রে সবসময় পদ্ধতি উল্লেখ থাকে।",
+    timeline: "সংঘর্ষের সময়রেখা",
+    timelineDesc: "যুক্ত প্রতিটি নথি সময়ানুক্রমে। পরিমাপিত, পর্যবেক্ষিত ও অনুমিত এন্ট্রি আলাদা করে চিহ্নিত, কখনও মেশানো হয় না।",
+    challans: "এই যানবাহনগুলির পূর্ববর্তী চালান",
+    reports: "দুর্ঘটনার রিপোর্ট",
+  },
+
+  vehicle: {
+    registration: "রেজিস্ট্রেশন নম্বর",
+    type: "যানবাহনের ধরন",
+    description: "বিবরণ",
+    driver: "চালকের নাম",
+    add: "যানবাহন যোগ করুন",
+    removeBlocked: "আগে এই যানবাহনের সঙ্গে যুক্ত ব্যক্তি ও তথ্য সরান",
+  },
+
+  person: {
+    name: "নাম",
+    unidentified: "অশনাক্ত",
+    role: "ভূমিকা",
+    vehicle: "যানবাহন",
+    noVehicle: "কোনো যানবাহনে নয়",
+    severity: "আঘাত",
+    hospital: "হাসপাতাল",
+    add: "ব্যক্তি যোগ করুন",
+    vehicleRequired: "চালক বা যাত্রীকে একটি যানবাহনের সঙ্গে যুক্ত করতে হবে",
+  },
+
+  camera: {
+    ref: "ক্যামেরা রেফারেন্স",
+    name: "ক্যামেরার নাম",
+    distance: "ঘটনাস্থল থেকে দূরত্ব (মি)",
+    from: "ফুটেজ শুরু",
+    to: "ফুটেজ শেষ",
+    notes: "মন্তব্য",
+    add: "ক্যামেরা ফুটেজ যোগ করুন",
+    covers: "ঘটনার সময় ফুটেজে আছে",
+    notCovers: "ঘটনার সময় ফুটেজে নেই",
+  },
+
+  plate: {
+    registration: "রেজিস্ট্রেশন নম্বর",
+    readAt: "পাঠের সময়",
+    location: "কোথায় পড়া হয়েছে",
+    camera: "ক্যামেরা রেফারেন্স",
+    source: "উৎস",
+    detail: "উৎসের বিস্তারিত",
+    add: "প্লেট পাঠ নথিভুক্ত করুন",
+    matched: "এই ঘটনার একটি যানবাহনের সঙ্গে মেলে",
+    unmatched: "এই ঘটনার কোনো যানবাহনের এই নম্বর নেই",
+    cameraRequired: "এএনপিআর বা ফুটেজ থেকে পাঠে ক্যামেরার নাম দিতে হবে",
+  },
+
+  signal: {
+    ref: "সিগন্যাল / মোড়ের রেফারেন্স",
+    approach: "দিক",
+    phase: "দশা",
+    from: "থেকে",
+    to: "পর্যন্ত",
+    source: "উৎস",
+    detail: "উৎসের বিস্তারিত",
+    detailHint: "লগ ফাইল, ফুটেজের রেফারেন্স বা কে দেখেছেন",
+    add: "সিগন্যালের দশা নথিভুক্ত করুন",
+    active: "ঘটনার সময় কার্যকর",
+  },
+
+  fact: {
+    occurredAt: "সময়",
+    description: "কী ঘটেছে",
+    provenance: "উৎসের ধরন",
+    source: "উৎস",
+    sourceHint: "যন্ত্র, লগ, ফুটেজ বা ব্যক্তি",
+    method: "পদ্ধতি",
+    methodHint: "অনুমান কীভাবে করা হয়েছে — অনুমানের জন্য আবশ্যক",
+    vehicle: "যানবাহন",
+    quantity: "পরিমাণ",
+    noQuantity: "কোনো মান নয়",
+    value: "মান",
+    low: "নিম্ন",
+    high: "ঊর্ধ্ব",
+    range: "সীমা (শুধু অনুমানের জন্য)",
+    add: "তথ্য নথিভুক্ত করুন",
+  },
+
+  provenance: {
+    MEASURED: "পরিমাপিত",
+    OBSERVED: "পর্যবেক্ষিত",
+    ESTIMATED: "অনুমিত",
+    MEASUREDHint: "যন্ত্র বা সিস্টেম লগ থেকে",
+    OBSERVEDHint: "কোনো ব্যক্তি দেখেছেন বা পর্যালোচিত ফুটেজ থেকে পড়া",
+    ESTIMATEDHint: "নির্ণীত — পদ্ধতিসহ থাকে এবং কখনও পরিমাপ হিসেবে দেখানো হয় না",
+  },
+
+  timeline: {
+    empty: "এখনও কিছু যুক্ত হয়নি",
+    emptyDesc: "সময়রেখা তৈরি করতে প্লেট পাঠ, সিগন্যালের দশা বা তথ্য নথিভুক্ত করুন।",
+    method: "পদ্ধতি",
+    source: "উৎস",
+    kinds: { FACT: "তথ্য", PLATE_READ: "প্লেট পাঠ", SIGNAL_PHASE: "সিগন্যালের দশা" },
+    counts: "{measured} পরিমাপিত · {observed} পর্যবেক্ষিত · {estimated} অনুমিত",
+  },
+
+  report: {
+    none: "কোনো রিপোর্টের খসড়া হয়নি।",
+    draft: "রিপোর্টের খসড়া করুন",
+    findings: "অফিসারের সিদ্ধান্ত",
+    findingsHint: "সংরক্ষিত তথ্য থেকে আপনার সিদ্ধান্ত। অনুমানকে অনুমান হিসেবেই লিখতে হবে।",
+    saveFindings: "সিদ্ধান্ত সংরক্ষণ",
+    submit: "অনুমোদনের জন্য জমা দিন",
+    approve: "অনুমোদন",
+    return: "খসড়াকারীকে ফেরত",
+    returnReason: "ফেরতের কারণ",
+    status: { DRAFT: "খসড়া", SUBMITTED: "অনুমোদনের অপেক্ষায়", RETURNED: "ফেরত", APPROVED: "অনুমোদিত", NONE: "রিপোর্ট নেই" },
+    draftedBy: "খসড়া করেছেন {name}",
+    reviewedBy: "পর্যালোচনা করেছেন {name}",
+    submittedAt: "জমা দেওয়া হয়েছে",
+    digest: "স্ন্যাপশট SHA-256",
+    frozen: "জমা দেওয়ার সময় বিষয়বস্তু স্থির করা হয়েছে",
+    drift:
+      "এই রিপোর্ট জমা দেওয়ার পরে ঘটনার নথি বদলেছে। রিপোর্টে অনুমোদনের সময়কার তথ্যই দেখানো হয়; পরিবর্তন অন্তর্ভুক্ত করতে নতুন রিপোর্টের খসড়া করুন।",
+    selfReview: "এই রিপোর্ট আপনি খসড়া করেছেন, তাই অন্য অফিসারকে পর্যালোচনা করতে হবে।",
+    reviewFloor: "অনুমোদনের জন্য এসআই বা তার ঊর্ধ্বতন পদের অফিসার প্রয়োজন।",
+    returnedBecause: "ফেরত: {reason}",
+    newReport: "নতুন রিপোর্টের খসড়া করুন",
+    liveContent: "এখন জমা দিলে যা থাকবে",
+  },
+
+  enums: {
+    collision: {
+      HEAD_ON: "মুখোমুখি", REAR_END: "পিছন থেকে ধাক্কা", SIDE_IMPACT: "পাশ থেকে ধাক্কা", SIDESWIPE: "পাশ ঘেঁষে",
+      PEDESTRIAN: "পথচারীকে ধাক্কা", ROLLOVER: "উল্টে যাওয়া", FIXED_OBJECT: "স্থির বস্তুতে ধাক্কা", OTHER: "অন্যান্য",
+    },
+    road: { DRY: "শুকনো", WET: "ভেজা", WATERLOGGED: "জলমগ্ন", POTHOLED: "গর্তযুক্ত", UNDER_REPAIR: "মেরামতি চলছে", OTHER: "অন্যান্য" },
+    weather: { CLEAR: "পরিষ্কার", RAIN: "বৃষ্টি", HEAVY_RAIN: "ভারী বৃষ্টি", FOG: "কুয়াশা", HAZE: "ধোঁয়াশা", OTHER: "অন্যান্য" },
+    lighting: { DAYLIGHT: "দিনের আলো", DUSK_DAWN: "সন্ধ্যা বা ভোর", DARK_LIT: "অন্ধকার, রাস্তার আলো আছে", DARK_UNLIT: "অন্ধকার, আলো নেই" },
+    vehicle: {
+      TWO_WHEELER: "দু-চাকা", THREE_WHEELER: "অটো", E_RICKSHAW: "টোটো", CAR: "গাড়ি", TAXI: "ট্যাক্সি",
+      BUS: "বাস", LCV: "ছোট মালবাহী গাড়ি", TRUCK: "ট্রাক", BICYCLE: "সাইকেল", OTHER: "অন্যান্য",
+    },
+    role: { DRIVER: "চালক", PASSENGER: "যাত্রী", PEDESTRIAN: "পথচারী", CYCLIST: "সাইকেল আরোহী", OTHER: "অন্যান্য" },
+    severity: { FATAL: "মৃত", GRIEVOUS: "গুরুতর", MINOR: "সামান্য", NONE: "অনাহত" },
+    plateSource: { ANPR_SYSTEM: "এএনপিআর সিস্টেম", CCTV_REVIEW: "পর্যালোচিত ফুটেজ", OFFICER: "অফিসার" },
+    phase: { RED: "লাল", AMBER: "হলুদ", GREEN: "সবুজ", FLASHING: "ঝলকানো", OFF: "বন্ধ" },
+    signalSource: {
+      CONTROLLER_LOG: "কন্ট্রোলার লগ", CCTV_REVIEW: "পর্যালোচিত ফুটেজ",
+      OFFICER_OBSERVATION: "অফিসারের পর্যবেক্ষণ", WITNESS: "সাক্ষী",
+    },
+    quantity: { SPEED: "গতি (কিমি/ঘণ্টা)", DISTANCE: "দূরত্ব (মি)", DURATION: "সময়কাল (সে)" },
+  },
+};
