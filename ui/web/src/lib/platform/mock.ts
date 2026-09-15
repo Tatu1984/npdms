@@ -518,35 +518,6 @@ export const GRIEVANCES: Grievance[] = [
   { id: "gr-5", ref: "GRV/2024/21850", citizen: { en: "Bikash Haldar", bn: "বিকাশ হালদার" }, channel: "counter", language: "bn", category: { en: "Public nuisance", bn: "জনউপদ্রব" }, summary: { en: "Same loudspeaker complaint reported at the station counter.", bn: "একই মাইকের অভিযোগ থানার কাউন্টারে জানানো হয়েছে।" }, locality: { en: "Behala", bn: "বেহালা" }, routedTo: "Behala PS", priority: "low", status: "received", receivedAt: "2024-11-30T21:10:00", aiConfidence: 0.68 },
 ];
 
-/* ------------------------------------------------------------- 13 Bodycam */
-
-/* ------------------------------------------------------------ 14 Malkhana */
-
-export interface PropertyItem {
-  id: string;
-  propertyId: string;
-  caseNumber: string;
-  description: Bilingual;
-  category: "weapon" | "electronics" | "documents" | "currency" | "narcotics" | "vehicle" | "other";
-  seizedOn: string;
-  seizedBy: Bilingual;
-  rack: string;
-  sealNumber: string;
-  sealIntact: boolean;
-  location: "malkhana" | "forensic" | "court" | "io" | "disposed";
-  integrity: IntegrityState;
-  block?: number;
-  overdueDays?: number;
-}
-
-export const PROPERTY_ITEMS: PropertyItem[] = [
-  { id: "pr-1", propertyId: "MK/BHW/2024/1187", caseNumber: "PS-BHW/2024/0412", description: { en: "Mobile handset, Redmi Note 12, black", bn: "মোবাইল হ্যান্ডসেট, রেডমি নোট ১২, কালো" }, category: "electronics", seizedOn: "2024-11-21", seizedBy: { en: "ASI Rituparna Ghosh", bn: "সহকারী সাব-ইন্সপেক্টর ঋতুপর্ণা ঘোষ" }, rack: "R-04 / S-12", sealNumber: "SEAL-BHW-88421", sealIntact: true, location: "forensic", integrity: "verified", block: 184602, overdueDays: 22 },
-  { id: "pr-2", propertyId: "MK/BHW/2024/1188", caseNumber: "PS-BHW/2024/0412", description: { en: "Country-made firearm with two live rounds", bn: "দেশি আগ্নেয়াস্ত্র সহ দুটি সক্রিয় কার্তুজ" }, category: "weapon", seizedOn: "2024-11-21", seizedBy: { en: "Insp. Arindam Chatterjee", bn: "ইন্সপেক্টর অরিন্দম চ্যাটার্জি" }, rack: "R-01 / S-03", sealNumber: "SEAL-BHW-88422", sealIntact: true, location: "forensic", integrity: "verified", block: 184603, overdueDays: 22 },
-  { id: "pr-3", propertyId: "MK/PKS/2024/0921", caseNumber: "PS-PKS/2024/0388", description: { en: "Gold chain, 14 g, recovered", bn: "সোনার চেন, ১৪ গ্রাম, উদ্ধারকৃত" }, category: "other", seizedOn: "2024-11-06", seizedBy: { en: "SI Sutapa Mukherjee", bn: "সাব-ইন্সপেক্টর সুতপা মুখার্জি" }, rack: "R-07 / S-01", sealNumber: "SEAL-PKS-40118", sealIntact: true, location: "malkhana", integrity: "verified", block: 184102 },
-  { id: "pr-4", propertyId: "MK/JDP/2024/0664", caseNumber: "PS-JDP/2024/0351", description: { en: "Laptop, Dell Latitude, with charger", bn: "ল্যাপটপ, ডেল ল্যাটিটিউড, চার্জার সহ" }, category: "electronics", seizedOn: "2024-10-24", seizedBy: { en: "Insp. Anirban Das", bn: "ইন্সপেক্টর অনির্বাণ দাস" }, rack: "R-03 / S-09", sealNumber: "SEAL-JDP-77310", sealIntact: false, location: "court", integrity: "broken", overdueDays: 9 },
-  { id: "pr-5", propertyId: "MK/BEH/2024/0512", caseNumber: "PS-BEH/2024/0221", description: { en: "Two-wheeler, WB-24-GH-3390", bn: "দুই চাকার যান, WB-24-GH-3390" }, category: "vehicle", seizedOn: "2024-08-11", seizedBy: { en: "SI Moumita Sen", bn: "সাব-ইন্সপেক্টর মৌমিতা সেন" }, rack: "Yard B", sealNumber: "SEAL-BEH-20094", sealIntact: true, location: "malkhana", integrity: "pending" },
-];
-
 /* ------------------------------------------------------- dashboard rollups */
 
 export const DASHBOARD_TRENDS = [

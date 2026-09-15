@@ -8,6 +8,7 @@ import { dispatchBn } from "./dispatch.bn";
 import { grievanceBn } from "./grievance.bn";
 import { riskBn } from "./risk.bn";
 import { caseFileBn } from "./case-file.bn";
+import { malkhanaBn } from "./malkhana.bn";
 
 /**
  * Bengali dictionary.
@@ -30,6 +31,7 @@ export const bn: DeepPartial<Dictionary> = {
   knowledgeScreen: knowledgeBn,
   caseFileScreen: caseFileBn,
   bodycamScreen: bodycamBn,
+  malkhanaScreen: malkhanaBn,
 
   common: {
     appName: "কলকাতা পুলিশ ডিজিটাল ইন্টেলিজেন্স প্ল্যাটফর্ম",
@@ -165,7 +167,7 @@ export const bn: DeepPartial<Dictionary> = {
       "ক্যামেরা রেজিস্টার, শিফটে দেওয়া ও ফেরত, সুরক্ষিত ডক ও প্রমাণের সঙ্গে সংযুক্তি",
     malkhana: "মালখানা",
     malkhanaDesc:
-      "কিউআর অনুসরণ ও ব্লকচেইন-নোঙরকৃত হেফাজত নথি সহ বাজেয়াপ্ত সম্পত্তির খতিয়ান",
+      "কিউআর লেবেল, সিল, স্থানান্তর ও আদালতের আদেশে নিষ্পত্তি সহ বাজেয়াপ্ত সম্পত্তির খতিয়ান",
 
     audit: "নিরীক্ষা নথি",
     auditDesc: "কে, কী, কখন ও কোথা থেকে করেছেন",

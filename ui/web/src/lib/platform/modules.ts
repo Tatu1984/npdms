@@ -219,8 +219,7 @@ export const MODULES: PlatformModule[] = [
     icon: Boxes,
     nameKey: "modules.malkhana",
     descKey: "modules.malkhanaDesc",
-    status: "preview",
-    chainAnchored: true,
+    status: "live",
   },
 
   {

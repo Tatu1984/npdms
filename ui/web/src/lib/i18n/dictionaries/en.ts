@@ -7,6 +7,7 @@ import { grievanceEn } from "./grievance.en";
 import { riskEn } from "./risk.en";
 import { knowledgeEn } from "./knowledge.en";
 import { caseFileEn } from "./case-file.en";
+import { malkhanaEn } from "./malkhana.en";
 
 /**
  * English dictionary — the source of truth for translation keys.
@@ -24,6 +25,7 @@ export const en = {
   knowledgeScreen: knowledgeEn,
   caseFileScreen: caseFileEn,
   bodycamScreen: bodycamEn,
+  malkhanaScreen: malkhanaEn,
 
   common: {
     appName: "Kolkata Police Digital Intelligence Platform",
@@ -159,7 +161,7 @@ export const en = {
       "Camera register, shift issue and return, secure docking and evidence association",
     malkhana: "Malkhana",
     malkhanaDesc:
-      "Seized property register with QR tracking and blockchain-anchored custody events",
+      "Seized property register with QR labels, seals, movements and court-ordered disposal",
 
     audit: "Audit trail",
     auditDesc: "Who did what, when, and from where",
