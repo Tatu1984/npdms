@@ -238,7 +238,6 @@ export const investigationEn = {
     title: "Relationships on this case",
     description:
       "Assembled from what has been recorded — persons and their phones, vehicles, attached evidence, and the places events occurred",
-    graphWorkspace: "Open the graph workspace",
     financialNetwork: "Financial network",
     emptyTitle: "Nothing to connect yet",
     emptyDesc:

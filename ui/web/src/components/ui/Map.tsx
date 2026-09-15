@@ -48,7 +48,7 @@ const markerColors: Record<string, string> = {
 
 export function InteractiveMap({
   markers = [],
-  center = [28.6139, 77.2090], // Default to New Delhi
+  center = [22.5726, 88.3639], // Kolkata (lib/platform/wb.ts KOLKATA_CENTER)
   zoom = 12,
   height = '400px',
   showControls = true,

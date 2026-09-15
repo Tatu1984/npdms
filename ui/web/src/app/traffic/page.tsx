@@ -1,388 +1,202 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useDeferredValue, useState } from "react";
 import Link from "next/link";
-import {
-  Car,
-  AlertTriangle,
-  IndianRupee,
-  TrendingUp,
-  Clock,
-  CheckCircle,
-  MapPin,
-  Users,
-  FileText,
-  Plus,
-  Search,
-  BarChart3,
-  Map,
-} from "lucide-react";
+import { AlertTriangle, Car, ClipboardList, Loader2, Plus } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { EmptyState, PageHeader, Panel, StatTile, StatusPill } from "@/components/platform/primitives";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { useI18n } from "@/lib/i18n";
+import { useChallans, useChallanStats } from "@/hooks/use-legacy-registers";
+import type { ChallanStatus } from "@/lib/api/traffic-challans";
+import { formatDateTime } from "@/lib/utils";
+import { STATUS_LABEL, STATUS_TONE, TL, rupees } from "./labels";
 
-interface ChallanStats {
-  totalChallans: number;
-  totalAmount: number;
-  collectedAmount: number;
-  pendingAmount: number;
-  byStatus: Record<string, number>;
-  topViolations: { violationType: string; count: number; amount: number }[];
-  dailyTrend: { date: string; count: number; amount: number; collected: number }[];
-}
+const PAGE_SIZE = 20;
+const STATUSES = Object.keys(STATUS_LABEL) as ChallanStatus[];
 
-interface Hotspot {
-  id: string;
-  locationName: string;
-  latitude: number;
-  longitude: number;
-  totalChallans: number;
-  challansLast30Days: number;
-  mostCommonViolation: string;
-}
-
-export default function TrafficDashboardPage() {
+export default function TrafficChallansPage() {
   const { user } = useAuthStore();
-  const [stats, setStats] = useState<ChallanStats | null>(null);
-  const [hotspots, setHotspots] = useState<Hotspot[]>([]);
-  const [recentChallans, setRecentChallans] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { pick } = useI18n();
+  const canIssue = Boolean(user && hasMinimumRole(user.role, "CONSTABLE"));
 
-  const canCreate = user && hasMinimumRole(user.role, "CONSTABLE");
+  const [vehicle, setVehicle] = useState("");
+  const deferredVehicle = useDeferredValue(vehicle.trim().toUpperCase().replace(/\s+/g, ""));
+  const [status, setStatus] = useState<"" | ChallanStatus>("");
+  const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    // Simulated data - in production, fetch from API
-    const loadData = () => {
-      setStats({
-      totalChallans: 15847,
-      totalAmount: 47541000,
-      collectedAmount: 35890000,
-      pendingAmount: 11651000,
-      byStatus: {
-        PAID: 12500,
-        PENDING: 2800,
-        DEFAULTED: 450,
-        DISPUTED: 97,
-      },
-      topViolations: [
-        { violationType: "Over Speeding", count: 4521, amount: 13563000 },
-        { violationType: "Signal Violation", count: 3245, amount: 6490000 },
-        { violationType: "No Helmet", count: 2890, amount: 5780000 },
-        { violationType: "Drunk Driving", count: 1450, amount: 7250000 },
-        { violationType: "No Seat Belt", count: 1876, amount: 3752000 },
-      ],
-      dailyTrend: [
-        { date: "2024-01-01", count: 245, amount: 735000, collected: 650000 },
-        { date: "2024-01-02", count: 312, amount: 936000, collected: 820000 },
-        { date: "2024-01-03", count: 287, amount: 861000, collected: 750000 },
-        { date: "2024-01-04", count: 198, amount: 594000, collected: 520000 },
-        { date: "2024-01-05", count: 356, amount: 1068000, collected: 950000 },
-      ],
-    });
+  const stats = useChallanStats();
+  const challans = useChallans({
+    page,
+    pageSize: PAGE_SIZE,
+    vehicleNumber: deferredVehicle || undefined,
+    status: status || undefined,
+  });
 
-    setHotspots([
-      { id: "1", locationName: "MG Road Junction", latitude: 12.9716, longitude: 77.5946, totalChallans: 2345, challansLast30Days: 187, mostCommonViolation: "Signal Violation" },
-      { id: "2", locationName: "Silk Board Junction", latitude: 12.9172, longitude: 77.6227, totalChallans: 1987, challansLast30Days: 156, mostCommonViolation: "Over Speeding" },
-      { id: "3", locationName: "Electronic City Flyover", latitude: 12.8456, longitude: 77.6603, totalChallans: 1654, challansLast30Days: 142, mostCommonViolation: "Lane Violation" },
-    ]);
-
-    setRecentChallans([
-      { id: "1", challanNumber: "TRF-2024-00156", vehicleNumber: "KA-01-AB-1234", violationType: "Over Speeding", amount: 2000, status: "PENDING", date: "2024-01-08" },
-      { id: "2", challanNumber: "TRF-2024-00155", vehicleNumber: "KA-05-CD-5678", violationType: "Signal Violation", amount: 1000, status: "PAID", date: "2024-01-08" },
-      { id: "3", challanNumber: "TRF-2024-00154", vehicleNumber: "KA-03-EF-9012", violationType: "No Helmet", amount: 500, status: "PENDING", date: "2024-01-08" },
-      { id: "4", challanNumber: "TRF-2024-00153", vehicleNumber: "KA-02-GH-3456", violationType: "Drunk Driving", amount: 10000, status: "DISPUTED", date: "2024-01-07" },
-      ]);
-
-      setIsLoading(false);
-    };
-    const timer = setTimeout(loadData, 0);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const formatCurrency = (amount: number) => {
-    if (amount >= 10000000) {
-      return `${(amount / 10000000).toFixed(2)} Cr`;
-    } else if (amount >= 100000) {
-      return `${(amount / 100000).toFixed(2)} L`;
-    }
-    return amount.toLocaleString();
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "PAID": return "success";
-      case "PENDING": return "warning";
-      case "DISPUTED": return "info";
-      case "DEFAULTED": return "error";
-      default: return "muted";
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-96">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
-        </div>
-      </DashboardLayout>
-    );
-  }
+  const rows = challans.data?.data ?? [];
+  const totalPages = challans.data?.totalPages ?? 0;
+  const top = stats.data?.top_violations ?? [];
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Traffic Management</h1>
-            <p className="text-foreground-muted">
-              Issue challans, track payments, and monitor traffic violations
-            </p>
-          </div>
-          <div className="flex gap-3">
-            {canCreate && (
-              <Link href="/traffic/challans/new">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Issue Challan
+        <PageHeader
+          title={pick(TL.title)}
+          description={pick(TL.description)}
+          icon={ClipboardList}
+          actions={
+            <>
+              <Link href="/traffic/defaulters">
+                <Button variant="secondary">
+                  <Car className="mr-2 h-4 w-4" />
+                  {pick(TL.defaulters)}
                 </Button>
               </Link>
-            )}
-          </div>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="grid grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-accent/10">
-                  <FileText className="h-5 w-5 text-accent" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">
-                    {stats?.totalChallans.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-foreground-muted">Total Challans</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-success/10">
-                  <IndianRupee className="h-5 w-5 text-success" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">
-                    {formatCurrency(stats?.collectedAmount || 0)}
-                  </p>
-                  <p className="text-xs text-foreground-muted">Amount Collected</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-warning/10">
-                  <Clock className="h-5 w-5 text-warning" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">
-                    {formatCurrency(stats?.pendingAmount || 0)}
-                  </p>
-                  <p className="text-xs text-foreground-muted">Pending Amount</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-error/10">
-                  <AlertTriangle className="h-5 w-5 text-error" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">
-                    {stats?.byStatus?.DEFAULTED || 0}
-                  </p>
-                  <p className="text-xs text-foreground-muted">Defaulters</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quick Access */}
-        <div className="grid grid-cols-4 gap-4">
-          <Link href="/traffic/challans">
-            <Card className="cursor-pointer hover:border-accent/50 transition-colors">
-              <CardContent className="p-4 flex items-center gap-3">
-                <Search className="h-5 w-5 text-foreground-muted" />
-                <span className="font-medium text-foreground">Search Challans</span>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/traffic/defaulters">
-            <Card className="cursor-pointer hover:border-accent/50 transition-colors">
-              <CardContent className="p-4 flex items-center gap-3">
-                <Users className="h-5 w-5 text-foreground-muted" />
-                <span className="font-medium text-foreground">Defaulter List</span>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/traffic/hotspots">
-            <Card className="cursor-pointer hover:border-accent/50 transition-colors">
-              <CardContent className="p-4 flex items-center gap-3">
-                <Map className="h-5 w-5 text-foreground-muted" />
-                <span className="font-medium text-foreground">Violation Hotspots</span>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/traffic/payments">
-            <Card className="cursor-pointer hover:border-accent/50 transition-colors">
-              <CardContent className="p-4 flex items-center gap-3">
-                <IndianRupee className="h-5 w-5 text-foreground-muted" />
-                <span className="font-medium text-foreground">Payment Tracking</span>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Top Violations */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Top Violations (This Month)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {stats?.topViolations.map((violation, index) => (
-                  <div key={violation.violationType} className="flex items-center gap-4">
-                    <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-sm font-bold text-accent">
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-foreground">{violation.violationType}</span>
-                        <span className="text-sm text-foreground-muted">{violation.count} cases</span>
-                      </div>
-                      <div className="w-full bg-background-tertiary rounded-full h-2">
-                        <div
-                          className="bg-accent h-2 rounded-full"
-                          style={{ width: `${(violation.count / (stats?.topViolations[0]?.count || 1)) * 100}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-sm font-medium text-foreground flex items-center gap-1">
-                        <IndianRupee className="h-3 w-3" />
-                        {formatCurrency(violation.amount)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Hotspots */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5" />
-                Violation Hotspots
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {hotspots.map((hotspot) => (
-                  <div key={hotspot.id} className="p-3 rounded-lg bg-background-tertiary">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-medium text-foreground">{hotspot.locationName}</span>
-                      <Badge variant="error">{hotspot.challansLast30Days}</Badge>
-                    </div>
-                    <p className="text-xs text-foreground-muted">
-                      Most common: {hotspot.mostCommonViolation}
-                    </p>
-                  </div>
-                ))}
-                <Link href="/traffic/hotspots">
-                  <Button variant="secondary" className="w-full">
-                    View All Hotspots
+              {canIssue && (
+                <Link href="/traffic/challans/new">
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    {pick(TL.issue)}
                   </Button>
                 </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              )}
+            </>
+          }
+        />
 
-        {/* Recent Challans */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Car className="h-5 w-5" />
-                Recent Challans
-              </span>
-              <Link href="/traffic/challans">
-                <Button variant="ghost" size="sm">View All</Button>
-              </Link>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-3 px-4 text-sm font-medium text-foreground-muted">Challan #</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-foreground-muted">Vehicle</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-foreground-muted">Violation</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-foreground-muted">Amount</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-foreground-muted">Status</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-foreground-muted">Date</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-foreground-muted">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentChallans.map((challan) => (
-                    <tr key={challan.id} className="border-b border-border hover:bg-background-tertiary">
-                      <td className="py-3 px-4">
-                        <span className="font-medium text-foreground">{challan.challanNumber}</span>
-                      </td>
-                      <td className="py-3 px-4 text-foreground">{challan.vehicleNumber}</td>
-                      <td className="py-3 px-4 text-foreground">{challan.violationType}</td>
-                      <td className="py-3 px-4">
-                        <span className="text-foreground flex items-center gap-1">
-                          <IndianRupee className="h-3 w-3" />
-                          {challan.amount.toLocaleString()}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant={getStatusColor(challan.status) as any}>
-                          {challan.status}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-foreground-muted">{challan.date}</td>
-                      <td className="py-3 px-4">
-                        <Link href={`/traffic/challans/${challan.id}`}>
-                          <Button variant="ghost" size="sm">View</Button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {stats.isError ? (
+          <p className="text-sm text-error">{stats.error.message}</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatTile label={pick(TL.total)} value={stats.data?.total_challans ?? 0} />
+            <StatTile label={pick(TL.totalAmount)} value={(stats.data?.total_amount ?? 0) / 100} unit="₹" />
+            <StatTile label={pick(TL.collected)} value={(stats.data?.collected_amount ?? 0) / 100} unit="₹" tone="success" />
+            <StatTile label={pick(TL.pending)} value={(stats.data?.pending_amount ?? 0) / 100} unit="₹" tone="warning" />
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <Panel title={pick(TL.register)} className="xl:col-span-2" bodyClassName="space-y-4 p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="min-w-[14rem] flex-1">
+                <Input
+                  placeholder={pick(TL.searchVehicle)}
+                  value={vehicle}
+                  onChange={(v: string) => {
+                    setVehicle(v);
+                    setPage(1);
+                  }}
+                />
+              </div>
+              <select
+                aria-label={pick(TL.status)}
+                className="h-10 rounded-md border border-border bg-background-secondary px-3 text-sm text-foreground"
+                value={status}
+                onChange={(e) => {
+                  setStatus(e.target.value as "" | ChallanStatus);
+                  setPage(1);
+                }}
+              >
+                <option value="">{pick(TL.allStatuses)}</option>
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {pick(STATUS_LABEL[s])}
+                  </option>
+                ))}
+              </select>
             </div>
-          </CardContent>
-        </Card>
+
+            {challans.isPending ? (
+              <div className="flex items-center justify-center gap-3 py-12 text-foreground-muted">
+                <Loader2 className="h-5 w-5 animate-spin" /> {pick(TL.loading)}
+              </div>
+            ) : challans.isError ? (
+              <EmptyState
+                icon={AlertTriangle}
+                title={pick(TL.loadFailed)}
+                description={challans.error.message}
+                action={
+                  <Button variant="secondary" onClick={() => challans.refetch()}>
+                    {pick(TL.retry)}
+                  </Button>
+                }
+              />
+            ) : rows.length === 0 ? (
+              <EmptyState icon={ClipboardList} title={pick(TL.empty)} description={pick(TL.emptyBody)} />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-foreground-subtle">
+                      <th className="py-2 pr-3">{pick(TL.number)}</th>
+                      <th className="py-2 pr-3">{pick(TL.vehicle)}</th>
+                      <th className="py-2 pr-3">{pick(TL.violation)}</th>
+                      <th className="py-2 pr-3">{pick(TL.date)}</th>
+                      <th className="py-2 pr-3 text-right">{pick(TL.amount)}</th>
+                      <th className="py-2">{pick(TL.status)}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((c) => (
+                      <tr key={c.id} className="border-b border-border/60 align-top">
+                        <td className="py-2 pr-3">
+                          <Link href={`/traffic/challans/${c.id}`} className="font-mono text-accent hover:underline">
+                            {c.challan_number}
+                          </Link>
+                        </td>
+                        <td className="py-2 pr-3 font-mono">{c.vehicle_number}</td>
+                        <td className="py-2 pr-3">
+                          {c.violation_type?.name}
+                          <div className="text-xs text-foreground-subtle">{c.violation_location}</div>
+                        </td>
+                        <td className="whitespace-nowrap py-2 pr-3 text-foreground-muted">{formatDateTime(c.violation_date)}</td>
+                        <td className="py-2 pr-3 text-right">{rupees(c.final_amount)}</td>
+                        <td className="py-2">
+                          <StatusPill tone={STATUS_TONE[c.status]}>{pick(STATUS_LABEL[c.status])}</StatusPill>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between text-sm text-foreground-muted">
+                <span>
+                  {pick(TL.page)} {page} / {totalPages}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                    {pick(TL.prev)}
+                  </Button>
+                  <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                    {pick(TL.next)}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Panel>
+
+          <Panel title={pick(TL.topViolations)}>
+            {top.length === 0 ? (
+              <p className="text-sm text-foreground-muted">{pick(TL.emptyBody)}</p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {top.map((v) => (
+                  <li key={v.violation_type} className="flex items-center justify-between gap-3">
+                    <span className="text-foreground">{v.violation_type}</span>
+                    <span className="text-foreground-muted">
+                      {v.count} · {rupees(v.amount)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+        </div>
       </div>
     </DashboardLayout>
   );

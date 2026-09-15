@@ -1,746 +1,278 @@
 "use client";
 
-import { useState } from "react";
-import {
-  MapPin,
-  Navigation,
-  Layers,
-  Search,
-  Car,
-  Users,
-  AlertTriangle,
-  Clock,
-  Radio,
-  Target,
-  Crosshair,
-  ZoomIn,
-  ZoomOut,
-  Maximize2,
-  Eye,
-} from "lucide-react";
+import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle, Loader2, MapPinned } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Modal, ModalFooter } from "@/components/ui/Modal";
-import { LegacySelect as Select } from "@/components/ui/select";
-import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
-import { useToastStore } from "@/stores/toastStore";
-import { PatrolMap } from "@/components/map";
+import { PageHeader, Panel } from "@/components/platform/primitives";
+import { useI18n } from "@/lib/i18n";
+import { useStations } from "@/hooks/use-legacy-registers";
+import vehiclesApi from "@/lib/api/vehicles";
+import { dispatchApi } from "@/lib/api/dispatch";
+import { videoApi } from "@/lib/api/video";
+import { trafficIncidentsApi } from "@/lib/api/traffic-incidents";
+import { KOLKATA_CENTER } from "@/lib/platform/wb";
+import type { MapMarker } from "@/components/ui/Map";
 
-// Mock patrol data
-const mockPatrols = [
-  {
-    id: "patrol-001",
-    vehicle: "KA-01-P-1234",
-    officers: ["HC Mohan", "Const. Kumar"],
-    beat: "Beat A - Koramangala 4th Block",
-    status: "ON_PATROL",
-    lastUpdate: "2 min ago",
-    location: { lat: 12.9352, lng: 77.6245 },
-  },
-  {
-    id: "patrol-002",
-    vehicle: "KA-01-P-1235",
-    officers: ["Const. Ravi"],
-    beat: "Beat B - Koramangala 5th Block",
-    status: "ON_PATROL",
-    lastUpdate: "5 min ago",
-    location: { lat: 12.9421, lng: 77.6189 },
-  },
-  {
-    id: "patrol-003",
-    vehicle: "KA-01-P-9999",
-    officers: ["ASI Sharma", "Const. Vijay"],
-    beat: "PCR Mobile",
-    status: "RESPONDING",
-    lastUpdate: "1 min ago",
-    location: { lat: 12.9287, lng: 77.6301 },
-    respondingTo: "Incident near MG Road",
-  },
-];
+const InteractiveMap = dynamic(() => import("@/components/ui/Map").then((m) => m.InteractiveMap), {
+  ssr: false,
+  loading: () => <div className="h-[560px] rounded-lg bg-background-tertiary" />,
+});
 
-// Mock beat boundaries
-const mockBeats = [
-  { id: "beat-a", name: "Beat A", area: "Koramangala 4th Block", patrolCount: 1 },
-  { id: "beat-b", name: "Beat B", area: "Koramangala 5th-8th Block", patrolCount: 1 },
-  { id: "beat-c", name: "Beat C", area: "HSR Layout Sector 1-3", patrolCount: 0 },
-  { id: "beat-d", name: "Beat D", area: "BTM Layout 1st Stage", patrolCount: 1 },
-];
+/** Each layer reads at most this many records; the legend says when a layer was capped. */
+const LAYER_LIMIT = 100;
 
-// Mock incidents
-const mockIncidents = [
-  {
-    id: "inc-001",
-    type: "THEFT",
-    location: "Forum Mall",
-    time: "10:30 AM",
-    status: "RESPONDING",
-    priority: "HIGH",
-    coords: { lat: 12.9340, lng: 77.6250 },
-  },
-  {
-    id: "inc-002",
-    type: "ACCIDENT",
-    location: "80 Feet Road",
-    time: "09:15 AM",
-    status: "RESOLVED",
-    priority: "NORMAL",
-    coords: { lat: 12.9380, lng: 77.6200 },
-  },
-  {
-    id: "inc-003",
-    type: "SUSPICIOUS",
-    location: "HSR Layout",
-    time: "11:00 AM",
-    status: "PENDING",
-    priority: "LOW",
-    coords: { lat: 12.9156, lng: 77.6412 },
-  },
-];
+type LayerId = "stations" | "vehicles" | "dispatch" | "cameras" | "traffic";
 
-// Mock hotspots
-const mockHotspots = [
-  {
-    id: "hotspot-001",
-    name: "Koramangala Market Area",
-    type: "Theft & Robbery",
-    crimeCount: 24,
-    severity: "HIGH" as const,
-    coords: { lat: 12.9355, lng: 77.6225 },
-    radius: 400,
+const L = {
+  title: { en: "Operational map", bn: "কার্যক্ষেত্রের মানচিত্র" },
+  description: {
+    en: "Stored positions only: police stations, fleet vehicles with a recorded GPS fix, open dispatch incidents, registered CCTV cameras and traffic incidents. Nothing is estimated or live-tracked.",
+    bn: "শুধু সংরক্ষিত অবস্থান: থানা, নথিভুক্ত জিপিএস অবস্থানসহ বাহিনীর যানবাহন, খোলা ডিসপ্যাচ ঘটনা, নিবন্ধিত সিসিটিভি ক্যামেরা ও ট্রাফিক ঘটনা। কিছুই অনুমান বা সরাসরি অনুসরণ করা হয় না।",
   },
-  {
-    id: "hotspot-002",
-    name: "BTM 2nd Stage Junction",
-    type: "Traffic Violations",
-    crimeCount: 18,
-    severity: "MEDIUM" as const,
-    coords: { lat: 12.9165, lng: 77.6102 },
-    radius: 300,
+  layers: { en: "Layers", bn: "স্তর" },
+  stations: { en: "Police stations", bn: "থানা" },
+  vehicles: { en: "Fleet vehicles (last recorded GPS)", bn: "বাহিনীর যানবাহন (শেষ নথিভুক্ত জিপিএস)" },
+  dispatch: { en: "Open dispatch incidents", bn: "খোলা ডিসপ্যাচ ঘটনা" },
+  cameras: { en: "CCTV cameras", bn: "সিসিটিভি ক্যামেরা" },
+  traffic: { en: "Traffic incidents", bn: "ট্রাফিক ঘটনা" },
+  withPosition: { en: "with a position", bn: "অবস্থানসহ" },
+  withoutPosition: { en: "without a stored position", bn: "সংরক্ষিত অবস্থান ছাড়া" },
+  capped: { en: "only the first {n} records were read", bn: "শুধু প্রথম {n}টি নথি পড়া হয়েছে" },
+  loading: { en: "loading…", bn: "লোড হচ্ছে…" },
+  failed: { en: "could not be loaded", bn: "লোড করা যায়নি" },
+  open: { en: "Open", bn: "খুলুন" },
+  selected: { en: "Selected", bn: "নির্বাচিত" },
+  pickMarker: { en: "Select a marker to see the record.", bn: "নথি দেখতে একটি চিহ্ন বেছে নিন।" },
+  tiles: {
+    en: "Base map tiles are fetched from OpenStreetMap.",
+    bn: "মানচিত্রের টাইল OpenStreetMap থেকে আনা হয়।",
   },
-  {
-    id: "hotspot-003",
-    name: "HSR Layout Sector 3",
-    type: "Chain Snatching",
-    crimeCount: 12,
-    severity: "MEDIUM" as const,
-    coords: { lat: 12.9120, lng: 77.6380 },
-    radius: 350,
-  },
-  {
-    id: "hotspot-004",
-    name: "Agara Lake Road",
-    type: "Eve Teasing",
-    crimeCount: 8,
-    severity: "LOW" as const,
-    coords: { lat: 12.9280, lng: 77.6320 },
-    radius: 250,
-  },
-];
+};
 
-// Mock CCTV cameras
-const mockCCTV = [
-  {
-    id: "cctv-001",
-    name: "CAM-KOR-001",
-    location: "Forum Mall Entrance",
-    status: "ACTIVE" as const,
-    coords: { lat: 12.9345, lng: 77.6252 },
-  },
-  {
-    id: "cctv-002",
-    name: "CAM-KOR-002",
-    location: "Koramangala Signal Junction",
-    status: "ACTIVE" as const,
-    coords: { lat: 12.9365, lng: 77.6195 },
-  },
-  {
-    id: "cctv-003",
-    name: "CAM-KOR-003",
-    location: "Sony World Signal",
-    status: "MAINTENANCE" as const,
-    coords: { lat: 12.9395, lng: 77.6228 },
-  },
-  {
-    id: "cctv-004",
-    name: "CAM-BTM-001",
-    location: "BTM Bus Stand",
-    status: "ACTIVE" as const,
-    coords: { lat: 12.9175, lng: 77.6110 },
-  },
-  {
-    id: "cctv-005",
-    name: "CAM-HSR-001",
-    location: "HSR BDA Complex",
-    status: "ACTIVE" as const,
-    coords: { lat: 12.9140, lng: 77.6400 },
-  },
-  {
-    id: "cctv-006",
-    name: "CAM-HSR-002",
-    location: "HSR Sector 2 Main Road",
-    status: "INACTIVE" as const,
-    coords: { lat: 12.9125, lng: 77.6365 },
-  },
-];
-
-// Mock checkpoints
-const mockCheckpoints = [
-  {
-    id: "cp-001",
-    name: "Koramangala Main Gate",
-    type: "Permanent Nakabandi",
-    status: "ACTIVE" as const,
-    officers: 4,
-    coords: { lat: 12.9375, lng: 77.6180 },
-  },
-  {
-    id: "cp-002",
-    name: "Silk Board Junction",
-    type: "Traffic Checkpoint",
-    status: "ACTIVE" as const,
-    officers: 6,
-    coords: { lat: 12.9172, lng: 77.6228 },
-  },
-  {
-    id: "cp-003",
-    name: "HSR Layout Entry",
-    type: "Night Patrol Point",
-    status: "INACTIVE" as const,
-    officers: 0,
-    coords: { lat: 12.9110, lng: 77.6355 },
-  },
-  {
-    id: "cp-004",
-    name: "Agara Circle",
-    type: "Mobile Checkpoint",
-    status: "ACTIVE" as const,
-    officers: 3,
-    coords: { lat: 12.9255, lng: 77.6295 },
-  },
-];
-
-// Mock layers
-const mapLayers = [
-  { id: "patrols", name: "Patrol Units", icon: Car, enabled: true },
-  { id: "incidents", name: "Active Incidents", icon: AlertTriangle, enabled: true },
-  { id: "beats", name: "Beat Boundaries", icon: Target, enabled: true },
-  { id: "hotspots", name: "Crime Hotspots", icon: Radio, enabled: false },
-  { id: "cctv", name: "CCTV Cameras", icon: Eye, enabled: false },
-  { id: "checkpoints", name: "Checkpoints", icon: Crosshair, enabled: false },
-];
-
-function getStatusColor(status: string) {
-  switch (status) {
-    case "ON_PATROL":
-      return "text-success";
-    case "RESPONDING":
-      return "text-warning";
-    case "OFFLINE":
-      return "text-error";
-    default:
-      return "text-foreground-muted";
-  }
+interface LayerState {
+  id: LayerId;
+  label: { en: string; bn: string };
+  type: MapMarker["type"];
+  markers: (MapMarker & { href?: string })[];
+  withoutPosition: number;
+  capped: boolean;
+  isPending: boolean;
+  error: string | null;
 }
 
 export default function GISPage() {
-  const { user } = useAuthStore();
-  const { addToast } = useToastStore();
-  const [activeTab, setActiveTab] = useState("live");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [layers, setLayers] = useState(mapLayers);
-  const [mapCenter, setMapCenter] = useState({ lat: 12.9352, lng: 77.6245 });
-  const [trackedPatrolId, setTrackedPatrolId] = useState<string | null>(null);
-  const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
-  const [dispatchForm, setDispatchForm] = useState({
-    unitId: "",
-    incidentId: "",
-    priority: "NORMAL",
-    instructions: "",
+  const { pick } = useI18n();
+  const [enabled, setEnabled] = useState<Record<LayerId, boolean>>({
+    stations: true,
+    vehicles: true,
+    dispatch: true,
+    cameras: true,
+    traffic: false,
+  });
+  const [selected, setSelected] = useState<(MapMarker & { href?: string }) | null>(null);
+
+  const stations = useStations();
+  const vehicles = useQuery({
+    queryKey: ["gis", "vehicles"],
+    queryFn: () => vehiclesApi.list({ pageSize: LAYER_LIMIT }),
+    enabled: enabled.vehicles,
+  });
+  const dispatch = useQuery({
+    queryKey: ["gis", "dispatch"],
+    queryFn: () => dispatchApi.incidents({ view: "open", pageSize: LAYER_LIMIT }),
+    enabled: enabled.dispatch,
+    refetchInterval: 30000,
+  });
+  const cameras = useQuery({
+    queryKey: ["gis", "cameras"],
+    queryFn: () => videoApi.cameras({ pageSize: LAYER_LIMIT }),
+    enabled: enabled.cameras,
+  });
+  const traffic = useQuery({
+    queryKey: ["gis", "traffic"],
+    queryFn: () => trafficIncidentsApi.list({ pageSize: LAYER_LIMIT }),
+    enabled: enabled.traffic,
   });
 
-  const canDispatch = user && hasMinimumRole(user.role, "SHO");
+  const layers: LayerState[] = useMemo(() => {
+    const has = (lat: number | null | undefined, lng: number | null | undefined) =>
+      typeof lat === "number" && typeof lng === "number";
+    const build = <T,>(
+      id: LayerId,
+      label: { en: string; bn: string },
+      type: MapMarker["type"],
+      q: { data?: T[]; isPending: boolean; error: Error | null },
+      total: number | undefined,
+      toMarker: (row: T) => (MapMarker & { href?: string }) | null,
+    ): LayerState => {
+      const rows = q.data ?? [];
+      const markers = rows.map(toMarker).filter((m): m is MapMarker & { href?: string } => m !== null);
+      return {
+        id,
+        label,
+        type,
+        markers,
+        withoutPosition: rows.length - markers.length,
+        capped: total !== undefined && total > rows.length,
+        isPending: q.isPending,
+        error: q.error ? q.error.message : null,
+      };
+    };
+    return [
+      build("stations", L.stations, "default", { data: stations.data, isPending: stations.isPending, error: stations.error }, undefined, (s) =>
+        has(s.latitude, s.longitude)
+          ? { id: `st-${s.id}`, lat: s.latitude!, lng: s.longitude!, title: s.name, description: `${s.code} · ${s.district}`, type: "default" }
+          : null,
+      ),
+      build("vehicles", L.vehicles, "vehicle", { data: vehicles.data?.data, isPending: vehicles.isPending, error: vehicles.error }, vehicles.data?.total, (v) =>
+        has(v.gpsLatitude, v.gpsLongitude)
+          ? {
+              id: `veh-${v.id}`,
+              lat: v.gpsLatitude!,
+              lng: v.gpsLongitude!,
+              title: v.registrationNumber,
+              description: `${v.type} · ${v.status}${v.currentDriver ? ` · ${v.currentDriver}` : ""}`,
+              type: "vehicle",
+              status: v.status,
+              href: `/vehicles/${v.id}`,
+            }
+          : null,
+      ),
+      build("dispatch", L.dispatch, "incident", { data: dispatch.data?.data, isPending: dispatch.isPending, error: dispatch.error }, dispatch.data?.total, (i) =>
+        has(i.latitude, i.longitude)
+          ? {
+              id: `dsp-${i.id}`,
+              lat: i.latitude!,
+              lng: i.longitude!,
+              title: i.incidentNumber,
+              description: `${i.locationText} · ${i.status}`,
+              type: "incident",
+              status: i.status,
+              href: "/dispatch",
+            }
+          : null,
+      ),
+      build("cameras", L.cameras, "patrol", { data: cameras.data?.data, isPending: cameras.isPending, error: cameras.error }, cameras.data?.total, (c) =>
+        has(c.latitude, c.longitude)
+          ? {
+              id: `cam-${c.id}`,
+              lat: c.latitude!,
+              lng: c.longitude!,
+              title: `${c.code} · ${c.name}`,
+              description: `${c.location} · ${c.status}`,
+              type: "patrol",
+              href: "/video-intelligence",
+            }
+          : null,
+      ),
+      build("traffic", L.traffic, "alert", { data: traffic.data?.data, isPending: traffic.isPending, error: traffic.error }, traffic.data?.total, (t) =>
+        has(t.latitude, t.longitude)
+          ? {
+              id: `trf-${t.id}`,
+              lat: t.latitude,
+              lng: t.longitude,
+              title: t.incidentNumber,
+              description: t.location,
+              type: "alert",
+              href: `/accident-reconstruction/${t.id}`,
+            }
+          : null,
+      ),
+    ];
+  }, [stations, vehicles, dispatch, cameras, traffic]);
 
-  const toggleLayer = (layerId: string) => {
-    setLayers((prev) =>
-      prev.map((layer) =>
-        layer.id === layerId ? { ...layer, enabled: !layer.enabled } : layer
-      )
-    );
-  };
+  const markers = layers.filter((l) => enabled[l.id]).flatMap((l) => l.markers);
+  const byId = useMemo(() => new Map(markers.map((m) => [m.id, m])), [markers]);
 
-  const handleTrackPatrol = (patrolId: string) => {
-    const patrol = mockPatrols.find((p) => p.id === patrolId);
-    if (patrol) {
-      setMapCenter(patrol.location);
-      setTrackedPatrolId(patrolId);
-      addToast({
-        type: "success",
-        title: "Tracking Vehicle",
-        message: `Now tracking ${patrol.vehicle} in real-time`,
-      });
-    }
-  };
-
-  const handleLocateIncident = (incidentId: string) => {
-    const incident = mockIncidents.find((i) => i.id === incidentId);
-    if (incident) {
-      setMapCenter(incident.coords);
-      addToast({
-        type: "success",
-        title: "Incident Located",
-        message: `Centered map on ${incident.location}`,
-      });
-    }
-  };
-
-  const handleDispatchSubmit = () => {
-    if (!dispatchForm.unitId || !dispatchForm.incidentId) {
-      addToast({
-        type: "error",
-        title: "Validation Error",
-        message: "Please select both a unit and an incident",
-      });
-      return;
-    }
-
-    const unit = mockPatrols.find((p) => p.id === dispatchForm.unitId);
-    const incident = mockIncidents.find((i) => i.id === dispatchForm.incidentId);
-
-    if (unit && incident) {
-      addToast({
-        type: "success",
-        title: "Unit Dispatched",
-        message: `${unit.vehicle} dispatched to ${incident.location}`,
-      });
-      setIsDispatchModalOpen(false);
-      setDispatchForm({
-        unitId: "",
-        incidentId: "",
-        priority: "NORMAL",
-        instructions: "",
-      });
-    }
+  const swatch: Record<LayerId, string> = {
+    stations: "bg-[#6b7280]",
+    vehicles: "bg-[#3b82f6]",
+    dispatch: "bg-[#ef4444]",
+    cameras: "bg-[#22c55e]",
+    traffic: "bg-[#dc2626]",
   };
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Page Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">GIS Mapping</h1>
-            <p className="text-foreground-muted">
-              Live tracking, patrol management, and crime mapping
-            </p>
-          </div>
-          <div className="flex gap-2">
-            {canDispatch && (
-              <Button onClick={() => setIsDispatchModalOpen(true)}>
-                <Radio className="h-4 w-4 mr-2" />
-                Dispatch Unit
-              </Button>
-            )}
-            <Button variant="secondary" onClick={() => {
-              const mapElement = document.querySelector(".leaflet-container");
-              if (mapElement) {
-                mapElement.requestFullscreen?.();
-              }
-              addToast({ type: "info", title: "Full Screen", message: "Click ESC to exit full screen" });
-            }}>
-              <Maximize2 className="h-4 w-4 mr-2" />
-              Full Screen
-            </Button>
-          </div>
-        </div>
+        <PageHeader title={pick(L.title)} description={pick(L.description)} icon={MapPinned} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Map Area */}
-          <div className="lg:col-span-3">
-            {/* Map Controls */}
-            <Card className="mb-4">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex-1">
-                    <Input
-                      placeholder="Search location, address, or landmark..."
-                      value={searchQuery}
-                      onChange={setSearchQuery}
-                      icon={<Search className="h-4 w-4" />}
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-4">
+          <Panel title={pick(L.layers)} className="xl:col-span-1" footer={<p className="text-xs text-foreground-muted">{pick(L.tiles)}</p>}>
+            <ul className="space-y-3">
+              {layers.map((l) => (
+                <li key={l.id}>
+                  <label className="flex cursor-pointer items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={enabled[l.id]}
+                      onChange={(e) => setEnabled((s) => ({ ...s, [l.id]: e.target.checked }))}
                     />
-                  </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => addToast({ type: "info", title: "Zoom", message: "Use map controls to zoom in" })}>
-                      <ZoomIn className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => addToast({ type: "info", title: "Zoom", message: "Use map controls to zoom out" })}>
-                      <ZoomOut className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" disabled title="GPS navigation feature under development">
-                      <Navigation className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Interactive Leaflet Map */}
-            <Card>
-              <CardContent className="p-0">
-                <div className="h-[600px] rounded-lg overflow-hidden relative">
-                  <PatrolMap
-                    patrols={mockPatrols}
-                    incidents={mockIncidents}
-                    beats={mockBeats}
-                    hotspots={mockHotspots}
-                    cctvCameras={mockCCTV}
-                    checkpoints={mockCheckpoints}
-                    stationLocation={mapCenter}
-                    stationName={user?.stationName || "Police Station"}
-                    showPatrols={layers.find((l) => l.id === "patrols")?.enabled ?? true}
-                    showIncidents={layers.find((l) => l.id === "incidents")?.enabled ?? true}
-                    showBeats={layers.find((l) => l.id === "beats")?.enabled ?? true}
-                    showHotspots={layers.find((l) => l.id === "hotspots")?.enabled ?? false}
-                    showCCTV={layers.find((l) => l.id === "cctv")?.enabled ?? false}
-                    showCheckpoints={layers.find((l) => l.id === "checkpoints")?.enabled ?? false}
-                  />
-
-                  {/* Map Legend */}
-                  <div className="absolute bottom-4 left-4 p-3 bg-background-secondary/90 rounded-lg z-[1000]">
-                    <p className="text-xs font-medium text-foreground mb-2">Legend</p>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-success" />
-                        <span className="text-foreground-muted">On Patrol</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-warning" />
-                        <span className="text-foreground-muted">Responding</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-error" />
-                        <span className="text-foreground-muted">Incident</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-info" />
-                        <span className="text-foreground-muted">Station</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-orange-500" />
-                        <span className="text-foreground-muted">Hotspot</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-purple-500" />
-                        <span className="text-foreground-muted">CCTV</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-cyan-500" />
-                        <span className="text-foreground-muted">Checkpoint</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Stats Overlay */}
-                  <div className="absolute top-4 left-4 p-3 bg-background-secondary/90 rounded-lg z-[1000]">
-                    <p className="text-sm font-medium text-foreground">
-                      {mockPatrols.length} units on patrol
-                    </p>
-                    <p className="text-xs text-foreground-muted">
-                      {mockIncidents.filter((i) => i.status !== "RESOLVED").length} active incidents
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Layers Control */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Layers className="h-5 w-5" />
-                  Map Layers
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {layers.map((layer) => (
-                  <button
-                    key={layer.id}
-                    onClick={() => toggleLayer(layer.id)}
-                    className={`flex items-center gap-3 w-full p-2 rounded-md transition-colors ${
-                      layer.enabled
-                        ? "bg-accent/10 text-accent"
-                        : "bg-background-tertiary text-foreground-muted hover:text-foreground"
-                    }`}
-                  >
-                    <layer.icon className="h-4 w-4" />
-                    <span className="text-sm">{layer.name}</span>
-                  </button>
-                ))}
-              </CardContent>
-            </Card>
-
-            {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="w-full">
-                <TabsTrigger value="live" className="flex-1">
-                  Live
-                </TabsTrigger>
-                <TabsTrigger value="incidents" className="flex-1">
-                  Incidents
-                </TabsTrigger>
-                <TabsTrigger value="beats" className="flex-1">
-                  Beats
-                </TabsTrigger>
-              </TabsList>
-
-              {/* Live Patrols Tab */}
-              <TabsContent value="live" className="space-y-3 mt-4">
-                {mockPatrols.map((patrol) => (
-                  <Card key={patrol.id}>
-                    <CardContent className="p-3">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <span className="font-mono text-accent text-sm">{patrol.vehicle}</span>
-                          <p className="text-xs text-foreground-muted">{patrol.beat}</p>
-                        </div>
-                        <Badge
-                          variant={
-                            patrol.status === "RESPONDING" ? "warning" : "success"
-                          }
-                          className="text-xs"
-                        >
-                          {patrol.status.replace(/_/g, " ")}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-foreground-muted">
-                        <Users className="h-3 w-3" />
-                        {patrol.officers.join(", ")}
-                      </div>
-                      {patrol.respondingTo && (
-                        <div className="mt-2 p-2 rounded bg-warning/10 text-xs text-warning">
-                          Responding to: {patrol.respondingTo}
-                        </div>
+                    <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${swatch[l.id]}`} />
+                    <span className="min-w-0">
+                      <span className="text-foreground">{pick(l.label)}</span>
+                      {enabled[l.id] && (
+                        <span className="block text-xs text-foreground-muted">
+                          {l.isPending ? (
+                            <span className="inline-flex items-center gap-1">
+                              <Loader2 className="h-3 w-3 animate-spin" /> {pick(L.loading)}
+                            </span>
+                          ) : l.error ? (
+                            <span className="inline-flex items-center gap-1 text-error">
+                              <AlertTriangle className="h-3 w-3" /> {pick(L.failed)}: {l.error}
+                            </span>
+                          ) : (
+                            <>
+                              {l.markers.length} {pick(L.withPosition)}
+                              {l.withoutPosition > 0 && ` · ${l.withoutPosition} ${pick(L.withoutPosition)}`}
+                              {l.capped && ` · ${pick(L.capped).replace("{n}", String(LAYER_LIMIT))}`}
+                            </>
+                          )}
+                        </span>
                       )}
-                      <div className="flex items-center justify-between mt-2 text-xs">
-                        <span className="text-foreground-muted">
-                          <Clock className="h-3 w-3 inline mr-1" />
-                          {patrol.lastUpdate}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => handleTrackPatrol(patrol.id)}
-                        >
-                          <Navigation className="h-3 w-3 mr-1" />
-                          {trackedPatrolId === patrol.id ? "Tracking" : "Track"}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </TabsContent>
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </Panel>
 
-              {/* Incidents Tab */}
-              <TabsContent value="incidents" className="space-y-3 mt-4">
-                {mockIncidents.map((incident) => (
-                  <Card key={incident.id}>
-                    <CardContent className="p-3">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <Badge
-                            variant={
-                              incident.priority === "HIGH"
-                                ? "error"
-                                : incident.priority === "NORMAL"
-                                ? "warning"
-                                : "secondary"
-                            }
-                            className="text-xs"
-                          >
-                            {incident.type}
-                          </Badge>
-                          <p className="text-sm text-foreground mt-1">{incident.location}</p>
-                        </div>
-                        <Badge
-                          variant={
-                            incident.status === "RESOLVED"
-                              ? "success"
-                              : incident.status === "RESPONDING"
-                              ? "info"
-                              : "secondary"
-                          }
-                          className="text-xs"
-                        >
-                          {incident.status}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-foreground-muted">
-                          <Clock className="h-3 w-3 inline mr-1" />
-                          {incident.time}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => handleLocateIncident(incident.id)}
-                        >
-                          <MapPin className="h-3 w-3 mr-1" />
-                          Locate
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </TabsContent>
-
-              {/* Beats Tab */}
-              <TabsContent value="beats" className="space-y-3 mt-4">
-                {mockBeats.map((beat) => (
-                  <Card key={beat.id}>
-                    <CardContent className="p-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium text-foreground">{beat.name}</p>
-                          <p className="text-xs text-foreground-muted">{beat.area}</p>
-                        </div>
-                        <Badge
-                          variant={beat.patrolCount > 0 ? "success" : "warning"}
-                          className="text-xs"
-                        >
-                          {beat.patrolCount} patrol{beat.patrolCount !== 1 ? "s" : ""}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-end mt-2">
-                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => addToast({ type: "info", title: "Show Beat Area", message: `Highlighting ${beat.name} on map` })}>
-                          <Target className="h-3 w-3 mr-1" />
-                          Show Area
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </TabsContent>
-            </Tabs>
-          </div>
-        </div>
-
-        {/* Dispatch Modal */}
-        <Modal
-          isOpen={isDispatchModalOpen}
-          onClose={() => setIsDispatchModalOpen(false)}
-          title="Dispatch Unit"
-          description="Assign a patrol unit to respond to an incident"
-          size="lg"
-        >
-          <div className="space-y-4">
-            <Select
-              label="Select Patrol Unit"
-              placeholder="Choose a unit to dispatch"
-              options={mockPatrols.map((patrol) => ({
-                value: patrol.id,
-                label: `${patrol.vehicle} - ${patrol.officers.join(", ")} (${patrol.beat})`,
-              }))}
-              value={dispatchForm.unitId}
-              onChange={(value: string) =>
-                setDispatchForm({ ...dispatchForm, unitId: value })
-              }
-            />
-
-            <Select
-              label="Select Incident"
-              placeholder="Choose an incident"
-              options={mockIncidents
-                .filter((i) => i.status !== "RESOLVED")
-                .map((incident) => ({
-                  value: incident.id,
-                  label: `${incident.type} - ${incident.location} (${incident.priority} Priority)`,
-                }))}
-              value={dispatchForm.incidentId}
-              onChange={(value: string) =>
-                setDispatchForm({ ...dispatchForm, incidentId: value })
-              }
-            />
-
-            <Select
-              label="Priority Level"
-              options={[
-                { value: "LOW", label: "Low Priority" },
-                { value: "NORMAL", label: "Normal Priority" },
-                { value: "HIGH", label: "High Priority" },
-                { value: "EMERGENCY", label: "Emergency" },
-              ]}
-              value={dispatchForm.priority}
-              onChange={(value: string) =>
-                setDispatchForm({ ...dispatchForm, priority: value })
-              }
-            />
-
-            <div>
-              <label
-                htmlFor="instructions"
-                className="block text-sm font-medium text-foreground mb-1.5"
-              >
-                Dispatch Instructions
-              </label>
-              <textarea
-                id="instructions"
-                rows={3}
-                className="flex w-full rounded-md border border-border bg-background-secondary px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
-                placeholder="Enter any special instructions for the responding unit..."
-                value={dispatchForm.instructions}
-                onChange={(e) =>
-                  setDispatchForm({
-                    ...dispatchForm,
-                    instructions: e.target.value,
-                  })
-                }
+          <div className="space-y-4 xl:col-span-3">
+            <div className="overflow-hidden rounded-lg border border-border">
+              <InteractiveMap
+                markers={markers}
+                center={[KOLKATA_CENTER.lat, KOLKATA_CENTER.lng]}
+                zoom={12}
+                height="560px"
+                onMarkerClick={(m) => setSelected(byId.get(m.id) ?? m)}
               />
             </div>
-
-            {dispatchForm.unitId && dispatchForm.incidentId && (
-              <div className="p-3 bg-accent/10 rounded-lg border border-accent/20">
-                <p className="text-sm font-medium text-foreground mb-1">
-                  Dispatch Summary
-                </p>
-                <p className="text-xs text-foreground-muted">
-                  Unit:{" "}
-                  {mockPatrols.find((p) => p.id === dispatchForm.unitId)?.vehicle}
-                </p>
-                <p className="text-xs text-foreground-muted">
-                  Incident:{" "}
-                  {
-                    mockIncidents.find((i) => i.id === dispatchForm.incidentId)
-                      ?.location
-                  }
-                </p>
-                <p className="text-xs text-foreground-muted">
-                  Priority: {dispatchForm.priority}
-                </p>
-              </div>
-            )}
+            <Panel title={pick(L.selected)}>
+              {selected ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                  <div>
+                    <p className="font-medium text-foreground">{selected.title}</p>
+                    {selected.description && <p className="text-foreground-muted">{selected.description}</p>}
+                    <p className="font-mono text-xs text-foreground-subtle">
+                      {selected.lat.toFixed(5)}, {selected.lng.toFixed(5)}
+                    </p>
+                  </div>
+                  {selected.href && (
+                    <Link href={selected.href} className="text-accent hover:underline">
+                      {pick(L.open)}
+                    </Link>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-foreground-muted">{pick(L.pickMarker)}</p>
+              )}
+            </Panel>
           </div>
-
-          <ModalFooter>
-            <Button
-              variant="ghost"
-              onClick={() => setIsDispatchModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleDispatchSubmit}>
-              <Radio className="h-4 w-4 mr-2" />
-              Dispatch Unit
-            </Button>
-          </ModalFooter>
-        </Modal>
+        </div>
       </div>
     </DashboardLayout>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useDeferredValue, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -272,7 +273,7 @@ export default function ArmouryPage() {
                           return (
                             <TableRow key={w.id}>
                               <TableCell>
-                                <p className="font-mono text-accent">{w.weaponNumber}</p>
+                                <Link href={`/armoury/${w.id}`} className="font-mono text-accent hover:underline">{w.weaponNumber}</Link>
                                 <p className="text-xs text-foreground-muted">
                                   {w.type} · {w.make}
                                 </p>

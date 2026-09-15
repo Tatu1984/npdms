@@ -26,8 +26,3 @@ export function formatDateTime(date: Date | string): string {
   return `${formatDate(date)} ${formatTime(date)}`;
 }
 
-export function generateFIRNumber(stationCode: string): string {
-  const year = new Date().getFullYear();
-  const random = Math.floor(Math.random() * 10000).toString().padStart(5, "0");
-  return `${stationCode}/${year}/${random}`;
-}

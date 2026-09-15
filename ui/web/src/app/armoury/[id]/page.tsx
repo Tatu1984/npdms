@@ -1,555 +1,249 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import Link from "next/link";
 import { useState } from "react";
-import {
-  ArrowLeft,
-  Shield,
-  Crosshair,
-  User,
-  Calendar,
-  AlertTriangle,
-  CheckCircle,
-  History,
-  FileText,
-  RefreshCw,
-  Package,
-  Edit,
-} from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { AlertTriangle, Loader2, Shield } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { EmptyState, Field, PageHeader, Panel, StatusPill } from "@/components/platform/primitives";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
-import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { useI18n } from "@/lib/i18n";
+import { ApiClientError } from "@/lib/api/client";
+import { useWeapon, useWeaponIssuances } from "@/hooks/use-armoury";
+import type { WeaponCondition, WeaponStatus } from "@/lib/api/armoury";
+import { formatDateTime } from "@/lib/utils";
 
-// Mock weapons data
-const mockWeapons: Record<string, {
-  id: string;
-  weaponId: string;
-  type: string;
-  make: string;
-  model: string;
-  serialNumber: string;
-  caliber: string;
-  status: string;
-  assignedTo: string | null;
-  assignedBadge: string | null;
-  issuedDate: string | null;
-  expectedReturn: string | null;
-  condition: string;
-  lastInspection: string;
-  nextInspection: string;
-  purchaseDate: string;
-  purchaseValue: number;
-  location: string;
-  remarks: string | null;
-}> = {
-  "wpn-001": {
-    id: "wpn-001",
-    weaponId: "WPN-KOR-001",
-    type: "9mm Pistol",
-    make: "Glock",
-    model: "17 Gen 5",
-    serialNumber: "GLK-2019-78542",
-    caliber: "9x19mm",
-    status: "ISSUED",
-    assignedTo: "SI Suresh Patil",
-    assignedBadge: "KAR-SI-1234",
-    issuedDate: "2024-01-15",
-    expectedReturn: "2024-01-15",
-    condition: "SERVICEABLE",
-    lastInspection: "2024-01-10",
-    nextInspection: "2024-04-10",
-    purchaseDate: "2019-06-15",
-    purchaseValue: 45000,
-    location: "Field (Issued)",
-    remarks: null,
-  },
-  "wpn-002": {
-    id: "wpn-002",
-    weaponId: "WPN-KOR-002",
-    type: "9mm Pistol",
-    make: "Glock",
-    model: "17 Gen 5",
-    serialNumber: "GLK-2019-78543",
-    status: "ISSUED",
-    caliber: "9x19mm",
-    assignedTo: "ASI Prakash Rao",
-    assignedBadge: "KAR-ASI-2345",
-    issuedDate: "2024-01-16",
-    expectedReturn: "2024-01-16",
-    condition: "SERVICEABLE",
-    lastInspection: "2024-01-10",
-    nextInspection: "2024-04-10",
-    purchaseDate: "2019-06-15",
-    purchaseValue: 45000,
-    location: "Field (Issued)",
-    remarks: null,
-  },
-  "wpn-003": {
-    id: "wpn-003",
-    weaponId: "WPN-KOR-003",
-    type: "9mm Pistol",
-    make: "Glock",
-    model: "17 Gen 5",
-    serialNumber: "GLK-2019-78544",
-    caliber: "9x19mm",
-    status: "IN_ARMOURY",
-    assignedTo: null,
-    assignedBadge: null,
-    issuedDate: null,
-    expectedReturn: null,
-    condition: "SERVICEABLE",
-    lastInspection: "2024-01-10",
-    nextInspection: "2024-04-10",
-    purchaseDate: "2019-06-15",
-    purchaseValue: 45000,
-    location: "Armoury Vault A",
-    remarks: null,
-  },
-  "wpn-005": {
-    id: "wpn-005",
-    weaponId: "WPN-KOR-005",
-    type: "9mm Pistol",
-    make: "Glock",
-    model: "17 Gen 5",
-    serialNumber: "GLK-2019-78545",
-    caliber: "9x19mm",
-    status: "MAINTENANCE",
-    assignedTo: null,
-    assignedBadge: null,
-    issuedDate: null,
-    expectedReturn: null,
-    condition: "UNDER_REPAIR",
-    lastInspection: "2024-01-05",
-    nextInspection: "2024-04-05",
-    purchaseDate: "2019-06-15",
-    purchaseValue: 45000,
-    location: "Workshop",
-    remarks: "Trigger mechanism repair in progress",
-  },
+const L = {
+  register: { en: "Armoury", bn: "অস্ত্রাগার" },
+  loading: { en: "Loading weapon…", bn: "অস্ত্রের তথ্য লোড হচ্ছে…" },
+  notFound: { en: "Weapon not found", bn: "অস্ত্র পাওয়া যায়নি" },
+  notFoundBody: { en: "No weapon with this id is registered.", bn: "এই পরিচয়ে কোনো অস্ত্র নিবন্ধিত নেই।" },
+  loadFailed: { en: "Weapon could not be loaded", bn: "অস্ত্রের তথ্য লোড করা যায়নি" },
+  back: { en: "Back to the armoury", bn: "অস্ত্রাগারে ফিরে যান" },
+  manage: { en: "Issue, return or change state from the armoury register.", bn: "ইস্যু, ফেরত বা অবস্থা পরিবর্তন অস্ত্রাগার নিবন্ধন থেকে করুন।" },
+  details: { en: "Weapon", bn: "অস্ত্র" },
+  type: { en: "Type", bn: "ধরন" },
+  make: { en: "Make", bn: "প্রস্তুতকারক" },
+  serial: { en: "Serial number", bn: "সিরিয়াল নম্বর" },
+  station: { en: "Station", bn: "থানা" },
+  condition: { en: "Condition", bn: "অবস্থা" },
+  maintenanceNote: { en: "Maintenance note", bn: "রক্ষণাবেক্ষণ নোট" },
+  registered: { en: "Registered", bn: "নিবন্ধিত" },
+  currentIssue: { en: "Currently issued", bn: "বর্তমানে ইস্যু করা" },
+  issuedTo: { en: "Issued to", bn: "যাঁকে ইস্যু" },
+  issuedBy: { en: "Issued by", bn: "যিনি ইস্যু করেছেন" },
+  purpose: { en: "Purpose", bn: "উদ্দেশ্য" },
+  rounds: { en: "Rounds issued", bn: "ইস্যু করা রাউন্ড" },
+  expected: { en: "Expected back", bn: "ফেরতের প্রত্যাশিত সময়" },
+  overdue: { en: "Overdue", bn: "মেয়াদোত্তীর্ণ" },
+  ledger: { en: "Issue and return ledger", bn: "ইস্যু ও ফেরত খাতা" },
+  noLedger: { en: "This weapon has never been issued.", bn: "এই অস্ত্রটি কখনও ইস্যু হয়নি।" },
+  issued: { en: "Issued", bn: "ইস্যু" },
+  returned: { en: "Returned", bn: "ফেরত" },
+  stillOut: { en: "Still out", bn: "এখনও বাইরে" },
+  roundsBack: { en: "Rounds back", bn: "ফেরত রাউন্ড" },
+  notReturned: { en: "not returned", bn: "ফেরত আসেনি" },
+  page: { en: "Page", bn: "পৃষ্ঠা" },
+  prev: { en: "Previous", bn: "আগের" },
+  next: { en: "Next", bn: "পরের" },
+  retry: { en: "Try again", bn: "আবার চেষ্টা করুন" },
 };
 
-// Mock issuance history
-const mockIssuanceHistory = [
-  {
-    id: "i-001",
-    date: "2024-01-15",
-    action: "ISSUED",
-    officer: "SI Suresh Patil",
-    badge: "KAR-SI-1234",
-    purpose: "Patrol Duty",
-    verifiedBy: "HC Mohan (Biometric)",
-    ammunition: "15 rounds",
-  },
-  {
-    id: "i-002",
-    date: "2024-01-14",
-    action: "RETURNED",
-    officer: "ASI Prakash",
-    badge: "KAR-ASI-2345",
-    purpose: "-",
-    verifiedBy: "HC Mohan (Biometric)",
-    ammunition: "15 rounds returned",
-  },
-  {
-    id: "i-003",
-    date: "2024-01-14",
-    action: "ISSUED",
-    officer: "ASI Prakash",
-    badge: "KAR-ASI-2345",
-    purpose: "Investigation",
-    verifiedBy: "HC Mohan (Biometric)",
-    ammunition: "15 rounds",
-  },
-];
+const STATUS: Record<WeaponStatus, { label: { en: string; bn: string }; tone: "success" | "info" | "warning" | "neutral" }> = {
+  IN_ARMOURY: { label: { en: "In armoury", bn: "অস্ত্রাগারে" }, tone: "success" },
+  ISSUED: { label: { en: "Issued", bn: "ইস্যু করা" }, tone: "info" },
+  MAINTENANCE: { label: { en: "Maintenance", bn: "রক্ষণাবেক্ষণে" }, tone: "warning" },
+  CONDEMNED: { label: { en: "Condemned", bn: "বাতিলকৃত" }, tone: "neutral" },
+};
 
-// Mock inspection history
-const mockInspectionHistory = [
-  {
-    id: "insp-001",
-    date: "2024-01-10",
-    inspector: "SHO Sharma",
-    result: "PASS",
-    notes: "All parts in working condition. No visible wear or damage.",
-    nextDue: "2024-04-10",
-  },
-  {
-    id: "insp-002",
-    date: "2023-10-10",
-    inspector: "SHO Sharma",
-    result: "PASS",
-    notes: "Minor cleaning required. Otherwise serviceable.",
-    nextDue: "2024-01-10",
-  },
-  {
-    id: "insp-003",
-    date: "2023-07-10",
-    inspector: "Insp. Kumar",
-    result: "PASS",
-    notes: "Annual inspection complete. Weapon in good condition.",
-    nextDue: "2023-10-10",
-  },
-];
-
-function getStatusBadgeVariant(status: string) {
-  const variants: Record<string, string> = {
-    IN_ARMOURY: "success",
-    ISSUED: "info",
-    MAINTENANCE: "warning",
-    CONDEMNED: "error",
-  };
-  return variants[status] || "secondary";
-}
-
-function getConditionBadgeVariant(condition: string) {
-  const variants: Record<string, string> = {
-    SERVICEABLE: "success",
-    UNDER_REPAIR: "warning",
-    UNSERVICEABLE: "error",
-  };
-  return variants[condition] || "secondary";
-}
+const CONDITION: Record<WeaponCondition, { en: string; bn: string }> = {
+  SERVICEABLE: { en: "Serviceable", bn: "ব্যবহারযোগ্য" },
+  UNDER_REPAIR: { en: "Under repair", bn: "মেরামতাধীন" },
+  UNSERVICEABLE: { en: "Unserviceable", bn: "ব্যবহার অযোগ্য" },
+};
 
 export default function WeaponDetailPage() {
-  const params = useParams();
-  const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState("overview");
+  const { id } = useParams<{ id: string }>();
+  const { pick } = useI18n();
+  const [page, setPage] = useState(1);
+  const weapon = useWeapon(id);
+  const ledger = useWeaponIssuances(id, page);
 
-  const weaponId = params.id as string;
-  const weapon = mockWeapons[weaponId] || mockWeapons["wpn-001"];
+  if (weapon.isPending) {
+    return (
+      <DashboardLayout>
+        <div className="flex h-96 items-center justify-center gap-3 text-foreground-muted">
+          <Loader2 className="h-5 w-5 animate-spin" /> {pick(L.loading)}
+        </div>
+      </DashboardLayout>
+    );
+  }
 
-  const canIssue = user && hasMinimumRole(user.role, "SHO");
-  const canEdit = user && hasMinimumRole(user.role, "SP");
+  if (weapon.isError) {
+    // A malformed id (400) is as absent as an unknown one (404).
+    const notFound = weapon.error instanceof ApiClientError && (weapon.error.code === 404 || weapon.error.code === 400);
+    return (
+      <DashboardLayout>
+        <EmptyState
+          icon={AlertTriangle}
+          title={notFound ? pick(L.notFound) : pick(L.loadFailed)}
+          description={notFound ? pick(L.notFoundBody) : weapon.error.message}
+          action={
+            <Link href="/armoury">
+              <Button variant="secondary">{pick(L.back)}</Button>
+            </Link>
+          }
+        />
+      </DashboardLayout>
+    );
+  }
+
+  const w = weapon.data;
+  const issue = w.currentIssue;
+  const rows = ledger.data?.data ?? [];
+  const totalPages = ledger.data?.totalPages ?? 0;
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <PageHeader
+          title={w.weaponNumber}
+          description={`${w.type} · ${w.make}`}
+          icon={Shield}
+          breadcrumb={[{ label: pick(L.register), href: "/armoury" }, { label: w.weaponNumber }]}
+          badge={<StatusPill tone={STATUS[w.status].tone}>{pick(STATUS[w.status].label)}</StatusPill>}
+          actions={
             <Link href="/armoury">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Armoury
-              </Button>
+              <Button variant="secondary">{pick(L.back)}</Button>
             </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-                <Crosshair className="h-6 w-6" />
-                {weapon.weaponId}
-              </h1>
-              <p className="text-foreground-muted">
-                {weapon.make} {weapon.model} - {weapon.type}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant={getStatusBadgeVariant(weapon.status) as any} className="text-sm px-3 py-1">
-              {weapon.status.replace(/_/g, " ")}
-            </Badge>
-            {canEdit && (
-              <Button variant="secondary">
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
+          }
+        />
+        <p className="text-sm text-foreground-muted">{pick(L.manage)}</p>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <Panel title={pick(L.details)}>
+            <dl className="space-y-3">
+              <Field label={pick(L.type)} value={w.type} />
+              <Field label={pick(L.make)} value={w.make} />
+              <Field label={pick(L.serial)} value={w.serialNumber} mono />
+              <Field label={pick(L.station)} value={w.stationName} />
+              <Field label={pick(L.condition)} value={pick(CONDITION[w.condition])} />
+              {w.maintenanceNote && w.status !== "IN_ARMOURY" && <Field label={pick(L.maintenanceNote)} value={w.maintenanceNote} />}
+              <Field label={pick(L.registered)} value={formatDateTime(w.createdAt)} />
+            </dl>
+          </Panel>
+
+          {issue && (
+            <Panel title={pick(L.currentIssue)} className="lg:col-span-2">
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label={pick(L.issuedTo)} value={`${issue.issuedToName} · ${issue.issuedToBadge}`} />
+                <Field label={pick(L.issuedBy)} value={issue.issuedByName} />
+                <Field label={pick(L.purpose)} value={issue.purpose} />
+                <Field label={pick(L.rounds)} value={issue.roundsIssued} />
+                <Field label={pick(L.issued)} value={formatDateTime(issue.issuedAt)} />
+                <Field
+                  label={pick(L.expected)}
+                  value={
+                    issue.expectedReturn ? (
+                      <span className={issue.overdue ? "text-error" : ""}>
+                        {formatDateTime(issue.expectedReturn)}
+                        {issue.overdue && ` · ${pick(L.overdue)}`}
+                      </span>
+                    ) : null
+                  }
+                />
+              </dl>
+            </Panel>
+          )}
+
+          <Panel title={pick(L.ledger)} className={issue ? "lg:col-span-3" : "lg:col-span-2"}>
+            {ledger.isPending ? (
+              <div className="flex items-center gap-3 py-6 text-foreground-muted">
+                <Loader2 className="h-4 w-4 animate-spin" /> {pick(L.loading)}
+              </div>
+            ) : ledger.isError ? (
+              <div className="space-y-2">
+                <p className="text-sm text-error">{ledger.error.message}</p>
+                <Button variant="secondary" size="sm" onClick={() => ledger.refetch()}>
+                  {pick(L.retry)}
+                </Button>
+              </div>
+            ) : rows.length === 0 ? (
+              <p className="text-sm text-foreground-muted">{pick(L.noLedger)}</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-foreground-subtle">
+                      <th className="py-2 pr-3">{pick(L.issued)}</th>
+                      <th className="py-2 pr-3">{pick(L.issuedTo)}</th>
+                      <th className="py-2 pr-3">{pick(L.purpose)}</th>
+                      <th className="py-2 pr-3 text-right">{pick(L.rounds)}</th>
+                      <th className="py-2 pr-3">{pick(L.returned)}</th>
+                      <th className="py-2 text-right">{pick(L.roundsBack)}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((i) => {
+                      const short = i.roundsReturned !== null ? i.roundsIssued - i.roundsReturned : 0;
+                      return (
+                        <tr key={i.id} className="border-b border-border/60 align-top">
+                          <td className="whitespace-nowrap py-2 pr-3 text-foreground-muted">{formatDateTime(i.issuedAt)}</td>
+                          <td className="py-2 pr-3">
+                            {i.issuedToName}
+                            <div className="text-xs text-foreground-subtle">{i.issuedToBadge}</div>
+                          </td>
+                          <td className="py-2 pr-3">{i.purpose}</td>
+                          <td className="py-2 pr-3 text-right">{i.roundsIssued}</td>
+                          <td className="py-2 pr-3">
+                            {i.returnedAt ? (
+                              <>
+                                {formatDateTime(i.returnedAt)}
+                                <div className="text-xs text-foreground-subtle">
+                                  {i.receivedByName}
+                                  {i.returnCondition && ` · ${pick(CONDITION[i.returnCondition])}`}
+                                </div>
+                                {i.returnNote && <div className="text-xs text-foreground-muted">{i.returnNote}</div>}
+                              </>
+                            ) : (
+                              <span className={i.overdue ? "text-error" : "text-foreground-muted"}>
+                                {pick(L.stillOut)}
+                                {i.overdue && ` · ${pick(L.overdue)}`}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 text-right">
+                            {i.roundsReturned ?? "—"}
+                            {short > 0 && (
+                              <div className="text-xs text-error">
+                                {short} {pick(L.notReturned)}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
-          </div>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Condition</p>
-                  <Badge variant={getConditionBadgeVariant(weapon.condition) as any} className="mt-1">
-                    {weapon.condition.replace(/_/g, " ")}
-                  </Badge>
-                </div>
-                <Shield className="h-8 w-8 text-accent opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Location</p>
-                  <p className="text-lg font-bold text-foreground">{weapon.location}</p>
-                </div>
-                <Package className="h-8 w-8 text-info opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Next Inspection</p>
-                  <p className="text-lg font-bold text-foreground">
-                    {new Date(weapon.nextInspection).toLocaleDateString("en-IN")}
-                  </p>
-                </div>
-                <Calendar className="h-8 w-8 text-warning opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-foreground-muted">Serial Number</p>
-                  <p className="text-lg font-mono text-accent">{weapon.serialNumber}</p>
-                </div>
-                <FileText className="h-8 w-8 text-success opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Current Assignment */}
-        {weapon.assignedTo && (
-          <Card className="border-info/30 bg-info/5">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-info/20 flex items-center justify-center">
-                    <User className="h-6 w-6 text-info" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">Currently Issued to: {weapon.assignedTo}</p>
-                    <p className="text-sm text-foreground-muted">Badge: {weapon.assignedBadge}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-foreground-muted">Issued on</p>
-                  <p className="text-foreground">{new Date(weapon.issuedDate!).toLocaleDateString("en-IN")}</p>
-                </div>
-                {canIssue && (
-                  <Button variant="secondary">
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Return Weapon
+            {totalPages > 1 && (
+              <div className="mt-4 flex items-center justify-between text-sm text-foreground-muted">
+                <span>
+                  {pick(L.page)} {page} / {totalPages}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                    {pick(L.prev)}
                   </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Maintenance Warning */}
-        {weapon.status === "MAINTENANCE" && (
-          <Card className="border-warning/30 bg-warning/5">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <AlertTriangle className="h-5 w-5 text-warning" />
-                <div>
-                  <p className="font-medium text-foreground">Under Maintenance</p>
-                  <p className="text-sm text-foreground-muted">{weapon.remarks}</p>
+                  <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                    {pick(L.next)}
+                  </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="overview">
-              <Crosshair className="h-4 w-4 mr-2" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="issuance">
-              <History className="h-4 w-4 mr-2" />
-              Issuance History
-            </TabsTrigger>
-            <TabsTrigger value="inspection">
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Inspections
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Weapon Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-foreground-muted">Weapon ID</p>
-                      <p className="font-mono text-accent">{weapon.weaponId}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Type</p>
-                      <p className="text-foreground">{weapon.type}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Make</p>
-                      <p className="text-foreground">{weapon.make}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Model</p>
-                      <p className="text-foreground">{weapon.model}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Serial Number</p>
-                      <p className="font-mono text-foreground">{weapon.serialNumber}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Caliber</p>
-                      <p className="text-foreground">{weapon.caliber}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Asset Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-foreground-muted">Purchase Date</p>
-                      <p className="text-foreground">{new Date(weapon.purchaseDate).toLocaleDateString("en-IN")}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Purchase Value</p>
-                      <p className="text-foreground">Rs. {weapon.purchaseValue.toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Last Inspection</p>
-                      <p className="text-foreground">{new Date(weapon.lastInspection).toLocaleDateString("en-IN")}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Next Inspection</p>
-                      <p className="text-foreground">{new Date(weapon.nextInspection).toLocaleDateString("en-IN")}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Current Location</p>
-                      <p className="text-foreground">{weapon.location}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-foreground-muted">Condition</p>
-                      <Badge variant={getConditionBadgeVariant(weapon.condition) as any}>
-                        {weapon.condition.replace(/_/g, " ")}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Issue Weapon Button for Available Weapons */}
-            {weapon.status === "IN_ARMOURY" && canIssue && (
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle className="h-5 w-5 text-success" />
-                      <div>
-                        <p className="font-medium text-foreground">Weapon Available for Issuance</p>
-                        <p className="text-sm text-foreground-muted">Biometric verification required</p>
-                      </div>
-                    </div>
-                    <Button>
-                      <Shield className="h-4 w-4 mr-2" />
-                      Issue Weapon
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
             )}
-          </TabsContent>
-
-          {/* Issuance History Tab */}
-          <TabsContent value="issuance" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Issuance History</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Officer</TableHead>
-                      <TableHead>Purpose</TableHead>
-                      <TableHead>Ammunition</TableHead>
-                      <TableHead>Verified By</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mockIssuanceHistory.map((record) => (
-                      <TableRow key={record.id}>
-                        <TableCell>{new Date(record.date).toLocaleDateString("en-IN")}</TableCell>
-                        <TableCell>
-                          <Badge variant={record.action === "ISSUED" ? "info" : "success"}>
-                            {record.action}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="text-foreground">{record.officer}</p>
-                            <p className="text-xs text-foreground-muted">{record.badge}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>{record.purpose}</TableCell>
-                        <TableCell>{record.ammunition}</TableCell>
-                        <TableCell>{record.verifiedBy}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Inspection History Tab */}
-          <TabsContent value="inspection" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Inspection History</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Inspector</TableHead>
-                      <TableHead>Result</TableHead>
-                      <TableHead>Notes</TableHead>
-                      <TableHead>Next Due</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mockInspectionHistory.map((record) => (
-                      <TableRow key={record.id}>
-                        <TableCell>{new Date(record.date).toLocaleDateString("en-IN")}</TableCell>
-                        <TableCell>{record.inspector}</TableCell>
-                        <TableCell>
-                          <Badge variant={record.result === "PASS" ? "success" : "error"}>
-                            {record.result}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate">{record.notes}</TableCell>
-                        <TableCell>{new Date(record.nextDue).toLocaleDateString("en-IN")}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+          </Panel>
+        </div>
       </div>
     </DashboardLayout>
   );

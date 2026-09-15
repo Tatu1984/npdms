@@ -267,6 +267,15 @@ export const MODULES: PlatformModule[] = [
     status: "preview",
     aiAssisted: true,
   },
+  {
+    id: "traffic-challans",
+    href: "/traffic",
+    group: "traffic",
+    icon: ClipboardList,
+    nameKey: "modules.trafficChallans",
+    descKey: "modules.trafficChallansDesc",
+    status: "live",
+  },
 
   {
     id: "grievance",
@@ -302,6 +311,15 @@ export const MODULES: PlatformModule[] = [
     status: "live",
     ops: true,
     aiAssisted: false,
+  },
+  {
+    id: "operational-map",
+    href: "/gis",
+    group: "command",
+    icon: MapPinned,
+    nameKey: "modules.operationalMap",
+    descKey: "modules.operationalMapDesc",
+    status: "live",
   },
   {
     id: "workload",

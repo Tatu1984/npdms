@@ -1,392 +1,134 @@
 "use client";
 
 import { useState } from "react";
-import {
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Shield,
-  Award,
-  Briefcase,
-  Calendar,
-  Edit,
-  Camera,
-  FileText,
-  Clock,
-  TrendingUp,
-} from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { AlertTriangle, KeyRound, Loader2, User } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { EmptyState, Field, PageHeader, Panel } from "@/components/platform/primitives";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Avatar } from "@/components/ui/Avatar";
-import { useAuthStore, getRoleDisplayName } from "@/stores/authStore";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/stores/toastStore";
+import { getRoleDisplayName } from "@/stores/authStore";
+import type { Role } from "@/types";
+import { useI18n } from "@/lib/i18n";
+import authApi, { type User as ApiUser } from "@/lib/api/auth";
+import { formatDateTime } from "@/lib/utils";
 
-// Mock performance data
-const mockPerformance = {
-  casesHandled: 45,
-  casesResolved: 38,
-  resolutionRate: 84,
-  avgResolutionTime: 12,
-  rating: 4.5,
-  commendations: 3,
-  trainings: [
-    { name: "Cyber Crime Investigation", date: "2023-12", status: "Completed" },
-    { name: "Forensic Evidence Handling", date: "2023-08", status: "Completed" },
-    { name: "Advanced Interview Techniques", date: "2024-02", status: "Scheduled" },
-  ],
+const L = {
+  title: { en: "My profile", bn: "আমার প্রোফাইল" },
+  description: { en: "Your account as recorded by the platform.", bn: "প্ল্যাটফর্মে নথিভুক্ত আপনার অ্যাকাউন্ট।" },
+  account: { en: "Account", bn: "অ্যাকাউন্ট" },
+  name: { en: "Name", bn: "নাম" },
+  username: { en: "Username", bn: "ব্যবহারকারীর নাম" },
+  rank: { en: "Rank", bn: "পদ" },
+  badge: { en: "Badge number", bn: "ব্যাজ নম্বর" },
+  station: { en: "Station", bn: "থানা" },
+  email: { en: "Email", bn: "ইমেল" },
+  phone: { en: "Phone", bn: "ফোন" },
+  lastLogin: { en: "Previous sign-in", bn: "আগের সাইন-ইন" },
+  loading: { en: "Loading your profile…", bn: "প্রোফাইল লোড হচ্ছে…" },
+  loadFailed: { en: "Your profile could not be loaded", bn: "প্রোফাইল লোড করা যায়নি" },
+  retry: { en: "Try again", bn: "আবার চেষ্টা করুন" },
+  password: { en: "Change password", bn: "পাসওয়ার্ড পরিবর্তন" },
+  passwordHint: {
+    en: "At least 8 characters. Your sign-ins and failed attempts are recorded in the access log.",
+    bn: "অন্তত ৮টি অক্ষর। আপনার সাইন-ইন ও ব্যর্থ প্রচেষ্টা অ্যাক্সেস লগে নথিভুক্ত হয়।",
+  },
+  current: { en: "Current password", bn: "বর্তমান পাসওয়ার্ড" },
+  next: { en: "New password", bn: "নতুন পাসওয়ার্ড" },
+  confirm: { en: "Repeat new password", bn: "নতুন পাসওয়ার্ড আবার লিখুন" },
+  save: { en: "Change password", bn: "পাসওয়ার্ড পরিবর্তন করুন" },
+  mismatch: { en: "The new passwords do not match", bn: "নতুন পাসওয়ার্ড দুটি মেলেনি" },
+  tooShort: { en: "The new password must be at least 8 characters", bn: "নতুন পাসওয়ার্ড অন্তত ৮ অক্ষরের হতে হবে" },
+  changed: { en: "Password changed", bn: "পাসওয়ার্ড পরিবর্তিত হয়েছে" },
+  failed: { en: "Password not changed", bn: "পাসওয়ার্ড পরিবর্তন হয়নি" },
 };
 
-// Mock activity log
-const mockActivity = [
-  { action: "Updated case diary", case: "BHW/2026/00123", time: "2 hours ago" },
-  { action: "Registered new FIR", case: "BHW/2026/00125", time: "5 hours ago" },
-  { action: "Acknowledged flash alert", case: null, time: "6 hours ago" },
-  { action: "Collected evidence", case: "BHW/2026/00121", time: "1 day ago" },
-  { action: "Submitted case for chargesheet", case: "BHW/2026/00089", time: "2 days ago" },
-];
-
 export default function ProfilePage() {
-  const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState("overview");
+  const { pick } = useI18n();
+  const me = useQuery({ queryKey: ["me"], queryFn: authApi.getCurrentUser });
+  const change = useMutation({
+    mutationFn: (v: { oldPassword: string; newPassword: string }) => authApi.changePassword(v.oldPassword, v.newPassword),
+  });
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
 
-  if (!user) return null;
+  const submit = async () => {
+    if (next.length < 8) {
+      toast.error(pick(L.failed), pick(L.tooShort));
+      return;
+    }
+    if (next !== confirm) {
+      toast.error(pick(L.failed), pick(L.mismatch));
+      return;
+    }
+    try {
+      await change.mutateAsync({ oldPassword: current, newPassword: next });
+      toast.success(pick(L.changed), "");
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+    } catch (err) {
+      toast.error(pick(L.failed), err instanceof Error ? err.message : "");
+    }
+  };
+
+  const u: ApiUser | undefined = me.data;
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Profile Header */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-start gap-6">
-              {/* Avatar */}
-              <div className="relative">
-                <div className="h-24 w-24 rounded-full bg-accent/10 flex items-center justify-center">
-                  <User className="h-12 w-12 text-accent" />
-                </div>
-                <button className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-accent flex items-center justify-center">
-                  <Camera className="h-4 w-4 text-white" />
-                </button>
-              </div>
+        <PageHeader title={pick(L.title)} description={pick(L.description)} icon={User} />
 
-              {/* Info */}
-              <div className="flex-1">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h1 className="text-2xl font-bold text-foreground">{user.name}</h1>
-                    <Badge variant="info" className="mt-1">
-                      {getRoleDisplayName(user.role)}
-                    </Badge>
-                  </div>
-                  <Button variant="secondary">
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit Profile
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Panel title={pick(L.account)}>
+            {me.isPending ? (
+              <div className="flex items-center gap-3 py-6 text-foreground-muted">
+                <Loader2 className="h-4 w-4 animate-spin" /> {pick(L.loading)}
+              </div>
+            ) : me.isError || !u ? (
+              <EmptyState
+                icon={AlertTriangle}
+                title={pick(L.loadFailed)}
+                description={me.error?.message}
+                action={
+                  <Button variant="secondary" onClick={() => me.refetch()}>
+                    {pick(L.retry)}
                   </Button>
-                </div>
+                }
+              />
+            ) : (
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label={pick(L.name)} value={u.name} />
+                <Field label={pick(L.username)} value={u.username} mono />
+                <Field label={pick(L.rank)} value={getRoleDisplayName(u.role as Role)} />
+                <Field label={pick(L.badge)} value={u.badgeNumber} mono />
+                <Field label={pick(L.station)} value={u.stationName} />
+                <Field label={pick(L.email)} value={u.email} />
+                <Field label={pick(L.phone)} value={u.phone} />
+                <Field
+                  label={pick(L.lastLogin)}
+                  value={(u as ApiUser & { lastLogin?: string | null }).lastLogin ? formatDateTime((u as ApiUser & { lastLogin?: string }).lastLogin!) : null}
+                />
+              </dl>
+            )}
+          </Panel>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Shield className="h-4 w-4 text-foreground-muted" />
-                    <span className="text-foreground">{user.badgeNumber}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <MapPin className="h-4 w-4 text-foreground-muted" />
-                    <span className="text-foreground">{user.stationName}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Phone className="h-4 w-4 text-foreground-muted" />
-                    <span className="text-foreground">+91 9876543210</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Mail className="h-4 w-4 text-foreground-muted" />
-                    <span className="text-foreground">{user.name.toLowerCase().replace(" ", ".")}@kolkatapolice.gov.in</span>
-                  </div>
-                </div>
+          <Panel title={pick(L.password)} description={pick(L.passwordHint)}>
+            <div className="space-y-4">
+              <Input type="password" label={pick(L.current)} value={current} onChange={(v: string) => setCurrent(v)} autoComplete="current-password" />
+              <Input type="password" label={pick(L.next)} value={next} onChange={(v: string) => setNext(v)} autoComplete="new-password" />
+              <Input type="password" label={pick(L.confirm)} value={confirm} onChange={(v: string) => setConfirm(v)} autoComplete="new-password" />
+              <div className="flex justify-end">
+                <Button onClick={submit} disabled={change.isPending || !current || !next}>
+                  {change.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <KeyRound className="mr-2 h-4 w-4" />}
+                  {pick(L.save)}
+                </Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="overview">
-              <User className="h-4 w-4 mr-2" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="performance">
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Performance
-            </TabsTrigger>
-            <TabsTrigger value="activity">
-              <Clock className="h-4 w-4 mr-2" />
-              Activity
-            </TabsTrigger>
-            <TabsTrigger value="training">
-              <Award className="h-4 w-4 mr-2" />
-              Training
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Personal Info */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5" />
-                    Personal Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Full Name</span>
-                    <span className="text-foreground">{user.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Badge Number</span>
-                    <span className="font-mono text-accent">{user.badgeNumber}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Rank</span>
-                    <span className="text-foreground">{getRoleDisplayName(user.role)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Date of Joining</span>
-                    <span className="text-foreground">15 May 2019</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Years of Service</span>
-                    <span className="text-foreground">4 years, 8 months</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Posting Info */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Current Posting
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Station</span>
-                    <span className="text-foreground">{user.stationName}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">District</span>
-                    <span className="text-foreground">{user.districtName}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">State</span>
-                    <span className="text-foreground">{user.stateName}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Posted Since</span>
-                    <span className="text-foreground">01 Jan 2023</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Reporting To</span>
-                    <span className="text-foreground">Insp. Sharma (SHO)</span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Quick Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-accent">{mockPerformance.casesHandled}</p>
-                  <p className="text-sm text-foreground-muted">Cases Handled</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-success">{mockPerformance.casesResolved}</p>
-                  <p className="text-sm text-foreground-muted">Cases Resolved</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-info">{mockPerformance.resolutionRate}%</p>
-                  <p className="text-sm text-foreground-muted">Resolution Rate</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-warning">{mockPerformance.commendations}</p>
-                  <p className="text-sm text-foreground-muted">Commendations</p>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Performance Tab */}
-          <TabsContent value="performance" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Case Statistics</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm text-foreground">Resolution Rate</span>
-                      <span className="text-sm font-medium text-success">{mockPerformance.resolutionRate}%</span>
-                    </div>
-                    <div className="h-2 bg-background-tertiary rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-success"
-                        style={{ width: `${mockPerformance.resolutionRate}%` }}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-between py-2 border-t border-border">
-                    <span className="text-foreground-muted">Average Resolution Time</span>
-                    <span className="text-foreground">{mockPerformance.avgResolutionTime} days</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-t border-border">
-                    <span className="text-foreground-muted">Cases This Month</span>
-                    <span className="text-foreground">8</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-t border-border">
-                    <span className="text-foreground-muted">Currently Active</span>
-                    <span className="text-foreground">3</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Performance Rating</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-4">
-                    <p className="text-5xl font-bold text-warning">{mockPerformance.rating}</p>
-                    <div className="text-warning mt-2">
-                      {"★".repeat(Math.floor(mockPerformance.rating))}
-                      {"☆".repeat(5 - Math.floor(mockPerformance.rating))}
-                    </div>
-                    <p className="text-sm text-foreground-muted mt-2">Based on 12 reviews</p>
-                  </div>
-                  <div className="space-y-2 mt-4">
-                    {[
-                      { label: "Investigation Skills", value: 4.5 },
-                      { label: "Documentation", value: 4.2 },
-                      { label: "Public Interaction", value: 4.8 },
-                      { label: "Punctuality", value: 4.5 },
-                    ].map((skill, index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <span className="text-sm text-foreground-muted">{skill.label}</span>
-                        <span className="text-sm text-foreground">{skill.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Activity Tab */}
-          <TabsContent value="activity" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5" />
-                  Recent Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {mockActivity.map((activity, index) => (
-                    <div
-                      key={index}
-                      className="flex items-start gap-4 p-3 rounded-lg bg-background-tertiary"
-                    >
-                      <div className="h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
-                        <FileText className="h-4 w-4 text-accent" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-foreground">{activity.action}</p>
-                        {activity.case && (
-                          <p className="text-sm text-accent font-mono">{activity.case}</p>
-                        )}
-                        <p className="text-xs text-foreground-muted">{activity.time}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Training Tab */}
-          <TabsContent value="training" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Award className="h-5 w-5" />
-                  Training & Certifications
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {mockPerformance.trainings.map((training, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-4 rounded-lg bg-background-tertiary"
-                    >
-                      <div>
-                        <p className="font-medium text-foreground">{training.name}</p>
-                        <p className="text-sm text-foreground-muted">{training.date}</p>
-                      </div>
-                      <Badge
-                        variant={training.status === "Completed" ? "success" : "info"}
-                      >
-                        {training.status}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Commendations & Awards</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { title: "Best Investigation Award", year: "2023", from: "District SP" },
-                    { title: "Appreciation Letter", year: "2023", from: "DGP Office" },
-                    { title: "Community Service Award", year: "2022", from: "Local MLA" },
-                  ].map((award, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-4 rounded-lg bg-background-tertiary"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Award className="h-5 w-5 text-warning" />
-                        <div>
-                          <p className="font-medium text-foreground">{award.title}</p>
-                          <p className="text-sm text-foreground-muted">From: {award.from}</p>
-                        </div>
-                      </div>
-                      <span className="text-foreground-muted">{award.year}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+          </Panel>
+        </div>
       </div>
     </DashboardLayout>
   );

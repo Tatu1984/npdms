@@ -52,15 +52,15 @@ export const authApi = {
   },
 
   getCurrentUser: async (): Promise<User> => {
-    return apiClient.get<User>('/auth/me');
+    return apiClient.get<User>('/me');
   },
 
   changePassword: async (oldPassword: string, newPassword: string): Promise<void> => {
-    await apiClient.post('/auth/change-password', { oldPassword, newPassword });
+    await apiClient.put('/me/password', { oldPassword, newPassword });
   },
 
   updateProfile: async (data: Partial<User>): Promise<User> => {
-    return apiClient.put<User>('/auth/profile', data);
+    return apiClient.put<User>('/me', data);
   },
 };
 

@@ -238,7 +238,6 @@ export const investigationBn: Widen<typeof investigationEn> = {
     title: "এই মামলার সম্পর্কসূত্র",
     description:
       "যা নথিভুক্ত হয়েছে তা থেকে তৈরি — ব্যক্তি ও তাঁদের ফোন, যানবাহন, সংযুক্ত সাক্ষ্যপ্রমাণ, এবং ঘটনাস্থল",
-    graphWorkspace: "গ্রাফ কর্মক্ষেত্র খুলুন",
     financialNetwork: "আর্থিক নেটওয়ার্ক",
     emptyTitle: "এখনও যুক্ত করার মতো কিছু নেই",
     emptyDesc:

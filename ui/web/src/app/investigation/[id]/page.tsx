@@ -789,7 +789,6 @@ export default function WorkspacePage() {
               title={t("investigationScreen.links.title")}
               description={t("investigationScreen.links.description")}
               menu={[
-                act.link("networks", t("investigationScreen.links.graphWorkspace"), "/networks", { icon: Link2 }),
                 act.link("cyber", t("investigationScreen.links.financialNetwork"), "/cyber-intelligence", { icon: Link2 }),
               ]}
             >

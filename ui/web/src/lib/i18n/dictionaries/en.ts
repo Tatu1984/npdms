@@ -135,9 +135,13 @@ export const en = {
     cyberIntelligence: "Cyber & Financial Fraud",
     cyberIntelligenceDesc:
       "Complaint intake, recorded accounts and handles, money trails, freeze requests and linked complaints",
+    trafficChallans: "Traffic Challans",
+    trafficChallansDesc: "E-challans under the Motor Vehicles Act, disputes, recorded payments and repeat defaulters",
     accidentReconstruction: "Accident Reconstruction",
     accidentReconstructionDesc:
       "Traffic incident reconstruction from CCTV, ANPR and signal data",
+    operationalMap: "Operational Map",
+    operationalMapDesc: "Stations, fleet vehicles, open incidents, cameras and traffic incidents at their stored positions",
     dispatch: "Dispatch & Response",
     dispatchDesc:
       "Incident intake, operator classification, distance-ranked unit dispatch and escalation",
