@@ -41,11 +41,11 @@ const mockPerformance = {
 
 // Mock activity log
 const mockActivity = [
-  { action: "Updated case diary", case: "KOR/2024/00123", time: "2 hours ago" },
-  { action: "Registered new FIR", case: "KOR/2024/00125", time: "5 hours ago" },
+  { action: "Updated case diary", case: "BHW/2026/00123", time: "2 hours ago" },
+  { action: "Registered new FIR", case: "BHW/2026/00125", time: "5 hours ago" },
   { action: "Acknowledged flash alert", case: null, time: "6 hours ago" },
-  { action: "Collected evidence", case: "KOR/2024/00121", time: "1 day ago" },
-  { action: "Submitted case for chargesheet", case: "KOR/2024/00089", time: "2 days ago" },
+  { action: "Collected evidence", case: "BHW/2026/00121", time: "1 day ago" },
+  { action: "Submitted case for chargesheet", case: "BHW/2026/00089", time: "2 days ago" },
 ];
 
 export default function ProfilePage() {
@@ -101,7 +101,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Mail className="h-4 w-4 text-foreground-muted" />
-                    <span className="text-foreground">{user.name.toLowerCase().replace(" ", ".")}@karpolice.gov.in</span>
+                    <span className="text-foreground">{user.name.toLowerCase().replace(" ", ".")}@kolkatapolice.gov.in</span>
                   </div>
                 </div>
               </div>

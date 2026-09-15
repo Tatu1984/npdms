@@ -208,7 +208,7 @@ export default function NewRTIRequestPage() {
                       label="Related FIR/Case Number"
                       value={formData.relatedFIR}
                       onChange={(v: string) => handleChange('relatedFIR', v)}
-                      placeholder="e.g., KOR/2024/00123"
+                      placeholder="e.g., BHW/2026/00123"
                     />
                   </div>
                   <Input

@@ -34,7 +34,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, setUser } = useAuthStore();
+  const { login } = useAuthStore();
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -66,45 +66,12 @@ export default function LoginPage() {
       if (success) {
         router.push("/dashboard");
       } else {
-        // Try demo mode fallback if API login fails
-        if (data.username === DEMO_CREDENTIALS.username && data.password === DEMO_CREDENTIALS.password) {
-          // Set demo user directly for demonstration
-          setUser({
-            id: "demo-admin-001",
-            name: "System Administrator",
-            badgeNumber: "ADMIN-001",
-            role: "DGP",
-            stationId: "550e8400-e29b-41d4-a716-446655440001",
-            stationName: "Koramangala Police Station",
-            districtId: "dist-001",
-            districtName: "Bangalore Urban",
-            stateId: "state-kar",
-            stateName: "Karnataka",
-          });
-          router.push("/dashboard");
-          return;
-        }
         setError("Invalid credentials. Please check your username and password.");
       }
     } catch {
-      // Try demo mode fallback on error
-      if (data.username === DEMO_CREDENTIALS.username && data.password === DEMO_CREDENTIALS.password) {
-        setUser({
-          id: "demo-admin-001",
-          name: "System Administrator",
-          badgeNumber: "ADMIN-001",
-          role: "DGP",
-          stationId: "550e8400-e29b-41d4-a716-446655440001",
-          stationName: "Koramangala Police Station",
-          districtId: "dist-001",
-          districtName: "Bangalore Urban",
-          stateId: "state-kar",
-          stateName: "Karnataka",
-        });
-        router.push("/dashboard");
-        return;
-      }
-      setError("An error occurred. Please try again.");
+      // No offline or demo sign-in: without the API there is no session token,
+      // so every screen would fail after a pretend login.
+      setError("The server could not be reached. Please try again.");
     } finally {
       setIsLoading(false);
     }

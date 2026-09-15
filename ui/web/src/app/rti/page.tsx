@@ -31,7 +31,7 @@ const rtiRequests = [
     id: '1',
     requestNumber: 'RTI/2024/00123',
     applicantName: 'Arun Kumar',
-    subject: 'Details of pending cases in Koramangala station',
+    subject: 'Details of pending cases in Bhowanipore police station',
     status: 'PENDING',
     receivedDate: '2024-01-10',
     dueDate: '2024-02-09',

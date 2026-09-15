@@ -13,6 +13,5 @@ export { DatePicker } from "./DatePicker";
 export { FileUpload } from "./FileUpload";
 export { ForensicRequestDialog } from "./ForensicRequestDialog";
 export { DutyScheduleEditor } from "./DutyScheduleEditor";
-export { FIRPreviewDialog } from "./FIRPreviewDialog";
 export { AdvancedFilters } from "./AdvancedFilters";
 export { VoiceInput } from "./VoiceInput";

@@ -303,13 +303,13 @@ export default function SettingsPage() {
                 {[
                   {
                     device: "Windows PC - Chrome",
-                    location: "Bengaluru, Karnataka",
+                    location: "Kolkata, West Bengal",
                     time: "Active now",
                     current: true,
                   },
                   {
                     device: "Android - NPDMS App",
-                    location: "Bengaluru, Karnataka",
+                    location: "Kolkata, West Bengal",
                     time: "2 hours ago",
                     current: false,
                   },
@@ -455,7 +455,7 @@ export default function SettingsPage() {
                         Prefix for FIR numbering
                       </p>
                     </div>
-                    <span className="font-mono">KOR/2024/</span>
+                    <span className="font-mono">BHW/2026/</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div>

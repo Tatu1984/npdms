@@ -198,8 +198,8 @@ export function VehicleTrackingMap({ vehicles, height = '400px', onVehicleClick 
     status: vehicle.status,
   }));
 
-  // Calculate center based on vehicle locations, default to Bangalore
-  let center: [number, number] = [12.9352, 77.6245]; // Bangalore default
+  // Calculate center based on vehicle locations, default to central Kolkata (Lalbazar)
+  let center: [number, number] = [22.5697, 88.3506];
   if (vehiclesWithLocation.length > 0) {
     const avgLat = vehiclesWithLocation.reduce((sum, v) => sum + v.gpsLocation!.lat, 0) / vehiclesWithLocation.length;
     const avgLng = vehiclesWithLocation.reduce((sum, v) => sum + v.gpsLocation!.lng, 0) / vehiclesWithLocation.length;

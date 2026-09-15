@@ -91,13 +91,13 @@ describe('Currency Formatting', () => {
 
 describe('FIR Number Generation', () => {
   it('should generate valid FIR number', () => {
-    const firNumber = generateFIRNumber('KOR', 2024, 89);
-    expect(firNumber).toBe('KOR/2024/00089');
+    const firNumber = generateFIRNumber('BHW', 2026, 89);
+    expect(firNumber).toBe('BHW/2026/00089');
   });
 
   it('should pad sequence numbers correctly', () => {
-    expect(generateFIRNumber('HSR', 2024, 1)).toBe('HSR/2024/00001');
-    expect(generateFIRNumber('HSR', 2024, 12345)).toBe('HSR/2024/12345');
+    expect(generateFIRNumber('PKS', 2026, 1)).toBe('PKS/2026/00001');
+    expect(generateFIRNumber('PKS', 2026, 12345)).toBe('PKS/2026/12345');
   });
 });
 
@@ -142,8 +142,8 @@ describe('Aadhaar Validation', () => {
 
 describe('Vehicle Number Validation', () => {
   it('should validate Indian vehicle numbers', () => {
-    expect(validateVehicleNumber('KA-01-AB-1234')).toBe(true);
-    expect(validateVehicleNumber('KA01AB1234')).toBe(true);
+    expect(validateVehicleNumber('WB-01-AB-1234')).toBe(true);
+    expect(validateVehicleNumber('WB01AB1234')).toBe(true);
     expect(validateVehicleNumber('MH-12-CD-5678')).toBe(true);
     expect(validateVehicleNumber('DL 01 A 1234')).toBe(true);
   });
