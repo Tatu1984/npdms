@@ -168,16 +168,17 @@ export function PhotoGallery({ person, canUpload, canRetire }: { person: Missing
             >
               <button type="button" onClick={() => setViewing(photo)} className="relative block aspect-[3/4] w-full bg-background-tertiary" aria-label={t("missingBoard.photos.viewFull")}>
                 <PhotoImage reportId={person.id} photo={photo} className="h-full w-full object-cover" />
+              </button>
+              <div className="flex flex-1 flex-col gap-1 p-2 text-xs">
+                {/* Kept out of the image: a badge over the photo hid part of the face and any DEMO watermark. */}
                 {photo.isPrimary && (
-                  <span className="absolute left-1.5 top-1.5">
+                  <span className="self-start">
                     <StatusPill tone="info">
                       <Star className="h-3 w-3" />
                       {t("missingBoard.photos.primary")}
                     </StatusPill>
                   </span>
                 )}
-              </button>
-              <div className="flex flex-1 flex-col gap-1 p-2 text-xs">
                 <span className="font-medium text-foreground">{t(`missingBoard.photos.source.${photo.source}`)}</span>
                 <span className="text-foreground-muted">
                   {t("missingBoard.photos.providedBy", { name: photo.providedByName, relationship: photo.relationship })}
