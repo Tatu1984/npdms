@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { KeyRound, MapPinned, Scale, Settings } from "lucide-react";
+import { KeyRound, MapPinned, Scale, ScanFace, Settings } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PageHeader, Panel } from "@/components/platform/primitives";
 import { Button } from "@/components/ui/button";
@@ -62,6 +62,14 @@ export default function SettingsPage() {
               <Button variant="secondary">
                 <KeyRound className="mr-2 h-4 w-4" />
                 {pick(L.openProfile)}
+              </Button>
+            </Link>
+          </Panel>
+          <Panel title={t("faceRecognitionScreen.settings.cardTitle")} description={t("faceRecognitionScreen.settings.cardBody")}>
+            <Link href="/settings/face-recognition">
+              <Button variant="secondary">
+                <ScanFace className="mr-2 h-4 w-4" />
+                {t("faceRecognitionScreen.settings.cardOpen")}
               </Button>
             </Link>
           </Panel>

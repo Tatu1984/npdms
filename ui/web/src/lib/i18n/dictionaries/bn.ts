@@ -11,6 +11,7 @@ import { caseFileBn } from "./case-file.bn";
 import { malkhanaBn } from "./malkhana.bn";
 import { legalBn } from "./legal.bn";
 import { missingBoardBn } from "./missing-board.bn";
+import { faceRecognitionBn } from "./face-recognition.bn";
 
 /**
  * Bengali dictionary.
@@ -36,6 +37,7 @@ export const bn: DeepPartial<Dictionary> = {
   malkhanaScreen: malkhanaBn,
   legalScreen: legalBn,
   missingBoard: missingBoardBn,
+  faceRecognitionScreen: faceRecognitionBn,
 
   common: {
     appName: "কলকাতা পুলিশ ডিজিটাল ইন্টেলিজেন্স প্ল্যাটফর্ম",

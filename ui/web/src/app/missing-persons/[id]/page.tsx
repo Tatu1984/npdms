@@ -80,6 +80,7 @@ import {
 import { hasMinimumRole, useAuthStore } from "@/stores/authStore";
 import { CHANNEL, GENDER, L, OUTCOME, PRIORITY, SOURCE, STATUS, VULNERABILITY } from "../labels";
 import { errorMessage, Field, formatWhen, nowLocal, selectClass, toApiTime } from "../shared";
+import { FaceMatchingPanel } from "@/components/face-recognition/FaceMatchingPanel";
 
 type DialogKind = null | "edit" | "close" | "lookout" | "start" | "sighting" | "contact";
 
@@ -288,7 +289,14 @@ export default function MissingPersonDetailPage() {
             <TabsTrigger value="movement">{pick(L.movement)}</TabsTrigger>
             <TabsTrigger value="checks">{pick(L.stationChecks)}</TabsTrigger>
             <TabsTrigger value="family">{pick(L.family)}</TabsTrigger>
+            <TabsTrigger value="face-matching" data-testid="tab-face-matching">
+              {pick({ en: "Face matching", bn: "মুখ মিলানো" })}
+            </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="face-matching">
+            {tab === "face-matching" && <FaceMatchingPanel reportId={id} open={open} />}
+          </TabsContent>
 
           <TabsContent value="overview">
             <div className="flex flex-col gap-4">

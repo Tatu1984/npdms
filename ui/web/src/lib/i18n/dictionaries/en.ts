@@ -10,6 +10,7 @@ import { caseFileEn } from "./case-file.en";
 import { malkhanaEn } from "./malkhana.en";
 import { legalEn } from "./legal.en";
 import { missingBoardEn } from "./missing-board.en";
+import { faceRecognitionEn } from "./face-recognition.en";
 
 /**
  * English dictionary — the source of truth for translation keys.
@@ -30,6 +31,7 @@ export const en = {
   malkhanaScreen: malkhanaEn,
   legalScreen: legalEn,
   missingBoard: missingBoardEn,
+  faceRecognitionScreen: faceRecognitionEn,
 
   common: {
     appName: "Kolkata Police Digital Intelligence Platform",

@@ -352,6 +352,8 @@ export interface CameraMatch {
   reviewedByName: string;
   reviewedAt: string | null;
   sightingId: string | null;
+  /** Produced under a DEMO authorisation from synthetic test faces. */
+  isDemo?: boolean;
 }
 
 export interface PathPoint {

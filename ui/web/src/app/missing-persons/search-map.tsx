@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { Camera, Info, MapPin, MapPinned } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import type { CameraMatch, MissingPerson, MissingSighting } from "@/lib/api/missing-persons";
+import { DemoTag } from "@/components/face-recognition/FRStatusBanner";
 import { useSearchMap, useUpdateMissingPerson } from "@/hooks/use-missing-persons";
 import { Panel, StatusPill } from "@/components/platform/primitives";
 import { Button } from "@/components/ui/button";
@@ -322,6 +323,11 @@ function MatchDetail({ c }: { c: CameraMatch }) {
   return (
     <dl className="grid gap-1.5" data-testid="map-detail-match">
       <dd className="font-medium text-foreground">{c.cameraName || c.sourceMedia}</dd>
+      {c.isDemo && (
+        <dd>
+          <DemoTag />
+        </dd>
+      )}
       {c.frameTime && (
         <div>
           <dt className="text-xs text-foreground-subtle">{t("missingBoard.map.frameTime")}</dt>
