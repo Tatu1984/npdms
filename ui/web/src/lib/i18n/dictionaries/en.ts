@@ -132,10 +132,8 @@ export const en = {
       "Traffic incident reconstruction from CCTV, ANPR and signal data",
     dispatch: "Dispatch & Response",
     dispatchDesc:
-      "Incident intake, severity scoring, unit recommendation and escalation",
-    workload: "Station Workload",
       "Incident intake, operator classification, distance-ranked unit dispatch and escalation",
-    workload: "Station Performance",
+    workload: "Station Workload",
     workloadDesc:
       "Workload, investigation backlog, SLA monitoring and bottleneck detection",
     grievance: "Citizen Grievance",
@@ -495,6 +493,9 @@ export const en = {
       warrantsExecuted: "Warrants executed",
       workspacesClosed: "Investigations closed",
       bailDecided: "Bail applications decided",
+    },
+  },
+
   fraud: {
     searchPlaceholder: "Search by complaint number, complainant, NCRP or 1930 reference…",
     linkRecord: "FIR or case (optional)",
