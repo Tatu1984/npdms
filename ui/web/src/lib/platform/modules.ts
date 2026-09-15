@@ -264,8 +264,8 @@ export const MODULES: PlatformModule[] = [
     icon: Siren,
     nameKey: "modules.accidentReconstruction",
     descKey: "modules.accidentReconstructionDesc",
-    status: "preview",
-    aiAssisted: true,
+    status: "live",
+    aiAssisted: false,
   },
   {
     id: "traffic-challans",
