@@ -186,8 +186,7 @@ export const MODULES: PlatformModule[] = [
     icon: BookOpenCheck,
     nameKey: "modules.caseFile",
     descKey: "modules.caseFileDesc",
-    status: "preview",
-    aiAssisted: true,
+    status: "live",
   },
   {
     id: "cyber-intelligence",
