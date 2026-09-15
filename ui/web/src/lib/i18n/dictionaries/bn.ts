@@ -2,6 +2,7 @@ import type { Dictionary } from "./en";
 import { custodyBn } from "./custody.bn";
 import { investigationBn } from "./investigation.bn";
 import { accidentBn } from "./accident.bn";
+import { dispatchBn } from "./dispatch.bn";
 
 /**
  * Bengali dictionary.
@@ -18,6 +19,7 @@ export const bn: DeepPartial<Dictionary> = {
   custodyScreen: custodyBn,
   investigationScreen: investigationBn,
   accidentScreen: accidentBn,
+  dispatchScreen: dispatchBn,
 
   common: {
     appName: "কলকাতা পুলিশ ডিজিটাল ইন্টেলিজেন্স প্ল্যাটফর্ম",
@@ -134,6 +136,8 @@ export const bn: DeepPartial<Dictionary> = {
     dispatchDesc:
       "ঘটনা গ্রহণ, তীব্রতা নির্ধারণ, ইউনিট সুপারিশ ও ঊর্ধ্বতন পর্যায়ে প্রেরণ",
     workload: "থানার কাজের চাপ",
+      "ঘটনা গ্রহণ, অপারেটরের শ্রেণিবিন্যাস, দূরত্ব অনুযায়ী ইউনিট প্রেরণ ও ঊর্ধ্বতন পর্যায়ে জানানো",
+    workload: "থানার কর্মক্ষমতা",
     workloadDesc:
       "কাজের চাপ, তদন্তের বকেয়া, সময়সীমা পর্যবেক্ষণ ও প্রতিবন্ধকতা শনাক্তকরণ",
     grievance: "নাগরিক অভিযোগ",
