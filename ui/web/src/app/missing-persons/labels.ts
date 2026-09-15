@@ -1,0 +1,243 @@
+import type {
+  ClosureOutcome,
+  ContactChannel,
+  MissingPersonStatus,
+  MissingPriority,
+  SightingSource,
+  Vulnerability,
+} from "@/lib/api/missing-persons";
+
+/**
+ * Bilingual labels for the Phase 04 screens, read through `pick`. Kept beside
+ * the screens rather than in the shared dictionaries so the module's
+ * vocabulary lives in one place.
+ */
+
+type B = { en: string; bn: string };
+
+export const STATUS: Record<MissingPersonStatus, B & { tone: "warning" | "info" | "success" | "neutral" }> = {
+  REPORTED: { en: "Reported — not yet taken up", bn: "অভিযোগ জমা — গ্রহণ বাকি", tone: "warning" },
+  SEARCHING: { en: "Search in progress", bn: "খোঁজ চলছে", tone: "info" },
+  FOUND: { en: "Found", bn: "সন্ধান মিলেছে", tone: "success" },
+  CLOSED: { en: "Closed", bn: "বন্ধ", tone: "neutral" },
+};
+
+export const PRIORITY: Record<MissingPriority, B & { tone: "danger" | "warning" | "neutral" }> = {
+  CRITICAL: { en: "Critical", bn: "অতি জরুরি", tone: "danger" },
+  HIGH: { en: "High", bn: "জরুরি", tone: "warning" },
+  NORMAL: { en: "Normal", bn: "সাধারণ", tone: "neutral" },
+};
+
+export const VULNERABILITY: Record<Vulnerability, B> = {
+  CHILD: { en: "Child", bn: "শিশু" },
+  ELDERLY: { en: "Elderly", bn: "বয়স্ক" },
+  DISABILITY: { en: "Disability", bn: "প্রতিবন্ধকতা" },
+  MENTAL_HEALTH: { en: "Mental health condition", bn: "মানসিক স্বাস্থ্যজনিত অবস্থা" },
+  TRAFFICKING_RISK: { en: "Trafficking risk", bn: "পাচারের ঝুঁকি" },
+};
+
+export const OUTCOME: Record<ClosureOutcome, B> = {
+  TRACED: { en: "Traced", bn: "সন্ধান পাওয়া গেছে" },
+  RETURNED: { en: "Returned home", bn: "বাড়ি ফিরেছেন" },
+  DECEASED: { en: "Deceased", bn: "মৃত" },
+  OTHER: { en: "Other", bn: "অন্যান্য" },
+};
+
+export const SOURCE: Record<SightingSource, B> = {
+  OFFICER_OBSERVATION: { en: "Officer observation", bn: "আধিকারিকের পর্যবেক্ষণ" },
+  PUBLIC_TIP: { en: "Public tip", bn: "জনসাধারণের তথ্য" },
+  CCTV_REVIEW: { en: "CCTV footage reviewed by an officer", bn: "আধিকারিক দ্বারা সিসিটিভি ফুটেজ পর্যালোচনা" },
+  OTHER: { en: "Other", bn: "অন্যান্য" },
+};
+
+export const CHANNEL: Record<ContactChannel, B> = {
+  PHONE: { en: "Phone", bn: "ফোন" },
+  IN_PERSON: { en: "In person", bn: "সশরীরে" },
+  SMS: { en: "SMS", bn: "এসএমএস" },
+  WHATSAPP: { en: "WhatsApp", bn: "হোয়াটসঅ্যাপ" },
+  EMAIL: { en: "Email", bn: "ইমেল" },
+  LETTER: { en: "Letter", bn: "চিঠি" },
+};
+
+export const GENDER: Record<string, B> = {
+  FEMALE: { en: "Female", bn: "মহিলা" },
+  MALE: { en: "Male", bn: "পুরুষ" },
+  TRANSGENDER: { en: "Transgender", bn: "রূপান্তরকামী" },
+  UNKNOWN: { en: "Not known", bn: "অজানা" },
+};
+
+export const L = {
+  register: { en: "Register missing person", bn: "নিখোঁজ ব্যক্তির নাম নথিভুক্ত করুন" },
+  registerDesc: {
+    en: "The search starts on registration: the first 24 hours checklist opens and each step is timed from now.",
+    bn: "নথিভুক্ত হলেই খোঁজ শুরু: প্রথম ২৪ ঘণ্টার চেকলিস্ট চালু হয় এবং প্রতিটি ধাপের সময় এখন থেকে গোনা হয়।",
+  },
+  nationalTitle: { en: "National matching is not integrated", bn: "জাতীয় মিলকরণ সংযুক্ত নয়" },
+  nationalDesc: {
+    en: "The national missing-person portals remain the authoritative channel. This platform does not connect to them; entering details there is a checklist step done by the officer. Appearance matching is not part of this module.",
+    bn: "জাতীয় নিখোঁজ-ব্যক্তি পোর্টালই প্রামাণ্য মাধ্যম। এই প্ল্যাটফর্ম তাদের সঙ্গে যুক্ত নয়; সেখানে তথ্য দেওয়া আধিকারিকের একটি চেকলিস্ট ধাপ। চেহারা মিলিয়ে দেখা এই মডিউলের অংশ নয়।",
+  },
+  awaiting: { en: "Awaiting take-up", bn: "গ্রহণের অপেক্ষায়" },
+  searching: { en: "Searches in progress", bn: "চলমান খোঁজ" },
+  critical: { en: "Critical", bn: "অতি জরুরি" },
+  overdue: { en: "Reports with overdue steps", bn: "সময় পেরোনো ধাপসহ অভিযোগ" },
+  unverified: { en: "Sightings awaiting decision", bn: "সিদ্ধান্তের অপেক্ষায় দেখা" },
+  foundRecent: { en: "Found in the last 30 days", bn: "গত ৩০ দিনে সন্ধান" },
+  person: { en: "Person", bn: "ব্যক্তি" },
+  ageSex: { en: "Age / sex", bn: "বয়স / লিঙ্গ" },
+  lastSeen: { en: "Last seen", bn: "শেষ দেখা" },
+  station: { en: "Station", bn: "থানা" },
+  progress: { en: "Progress", bn: "অগ্রগতি" },
+  status: { en: "Status", bn: "অবস্থা" },
+  searchPlaceholder: { en: "Search by name, report number or place…", bn: "নাম, অভিযোগ নম্বর বা স্থান দিয়ে খুঁজুন…" },
+  allStatuses: { en: "All statuses", bn: "সব অবস্থা" },
+  vulnerableOnly: { en: "Vulnerable only", bn: "শুধু ঝুঁকিপূর্ণ" },
+  overdueOnly: { en: "Overdue steps only", bn: "শুধু সময় পেরোনো" },
+  noReports: { en: "No missing person reports", bn: "কোনো নিখোঁজ অভিযোগ নেই" },
+  noReportsDesc: {
+    en: "Register a report taken at the station, or take up one filed through the citizen portal.",
+    bn: "থানায় নেওয়া অভিযোগ নথিভুক্ত করুন, অথবা নাগরিক পোর্টালে জমা পড়া অভিযোগ গ্রহণ করুন।",
+  },
+  loadFailed: { en: "Could not load missing person reports", bn: "নিখোঁজ অভিযোগ লোড করা যায়নি" },
+  masked: { en: "Child — identity withheld", bn: "শিশু — পরিচয় গোপন" },
+  maskedDesc: {
+    en: "Identifying details of a child are shown to SI and above, and to the assigned officer.",
+    bn: "শিশুর শনাক্তকারী তথ্য এসআই ও তদূর্ধ্ব এবং দায়িত্বপ্রাপ্ত আধিকারিককে দেখানো হয়।",
+  },
+  checklistShort: { en: "steps", bn: "ধাপ" },
+  sightingsShort: { en: "verified sightings", bn: "যাচাই করা দেখা" },
+  overdueSteps: { en: "overdue", bn: "সময় পেরিয়েছে" },
+  previous: { en: "Previous", bn: "আগের" },
+  next: { en: "Next", bn: "পরের" },
+  page: { en: "Page", bn: "পৃষ্ঠা" },
+  // registration form
+  personDetails: { en: "Missing person", bn: "নিখোঁজ ব্যক্তি" },
+  name: { en: "Full name", bn: "পুরো নাম" },
+  age: { en: "Age", bn: "বয়স" },
+  gender: { en: "Sex", bn: "লিঙ্গ" },
+  height: { en: "Height", bn: "উচ্চতা" },
+  complexion: { en: "Complexion", bn: "গায়ের রং" },
+  marks: { en: "Identifying marks", bn: "শনাক্তকরণ চিহ্ন" },
+  lastSeenPlace: { en: "Last seen at (place)", bn: "শেষ দেখা (স্থান)" },
+  lastSeenTime: { en: "Last seen (date and time)", bn: "শেষ দেখা (তারিখ ও সময়)" },
+  wearing: { en: "Last seen wearing", bn: "শেষ দেখার সময় পরনে" },
+  circumstances: { en: "Circumstances", bn: "পরিস্থিতি" },
+  vulnerabilities: { en: "Vulnerability", bn: "ঝুঁকি" },
+  vulnerabilityHint: {
+    en: "Any vulnerability raises priority; a child or trafficking risk is critical. Anyone under 18 is flagged as a child automatically.",
+    bn: "যেকোনো ঝুঁকি অগ্রাধিকার বাড়ায়; শিশু বা পাচারের ঝুঁকি হলে অতি জরুরি। ১৮ বছরের কম বয়সী স্বয়ংক্রিয়ভাবে শিশু হিসেবে চিহ্নিত।",
+  },
+  informant: { en: "Informant", bn: "সংবাদদাতা" },
+  informantName: { en: "Name", bn: "নাম" },
+  informantPhone: { en: "Phone", bn: "ফোন" },
+  relation: { en: "Relation to the person", bn: "নিখোঁজ ব্যক্তির সঙ্গে সম্পর্ক" },
+  assignment: { en: "Assignment and links", bn: "দায়িত্ব ও সংযোগ" },
+  assignOfficer: { en: "Assigned officer", bn: "দায়িত্বপ্রাপ্ত আধিকারিক" },
+  linkFir: { en: "Linked FIR (optional)", bn: "সংযুক্ত এজাহার (ঐচ্ছিক)" },
+  cancel: { en: "Cancel", bn: "বাতিল" },
+  submitRegister: { en: "Register and start search", bn: "নথিভুক্ত করে খোঁজ শুরু করুন" },
+  saving: { en: "Saving…", bn: "সংরক্ষণ হচ্ছে…" },
+  requiredMissing: { en: "Fill in every required field", bn: "সব আবশ্যক ঘর পূরণ করুন" },
+  // detail
+  overview: { en: "Overview", bn: "সারসংক্ষেপ" },
+  checklist: { en: "First 24 hours", bn: "প্রথম ২৪ ঘণ্টা" },
+  sightings: { en: "Sightings", bn: "দেখা যাওয়ার খবর" },
+  movement: { en: "Movement", bn: "গতিপথ" },
+  family: { en: "Family contact", bn: "পরিবারের সঙ্গে যোগাযোগ" },
+  startSearch: { en: "Take up report and start search", bn: "অভিযোগ গ্রহণ করে খোঁজ শুরু করুন" },
+  startSearchDesc: {
+    en: "This report was filed through the citizen portal and no officer has taken it up. Starting the search opens the checklist, timed from now.",
+    bn: "এই অভিযোগ নাগরিক পোর্টালে জমা পড়েছে এবং কোনো আধিকারিক এখনও গ্রহণ করেননি। খোঁজ শুরু করলে চেকলিস্ট চালু হবে, সময় গোনা হবে এখন থেকে।",
+  },
+  edit: { en: "Edit details", bn: "তথ্য সম্পাদনা" },
+  issueLookout: { en: "Issue lookout notice", bn: "লুকআউট নোটিস জারি করুন" },
+  viewLookout: { en: "Open lookout notice", bn: "লুকআউট নোটিস খুলুন" },
+  close: { en: "Close report", bn: "অভিযোগ বন্ধ করুন" },
+  recordSighting: { en: "Record sighting", bn: "দেখা যাওয়ার খবর নথিভুক্ত করুন" },
+  logContact: { en: "Log family contact", bn: "পরিবারের সঙ্গে যোগাযোগ নথিভুক্ত করুন" },
+  vulnerablePerson: { en: "Vulnerable person", bn: "ঝুঁকিপূর্ণ ব্যক্তি" },
+  hoursSince: { en: "Hours since last seen", bn: "শেষ দেখার পর ঘণ্টা" },
+  stepsDone: { en: "Checklist steps done", bn: "সম্পন্ন চেকলিস্ট ধাপ" },
+  verified: { en: "Verified sightings", bn: "যাচাই করা দেখা" },
+  awaitingDecision: { en: "Awaiting decision", bn: "সিদ্ধান্তের অপেক্ষায়" },
+  profile: { en: "Profile", bn: "বিবরণ" },
+  reportNumber: { en: "Report number", bn: "অভিযোগ নম্বর" },
+  filedBy: { en: "Filed", bn: "জমা" },
+  filedCitizen: { en: "Citizen portal", bn: "নাগরিক পোর্টাল" },
+  filedStation: { en: "At the station", bn: "থানায়" },
+  unassigned: { en: "Not assigned", bn: "দায়িত্ব দেওয়া হয়নি" },
+  notRecorded: { en: "Not recorded", bn: "নথিভুক্ত নেই" },
+  closure: { en: "Closure", bn: "সমাপ্তি" },
+  due: { en: "Due", bn: "নির্ধারিত সময়" },
+  done: { en: "Done", bn: "সম্পন্ন" },
+  by: { en: "by", bn: "দ্বারা" },
+  markDone: { en: "Mark done", bn: "সম্পন্ন চিহ্নিত করুন" },
+  noteOptional: { en: "Note (optional)", bn: "মন্তব্য (ঐচ্ছিক)" },
+  checklistNotStarted: {
+    en: "The checklist starts when an officer takes up the report.",
+    bn: "কোনো আধিকারিক অভিযোগ গ্রহণ করলে চেকলিস্ট শুরু হবে।",
+  },
+  checklistFrozen: { en: "The report is closed; the checklist is final.", bn: "অভিযোগ বন্ধ; চেকলিস্ট চূড়ান্ত।" },
+  noSightings: { en: "No sightings recorded yet.", bn: "এখনও কোনো দেখা যাওয়ার খবর নথিভুক্ত হয়নি।" },
+  sightingRule: {
+    en: "A sighting counts only once an officer other than the one who recorded it verifies it. Only verified sightings are used for the movement route.",
+    bn: "যিনি নথিভুক্ত করেছেন তিনি ছাড়া অন্য কোনো আধিকারিক যাচাই করলে তবেই দেখা যাওয়ার খবর গণ্য হয়। গতিপথে কেবল যাচাই করা খবরই ব্যবহৃত হয়।",
+  },
+  reportedBy: { en: "Recorded by", bn: "নথিভুক্ত করেছেন" },
+  verify: { en: "Verify", bn: "যাচাই করুন" },
+  reject: { en: "Not this person", bn: "এই ব্যক্তি নন" },
+  ownSighting: { en: "Recorded by you — another officer must decide", bn: "আপনার নথিভুক্ত — অন্য আধিকারিককে সিদ্ধান্ত নিতে হবে" },
+  verifiedBy: { en: "Verified by", bn: "যাচাই করেছেন" },
+  rejectedBy: { en: "Rejected by", bn: "বাতিল করেছেন" },
+  pending: { en: "Awaiting decision", bn: "সিদ্ধান্তের অপেক্ষায়" },
+  location: { en: "Location", bn: "স্থান" },
+  sightedAt: { en: "Seen at (date and time)", bn: "দেখা গেছে (তারিখ ও সময়)" },
+  source: { en: "Source", bn: "উৎস" },
+  latitude: { en: "Latitude (optional)", bn: "অক্ষাংশ (ঐচ্ছিক)" },
+  longitude: { en: "Longitude (optional)", bn: "দ্রাঘিমাংশ (ঐচ্ছিক)" },
+  details: { en: "Details", bn: "বিবরণ" },
+  decisionNote: { en: "Reason", bn: "কারণ" },
+  rejectTitle: { en: "Reject sighting", bn: "দেখা যাওয়ার খবর বাতিল" },
+  rejectDesc: { en: "Record why this sighting is not the missing person.", bn: "কেন এই খবর নিখোঁজ ব্যক্তির নয় তা লিখুন।" },
+  movementDesc: {
+    en: "Built from the last-seen point and verified sightings only, in time order.",
+    bn: "শুধু শেষ দেখার স্থান ও যাচাই করা খবর থেকে, সময়ের ক্রমে তৈরি।",
+  },
+  movementEmpty: { en: "No verified sightings yet, so the route has only the last-seen point.", bn: "এখনও কোনো যাচাই করা খবর নেই, তাই গতিপথে শুধু শেষ দেখার স্থান।" },
+  origin: { en: "Last seen", bn: "শেষ দেখা" },
+  verifiedSighting: { en: "Verified sighting", bn: "যাচাই করা দেখা" },
+  minutesLater: { en: "minutes later", bn: "মিনিট পরে" },
+  noContacts: { en: "No contact with the family recorded yet.", bn: "পরিবারের সঙ্গে কোনো যোগাযোগ এখনও নথিভুক্ত হয়নি।" },
+  direction: { en: "Direction", bn: "দিক" },
+  outbound: { en: "We contacted the family", bn: "আমরা পরিবারের সঙ্গে যোগাযোগ করেছি" },
+  inbound: { en: "The family contacted us", bn: "পরিবার আমাদের সঙ্গে যোগাযোগ করেছে" },
+  channel: { en: "Channel", bn: "মাধ্যম" },
+  contactName: { en: "Family member", bn: "পরিবারের সদস্য" },
+  summary: { en: "What was said", bn: "কী কথা হয়েছে" },
+  contactedAt: { en: "When", bn: "কখন" },
+  outcome: { en: "Outcome", bn: "ফলাফল" },
+  closureNote: { en: "How the report was closed", bn: "কীভাবে অভিযোগ বন্ধ হল" },
+  foundLocation: { en: "Where found", bn: "কোথায় পাওয়া গেছে" },
+  foundCondition: { en: "Condition when found", bn: "পাওয়ার সময় অবস্থা" },
+  closeDesc: {
+    en: "Closing is final. A linked lookout notice still active is resolved with the same note.",
+    bn: "বন্ধ করা চূড়ান্ত। সংযুক্ত সক্রিয় লুকআউট নোটিসও একই মন্তব্যে নিষ্পত্তি হবে।",
+  },
+  lookoutDesc: {
+    en: "Publishes a MISSING notice on the lookout register from this report's description and links it here.",
+    bn: "এই অভিযোগের বিবরণ থেকে লুকআউট রেজিস্টারে একটি নিখোঁজ নোটিস প্রকাশ করে এখানে যুক্ত করে।",
+  },
+  confirm: { en: "Confirm", bn: "নিশ্চিত করুন" },
+  save: { en: "Save", bn: "সংরক্ষণ" },
+  notFound: { en: "Report not found", bn: "অভিযোগ পাওয়া যায়নি" },
+  restricted: { en: "Restricted record", bn: "সীমাবদ্ধ নথি" },
+  back: { en: "Back to missing persons", bn: "নিখোঁজ ব্যক্তির তালিকায় ফিরুন" },
+  retry: { en: "Retry", bn: "আবার চেষ্টা করুন" },
+  informantLabel: { en: "Informant", bn: "সংবাদদাতা" },
+  firLabel: { en: "FIR", bn: "এজাহার" },
+  lookoutLabel: { en: "Lookout", bn: "লুকআউট" },
+  registeredBy: { en: "Registered by", bn: "নথিভুক্ত করেছেন" },
+  closedBy: { en: "Closed by", bn: "বন্ধ করেছেন" },
+  audit: { en: "Audit trail", bn: "নিরীক্ষা নথি" },
+  lookoutRegister: { en: "Lookout register", bn: "লুকআউট রেজিস্টার" },
+} satisfies Record<string, B>;
