@@ -1,3 +1,4 @@
+import { bodycamBn } from "./bodycam.bn";
 import type { Dictionary } from "./en";
 import { knowledgeBn } from "./knowledge.bn";
 import { custodyBn } from "./custody.bn";
@@ -28,6 +29,7 @@ export const bn: DeepPartial<Dictionary> = {
   riskScreen: riskBn,
   knowledgeScreen: knowledgeBn,
   caseFileScreen: caseFileBn,
+  bodycamScreen: bodycamBn,
 
   common: {
     appName: "কলকাতা পুলিশ ডিজিটাল ইন্টেলিজেন্স প্ল্যাটফর্ম",
@@ -160,7 +162,7 @@ export const bn: DeepPartial<Dictionary> = {
       "কেস ফাইল সংকলন, সাক্ষ্য ও সাক্ষী তালিকা, সম্পূর্ণতা যাচাই ও দাখিল প্যাক",
     bodycam: "বডি-ওর্ন ক্যামেরা",
     bodycamDesc:
-      "বডিক্যাম যন্ত্র ব্যবস্থাপনা, সুরক্ষিত আপলোড, প্রতিলিপিকরণ ও মামলার সঙ্গে সংযুক্তি",
+      "ক্যামেরা রেজিস্টার, শিফটে দেওয়া ও ফেরত, সুরক্ষিত ডক ও প্রমাণের সঙ্গে সংযুক্তি",
     malkhana: "মালখানা",
     malkhanaDesc:
       "কিউআর অনুসরণ ও ব্লকচেইন-নোঙরকৃত হেফাজত নথি সহ বাজেয়াপ্ত সম্পত্তির খতিয়ান",

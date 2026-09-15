@@ -1,3 +1,4 @@
+import { bodycamEn } from "./bodycam.en";
 import { dispatchEn } from "./dispatch.en";
 import { custodyEn } from "./custody.en";
 import { investigationEn } from "./investigation.en";
@@ -22,6 +23,7 @@ export const en = {
   riskScreen: riskEn,
   knowledgeScreen: knowledgeEn,
   caseFileScreen: caseFileEn,
+  bodycamScreen: bodycamEn,
 
   common: {
     appName: "Kolkata Police Digital Intelligence Platform",
@@ -154,7 +156,7 @@ export const en = {
       "Case file assembly, evidence and witness matrices, completeness checks and submission packs",
     bodycam: "Body-Worn Camera",
     bodycamDesc:
-      "Bodycam device management, secure upload, transcription and evidence association",
+      "Camera register, shift issue and return, secure docking and evidence association",
     malkhana: "Malkhana",
     malkhanaDesc:
       "Seized property register with QR tracking and blockchain-anchored custody events",

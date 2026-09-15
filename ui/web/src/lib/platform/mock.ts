@@ -520,48 +520,6 @@ export const GRIEVANCES: Grievance[] = [
 
 /* ------------------------------------------------------------- 13 Bodycam */
 
-export interface BodycamDevice {
-  id: string;
-  deviceId: string;
-  assignedTo: Bilingual;
-  station: string;
-  battery: number;
-  storageUsedPct: number;
-  firmware: string;
-  status: "docked" | "in-field" | "fault" | "unassigned";
-  lastUpload: string;
-  pendingClips: number;
-}
-
-export const BODYCAMS: BodycamDevice[] = [
-  { id: "bc-1", deviceId: "KP-BWC-0184", assignedTo: { en: "SI Sutapa Mukherjee", bn: "সাব-ইন্সপেক্টর সুতপা মুখার্জি" }, station: "Bhowanipore", battery: 78, storageUsedPct: 42, firmware: "3.4.1", status: "in-field", lastUpload: "2024-12-02T08:10:00", pendingClips: 4 },
-  { id: "bc-2", deviceId: "KP-BWC-0211", assignedTo: { en: "ASI Rituparna Ghosh", bn: "সহকারী সাব-ইন্সপেক্টর ঋতুপর্ণা ঘোষ" }, station: "Kasba", battery: 100, storageUsedPct: 11, firmware: "3.4.1", status: "docked", lastUpload: "2024-12-03T06:45:00", pendingClips: 0 },
-  { id: "bc-3", deviceId: "KP-BWC-0097", assignedTo: { en: "Unassigned", bn: "অনির্ধারিত" }, station: "Park Street", battery: 12, storageUsedPct: 88, firmware: "3.2.7", status: "fault", lastUpload: "2024-11-24T19:20:00", pendingClips: 9 },
-  { id: "bc-4", deviceId: "KP-BWC-0302", assignedTo: { en: "Insp. Anirban Das", bn: "ইন্সপেক্টর অনির্বাণ দাস" }, station: "Jadavpur", battery: 64, storageUsedPct: 57, firmware: "3.4.1", status: "in-field", lastUpload: "2024-12-02T21:05:00", pendingClips: 2 },
-];
-
-export interface BodycamClip {
-  id: string;
-  clipId: string;
-  device: string;
-  officer: Bilingual;
-  recordedAt: string;
-  durationMin: number;
-  caseRef?: string;
-  hash: string;
-  integrity: IntegrityState;
-  block?: number;
-  transcribed: boolean;
-  events: Bilingual[];
-  retention: "standard" | "evidence" | "complaint" | "court-hold";
-}
-
-export const BODYCAM_CLIPS: BodycamClip[] = [
-  { id: "bcl-1", clipId: "CLIP-0184-2411-0042", device: "KP-BWC-0184", officer: { en: "SI Sutapa Mukherjee", bn: "সাব-ইন্সপেক্টর সুতপা মুখার্জি" }, recordedAt: "2024-11-21T11:35:00", durationMin: 18, caseRef: "PS-BHW/2024/0412", hash: "e91a7c4b02d6f83519ae7b2c40d6598f1b3ae07c25d94f608b1c7a3e5d029f46", integrity: "verified", block: 184488, transcribed: true, events: [{ en: "Seizure recorded", bn: "বাজেয়াপ্তকরণ রেকর্ড করা হয়েছে" }, { en: "Caution administered", bn: "সতর্কীকরণ জানানো হয়েছে" }], retention: "evidence" },
-  { id: "bcl-2", clipId: "CLIP-0302-2412-0007", device: "KP-BWC-0302", officer: { en: "Insp. Anirban Das", bn: "ইন্সপেক্টর অনির্বাণ দাস" }, recordedAt: "2024-12-02T20:14:00", durationMin: 7, hash: "5d20b9f3ea7c186409db35f7a2c0e84d6b1937fa05c2d8e461a7b390cf58d012", integrity: "pending", transcribed: false, events: [], retention: "standard" },
-  { id: "bcl-3", clipId: "CLIP-0097-2411-0118", device: "KP-BWC-0097", officer: { en: "Unassigned", bn: "অনির্ধারিত" }, recordedAt: "2024-11-24T19:02:00", durationMin: 24, hash: "a17c3e08b2d59f6401ae7c8b3d20f951", integrity: "broken", transcribed: false, events: [{ en: "Confrontation detected", bn: "বচসা শনাক্ত" }], retention: "complaint" },
-];
-
 /* ------------------------------------------------------------ 14 Malkhana */
 
 export interface PropertyItem {
