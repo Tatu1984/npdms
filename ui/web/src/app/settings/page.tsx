@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { KeyRound, Settings } from "lucide-react";
+import { KeyRound, MapPinned, Scale, Settings } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PageHeader, Panel } from "@/components/platform/primitives";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ const L = {
 };
 
 export default function SettingsPage() {
-  const { pick, locale, setLocale } = useI18n();
+  const { pick, locale, setLocale, t } = useI18n();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
@@ -62,6 +62,22 @@ export default function SettingsPage() {
               <Button variant="secondary">
                 <KeyRound className="mr-2 h-4 w-4" />
                 {pick(L.openProfile)}
+              </Button>
+            </Link>
+          </Panel>
+          <Panel title={t("legalScreen.settings.cardTitle")} description={t("legalScreen.settings.cardBody")}>
+            <Link href="/settings/legal">
+              <Button variant="secondary">
+                <Scale className="mr-2 h-4 w-4" />
+                {t("legalScreen.settings.cardOpen")}
+              </Button>
+            </Link>
+          </Panel>
+          <Panel title={t("legalScreen.settings.placesCardTitle")} description={t("legalScreen.settings.placesCardBody")}>
+            <Link href="/settings/places">
+              <Button variant="secondary">
+                <MapPinned className="mr-2 h-4 w-4" />
+                {t("legalScreen.settings.placesCardOpen")}
               </Button>
             </Link>
           </Panel>

@@ -8,6 +8,7 @@ import { riskEn } from "./risk.en";
 import { knowledgeEn } from "./knowledge.en";
 import { caseFileEn } from "./case-file.en";
 import { malkhanaEn } from "./malkhana.en";
+import { legalEn } from "./legal.en";
 
 /**
  * English dictionary — the source of truth for translation keys.
@@ -26,6 +27,7 @@ export const en = {
   caseFileScreen: caseFileEn,
   bodycamScreen: bodycamEn,
   malkhanaScreen: malkhanaEn,
+  legalScreen: legalEn,
 
   common: {
     appName: "Kolkata Police Digital Intelligence Platform",

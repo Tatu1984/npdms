@@ -158,61 +158,8 @@ export const COURTS: Court[] = [
   { id: "cyber-court", name: { en: "Special Court (Cyber)", bn: "বিশেষ আদালত (সাইবার)" }, type: "special", location: "Bidhannagar" },
 ];
 
-/**
- * Bharatiya Nyaya Sanhita 2023 sections that replaced the IPC.
- * The prototype used IPC throughout; investigations registered after
- * 1 July 2024 cite BNS, so the UI defaults to these.
- */
-export interface LegalSection {
-  code: string;
-  act: "BNS" | "BNSS" | "BSA" | "IT Act" | "NDPS" | "Arms Act" | "MV Act";
-  title: { en: string; bn: string };
-  /** Superseded IPC section, shown for officers who still think in IPC. */
-  legacyIpc?: string;
-  cognizable: boolean;
-  bailable: boolean;
-}
-
-export const BNS_SECTIONS: LegalSection[] = [
-  { code: "103", act: "BNS", title: { en: "Murder", bn: "খুন" }, legacyIpc: "IPC 302", cognizable: true, bailable: false },
-  { code: "105", act: "BNS", title: { en: "Culpable homicide not amounting to murder", bn: "খুন নয় এমন দোষী নরহত্যা" }, legacyIpc: "IPC 304", cognizable: true, bailable: false },
-  { code: "115", act: "BNS", title: { en: "Voluntarily causing hurt", bn: "স্বেচ্ছায় আঘাত করা" }, legacyIpc: "IPC 323", cognizable: true, bailable: true },
-  { code: "117", act: "BNS", title: { en: "Voluntarily causing grievous hurt", bn: "স্বেচ্ছায় গুরুতর আঘাত" }, legacyIpc: "IPC 325", cognizable: true, bailable: false },
-  { code: "137", act: "BNS", title: { en: "Kidnapping", bn: "অপহরণ" }, legacyIpc: "IPC 363", cognizable: true, bailable: false },
-  { code: "140", act: "BNS", title: { en: "Kidnapping for ransom", bn: "মুক্তিপণের জন্য অপহরণ" }, legacyIpc: "IPC 364A", cognizable: true, bailable: false },
-  { code: "303", act: "BNS", title: { en: "Theft", bn: "চুরি" }, legacyIpc: "IPC 378/379", cognizable: true, bailable: false },
-  { code: "304", act: "BNS", title: { en: "Snatching", bn: "ছিনতাই" }, cognizable: true, bailable: false },
-  { code: "305", act: "BNS", title: { en: "Theft in dwelling house", bn: "বাসগৃহে চুরি" }, legacyIpc: "IPC 380", cognizable: true, bailable: false },
-  { code: "309", act: "BNS", title: { en: "Robbery", bn: "ডাকাতি (রাহাজানি)" }, legacyIpc: "IPC 392", cognizable: true, bailable: false },
-  { code: "310", act: "BNS", title: { en: "Dacoity", bn: "ডাকাতি" }, legacyIpc: "IPC 395", cognizable: true, bailable: false },
-  { code: "316", act: "BNS", title: { en: "Criminal breach of trust", bn: "অপরাধমূলক বিশ্বাসভঙ্গ" }, legacyIpc: "IPC 406", cognizable: true, bailable: false },
-  { code: "318", act: "BNS", title: { en: "Cheating", bn: "প্রতারণা" }, legacyIpc: "IPC 420", cognizable: true, bailable: false },
-  { code: "319", act: "BNS", title: { en: "Cheating by personation", bn: "ছদ্মবেশে প্রতারণা" }, legacyIpc: "IPC 416", cognizable: true, bailable: true },
-  { code: "324", act: "BNS", title: { en: "Mischief", bn: "ক্ষতিসাধন" }, legacyIpc: "IPC 425", cognizable: true, bailable: true },
-  { code: "331", act: "BNS", title: { en: "House-trespass / house-breaking", bn: "গৃহে অনধিকার প্রবেশ" }, legacyIpc: "IPC 454", cognizable: true, bailable: false },
-  { code: "351", act: "BNS", title: { en: "Criminal intimidation", bn: "অপরাধমূলক ভীতি প্রদর্শন" }, legacyIpc: "IPC 506", cognizable: true, bailable: true },
-  { code: "352", act: "BNS", title: { en: "Intentional insult to provoke breach of peace", bn: "শান্তিভঙ্গের উদ্দেশ্যে অপমান" }, legacyIpc: "IPC 504", cognizable: false, bailable: true },
-  { code: "356", act: "BNS", title: { en: "Defamation", bn: "মানহানি" }, legacyIpc: "IPC 499", cognizable: false, bailable: true },
-  { code: "64", act: "BNS", title: { en: "Rape", bn: "ধর্ষণ" }, legacyIpc: "IPC 376", cognizable: true, bailable: false },
-  { code: "74", act: "BNS", title: { en: "Assault with intent to outrage modesty", bn: "শ্লীলতাহানির উদ্দেশ্যে আক্রমণ" }, legacyIpc: "IPC 354", cognizable: true, bailable: false },
-  { code: "79", act: "BNS", title: { en: "Word or gesture intended to insult modesty", bn: "শ্লীলতা অপমানের উদ্দেশ্যে আচরণ" }, legacyIpc: "IPC 509", cognizable: true, bailable: true },
-  { code: "85", act: "BNS", title: { en: "Cruelty by husband or relatives", bn: "স্বামী বা আত্মীয়ের নিষ্ঠুরতা" }, legacyIpc: "IPC 498A", cognizable: true, bailable: false },
-  { code: "106", act: "BNS", title: { en: "Causing death by negligence", bn: "অবহেলায় মৃত্যু ঘটানো" }, legacyIpc: "IPC 304A", cognizable: true, bailable: true },
-  { code: "281", act: "BNS", title: { en: "Rash driving on a public way", bn: "বেপরোয়া গাড়ি চালানো" }, legacyIpc: "IPC 279", cognizable: true, bailable: true },
-  { code: "66C", act: "IT Act", title: { en: "Identity theft", bn: "পরিচয় চুরি" }, cognizable: true, bailable: true },
-  { code: "66D", act: "IT Act", title: { en: "Cheating by personation using a computer resource", bn: "কম্পিউটার ব্যবহার করে ছদ্মবেশে প্রতারণা" }, cognizable: true, bailable: true },
-  { code: "67", act: "IT Act", title: { en: "Publishing obscene material in electronic form", bn: "বৈদ্যুতিন মাধ্যমে অশ্লীল বিষয় প্রকাশ" }, cognizable: true, bailable: true },
-];
-
-/** Procedural provisions officers cite constantly in case files. */
-export const BNSS_SECTIONS: LegalSection[] = [
-  { code: "173", act: "BNSS", title: { en: "Information in cognizable cases (FIR)", bn: "আমলযোগ্য মামলার তথ্য (এজাহার)" }, legacyIpc: "CrPC 154", cognizable: true, bailable: true },
-  { code: "174", act: "BNSS", title: { en: "Information in non-cognizable cases", bn: "আমল-অযোগ্য মামলার তথ্য" }, legacyIpc: "CrPC 155", cognizable: false, bailable: true },
-  { code: "180", act: "BNSS", title: { en: "Examination of witnesses by police", bn: "পুলিশ কর্তৃক সাক্ষী জিজ্ঞাসাবাদ" }, legacyIpc: "CrPC 161", cognizable: true, bailable: true },
-  { code: "183", act: "BNSS", title: { en: "Recording of confessions and statements", bn: "স্বীকারোক্তি ও বিবৃতি লিপিবদ্ধকরণ" }, legacyIpc: "CrPC 164", cognizable: true, bailable: true },
-  { code: "193", act: "BNSS", title: { en: "Report of police officer on completion of investigation", bn: "তদন্ত শেষে পুলিশ রিপোর্ট (চার্জশিট)" }, legacyIpc: "CrPC 173", cognizable: true, bailable: true },
-  { code: "105", act: "BNSS", title: { en: "Audio-video recording of search and seizure", bn: "তল্লাশি ও বাজেয়াপ্তকরণের অডিও-ভিডিও রেকর্ডিং" }, cognizable: true, bailable: true },
-];
+// Penal and procedural sections are no longer listed here: the full statute
+// library (BNS, BNSS, BSA, IPC and special Acts) is served by /api/v1/legal.
 
 /** Kolkata landmarks used for map centring and mock incident locations. */
 export const KOLKATA_CENTER = { lat: 22.5726, lng: 88.3639 };

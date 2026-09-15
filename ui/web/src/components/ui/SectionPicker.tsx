@@ -1,66 +1,64 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Plus, Search, X } from "lucide-react";
-import { BNS_SECTIONS, type LegalSection } from "@/lib/platform/wb";
+import { useState } from "react";
+import Link from "next/link";
+import { AlertTriangle, ArrowRight, Loader2, Plus, Search, X } from "lucide-react";
 import { Input } from "./input";
 import { Button } from "./button";
+import { useI18n } from "@/lib/i18n";
+import { useDebounced, useSectionSearch } from "@/hooks/use-legal";
+import { BNS_COMMENCEMENT, type LegalSection } from "@/lib/api/legal";
 
 interface SectionPickerProps {
   label?: string;
   value: string[];
   onChange: (sections: string[]) => void;
   error?: string;
+  /** "YYYY-MM-DD…". IPC applies to offences before 1 July 2024; later dates get a warning. */
+  incidentDate?: string;
 }
 
-const cite = (s: LegalSection) => `${s.act} ${s.code}`;
+const isIpc = (cite: string) => /^IPC\s/i.test(cite.trim());
 
 /**
- * Chooses the penal sections an FIR or case is registered under.
- *
- * The officer selects; nothing is suggested or scored. The reference list is
- * the BNS and IT Act sections in the platform data, searchable by title, code
- * or the IPC section it superseded. Anything not in the list — an NDPS or
- * Arms Act section, say — can be typed in as cited.
+ * Chooses the sections an FIR or case is registered under, from the statute
+ * library on the server: every section of the BNS, BNSS, BSA and IPC and the
+ * special Acts, searchable by number ("303"), heading ("theft") or citation
+ * ("IPC 420"). An IPC section shows the BNS provision that replaced it, per the
+ * BPR&D correspondence table. The officer selects; nothing is scored or
+ * suggested unasked. A citation not in the library can still be typed in, and
+ * SP and above add missing sections in Settings → Legal sections.
  */
-export function SectionPicker({ label = "Sections *", value, onChange, error }: SectionPickerProps) {
+export function SectionPicker({ label, value, onChange, error, incidentDate }: SectionPickerProps) {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
+  const debounced = useDebounced(query, 250);
+  const search = useSectionSearch(debounced);
+  const typed = query.trim();
+  const results = (search.data ?? []).filter((s) => !value.includes(s.cite));
 
-  const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const pool = BNS_SECTIONS.filter((s) => !value.includes(cite(s)));
-    if (!q) return pool.slice(0, 8);
-    return pool
-      .filter(
-        (s) =>
-          cite(s).toLowerCase().includes(q) ||
-          s.title.en.toLowerCase().includes(q) ||
-          (s.legacyIpc ?? "").toLowerCase().includes(q)
-      )
-      .slice(0, 8);
-  }, [query, value]);
-
-  const add = (section: string) => {
-    const trimmed = section.trim();
+  const add = (cite: string) => {
+    const trimmed = cite.trim();
     if (trimmed && !value.includes(trimmed)) onChange([...value, trimmed]);
     setQuery("");
   };
 
-  const typed = query.trim();
-  const typedIsNew = typed.length > 0 && !value.includes(typed) && matches.length === 0;
+  const afterCommencement = Boolean(incidentDate) && (incidentDate as string).slice(0, 10) >= BNS_COMMENCEMENT;
+  const ipcChosen = value.some(isIpc);
+  const settled = typed !== "" && debounced.trim() === typed && !search.isFetching;
 
   return (
     <div className="space-y-2">
       <Input
-        label={label}
-        placeholder="Search by title, BNS code or old IPC section — e.g. theft, 303, IPC 420"
+        label={label ?? t("legalScreen.picker.label")}
+        placeholder={t("legalScreen.picker.placeholder")}
         value={query}
+        autoComplete="off"
         onChange={(v: string) => setQuery(v)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            if (matches[0]) add(cite(matches[0]));
-            else if (typed) add(typed);
+            if (results[0] && settled) add(results[0].cite);
           }
         }}
         icon={<Search className="h-4 w-4" />}
@@ -68,16 +66,19 @@ export function SectionPicker({ label = "Sections *", value, onChange, error }: 
       />
 
       {value.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" data-testid="chosen-sections">
           {value.map((section) => (
             <span
               key={section}
-              className="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-md bg-accent/10 text-accent"
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm ${
+                isIpc(section) ? "bg-warning/10 text-warning" : "bg-accent/10 text-accent"
+              }`}
             >
               {section}
+              {isIpc(section) && <span className="text-[10px]">· {t("legalScreen.picker.ipcBefore")}</span>}
               <button
                 type="button"
-                aria-label={`Remove ${section}`}
+                aria-label={t("legalScreen.picker.remove", { cite: section })}
                 onClick={() => onChange(value.filter((s) => s !== section))}
               >
                 <X className="h-3 w-3" />
@@ -87,31 +88,105 @@ export function SectionPicker({ label = "Sections *", value, onChange, error }: 
         </div>
       )}
 
-      <div className="rounded-lg border border-border divide-y divide-border max-h-56 overflow-y-auto">
-        {matches.map((s) => (
-          <button
-            key={cite(s)}
-            type="button"
-            onClick={() => add(cite(s))}
-            className="w-full text-left px-3 py-2 hover:bg-background-tertiary flex items-center justify-between gap-3"
-          >
-            <span>
-              <span className="font-mono text-sm text-foreground">{cite(s)}</span>
-              <span className="text-sm text-foreground-muted ml-2">{s.title.en}</span>
-            </span>
-            {s.legacyIpc && <span className="text-xs text-foreground-muted whitespace-nowrap">was {s.legacyIpc}</span>}
-          </button>
-        ))}
-        {typedIsNew && (
-          <div className="px-3 py-2 flex items-center justify-between gap-3">
-            <span className="text-sm text-foreground-muted">Not in the reference list</span>
-            <Button type="button" variant="secondary" size="sm" onClick={() => add(typed)}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add “{typed}”
-            </Button>
+      {ipcChosen && afterCommencement && (
+        <p className="flex items-start gap-2 text-xs text-warning">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {t("legalScreen.picker.ipcAfterWarning")}
+        </p>
+      )}
+
+      {typed !== "" && (
+        <div
+          className="max-h-72 divide-y divide-border overflow-y-auto rounded-lg border border-border"
+          data-testid="section-results"
+        >
+          {search.isFetching && results.length === 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 text-sm text-foreground-muted">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {t("legalScreen.picker.searching")}
+            </div>
+          )}
+          {search.isError && <div className="px-3 py-2 text-sm text-error">{t("legalScreen.picker.loadFailed")}</div>}
+          {results.map((s) => (
+            <SectionRow key={s.id} section={s} chosen={value} onAdd={add} />
+          ))}
+          {settled && results.length === 0 && !search.isError && (
+            <div className="space-y-2 px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm text-foreground-muted">{t("legalScreen.picker.noMatch", { q: typed })}</span>
+                <Button type="button" variant="secondary" size="sm" onClick={() => add(typed)}>
+                  <Plus className="mr-1 h-4 w-4" />
+                  {t("legalScreen.picker.addTyped", { q: typed })}
+                </Button>
+              </div>
+              <Link href="/settings/legal" className="text-xs text-accent hover:underline">
+                {t("legalScreen.picker.addInSettings")}
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SectionRow({
+  section: s,
+  chosen,
+  onAdd,
+}: {
+  section: LegalSection;
+  chosen: string[];
+  onAdd: (cite: string) => void;
+}) {
+  const { t } = useI18n();
+  const ipc = s.actCode === "IPC";
+  // Sub-section the officer typed, e.g. "(4)" for "BNS 318(4)".
+  const sub = s.cite.endsWith(s.number) ? "" : s.cite.slice(s.cite.lastIndexOf(s.number) + s.number.length);
+  const classified = s.classification.find((c) => !sub || c.ref.startsWith(s.number + sub)) ?? null;
+
+  return (
+    <div className="flex items-start justify-between gap-3 px-3 py-2 hover:bg-background-tertiary">
+      <button type="button" onClick={() => onAdd(s.cite)} className="min-w-0 flex-1 text-left" data-cite={s.cite}>
+        <span className="font-mono text-sm text-foreground">{s.cite}</span>
+        <span className="ml-2 text-sm text-foreground-muted">{s.heading}</span>
+        <span className="mt-0.5 block text-xs text-foreground-subtle">
+          {s.actShortName}
+          {ipc && ` · ${t("legalScreen.picker.ipcBefore")}`}
+          {s.status === "repealed" && ` · ${t("legalScreen.picker.repealed")}`}
+          {!s.isBuiltin && ` · ${t("legalScreen.picker.custom")}`}
+          {classified && ` · ${t("legalScreen.picker.classification", { c: classified.cognizable, b: classified.bailable })}`}
+        </span>
+      </button>
+      {s.equivalents.length > 0 && (
+        <div className="flex max-w-[45%] flex-col items-end gap-1 text-right">
+          <span className="text-[11px] text-foreground-muted">
+            {ipc ? t("legalScreen.picker.bnsEquivalent") : t("legalScreen.picker.replacesIpc")}
+          </span>
+          <div className="flex flex-wrap justify-end gap-1">
+            {s.equivalents.map((e) =>
+              ipc ? (
+                <button
+                  key={e.citation}
+                  type="button"
+                  disabled={chosen.includes(e.citation)}
+                  onClick={() => onAdd(e.citation)}
+                  title={e.subject}
+                  className="inline-flex items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 font-mono text-xs text-accent hover:bg-accent/20 disabled:opacity-50"
+                  data-equivalent={e.citation}
+                >
+                  <ArrowRight className="h-3 w-3" />
+                  {t("legalScreen.picker.useEquivalent", { cite: e.citation })}
+                </button>
+              ) : (
+                <span key={e.citation} title={e.subject} className="font-mono text-xs text-foreground-muted">
+                  {e.citation}
+                </span>
+              ),
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

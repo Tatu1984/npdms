@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -28,6 +29,8 @@ import { LegacySelect as Select } from "@/components/ui/select";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SectionPicker } from "@/components/ui/SectionPicker";
+import { LocationPicker } from "@/components/ui/LocationPicker";
+import { useI18n } from "@/lib/i18n";
 import { useFIR, useFIRTimeline, useSetFIRStatus, useUpdateFIR } from "@/hooks/use-firs";
 import { useOfficers } from "@/hooks/use-investigation";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
@@ -35,6 +38,11 @@ import { toast } from "@/stores/toastStore";
 import { ApiClientError } from "@/lib/api/client";
 import type { FIR, FIRPriority, FIRStatus } from "@/lib/api/firs";
 import { formatDate, formatDateTime } from "@/lib/utils";
+
+const InteractiveMap = dynamic(() => import("@/components/ui/Map").then((m) => m.InteractiveMap), {
+  ssr: false,
+  loading: () => <div className="h-full w-full animate-pulse rounded-lg bg-background-tertiary" />,
+});
 
 const statusBadge: Record<FIRStatus, string> = {
   DRAFT: "secondary",
@@ -81,6 +89,8 @@ type EditForm = {
   complainantPhone: string;
   complainantAddress: string;
   incidentLocation: string;
+  incidentLatitude: number | null;
+  incidentLongitude: number | null;
   incidentDescription: string;
   ipcSections: string[];
   priority: FIRPriority;
@@ -92,6 +102,8 @@ const toEditForm = (fir: FIR): EditForm => ({
   complainantPhone: fir.complainantPhone ?? "",
   complainantAddress: fir.complainantAddress ?? "",
   incidentLocation: fir.incidentLocation,
+  incidentLatitude: fir.incidentLatitude ?? null,
+  incidentLongitude: fir.incidentLongitude ?? null,
   incidentDescription: fir.incidentDescription,
   ipcSections: fir.ipcSections,
   priority: fir.priority,
@@ -104,6 +116,7 @@ export default function FIRDetailPage() {
   const searchParams = useSearchParams();
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState("details");
+  const { t } = useI18n();
 
   const { data: fir, isPending, isError, error, refetch } = useFIR(params.id);
   const timeline = useFIRTimeline(params.id);
@@ -187,6 +200,8 @@ export default function FIRDetailPage() {
           complainantPhone: editForm.complainantPhone || null,
           complainantAddress: editForm.complainantAddress.trim() || null,
           incidentLocation: editForm.incidentLocation.trim(),
+          incidentLatitude: editForm.incidentLatitude,
+          incidentLongitude: editForm.incidentLongitude,
           incidentDescription: editForm.incidentDescription.trim(),
           ipcSections: editForm.ipcSections,
           priority: editForm.priority,
@@ -323,6 +338,27 @@ export default function FIRDetailPage() {
                         }
                       />
                       <Field label="Location" value={fir.incidentLocation} />
+                    </div>
+                    <div>
+                      <p className="text-sm text-foreground-muted">{t("legalScreen.location.mapTitle")}</p>
+                      {fir.incidentLatitude != null && fir.incidentLongitude != null ? (
+                        <div className="mt-1 space-y-1">
+                          <div className="relative isolate z-0 h-64 overflow-hidden rounded-lg border border-border" data-testid="fir-map">
+                            <InteractiveMap
+                              center={[fir.incidentLatitude, fir.incidentLongitude]}
+                              zoom={16}
+                              height="16rem"
+                              pin={{ lat: fir.incidentLatitude, lng: fir.incidentLongitude }}
+                              pinTitle={fir.incidentLocation}
+                            />
+                          </div>
+                          <p className="font-mono text-xs text-foreground-muted" data-testid="fir-coordinates">
+                            {fir.incidentLatitude.toFixed(5)}, {fir.incidentLongitude.toFixed(5)}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-sm text-foreground-muted">{t("legalScreen.location.notOnMap")}</p>
+                      )}
                     </div>
                     <div>
                       <p className="text-sm text-foreground-muted">Sections</p>
@@ -463,10 +499,18 @@ export default function FIRDetailPage() {
               value={editForm.complainantAddress}
               onChange={(v: string) => setEditForm({ ...editForm, complainantAddress: v })}
             />
-            <Input
-              label="Incident Location *"
-              value={editForm.incidentLocation}
-              onChange={(v: string) => setEditForm({ ...editForm, incidentLocation: v })}
+            <LocationPicker
+              value={{
+                location: editForm.incidentLocation,
+                latitude: editForm.incidentLatitude,
+                longitude: editForm.incidentLongitude,
+              }}
+              onChange={(v) =>
+                setEditForm((f) =>
+                  f && { ...f, incidentLocation: v.location, incidentLatitude: v.latitude, incidentLongitude: v.longitude },
+                )
+              }
+              mapHeight="220px"
             />
             <Textarea
               label="Incident Description"
@@ -475,6 +519,7 @@ export default function FIRDetailPage() {
               onChange={(v: string) => setEditForm({ ...editForm, incidentDescription: v })}
             />
             <SectionPicker
+              incidentDate={fir.incidentDate}
               value={editForm.ipcSections}
               onChange={(s) => setEditForm({ ...editForm, ipcSections: s })}
             />

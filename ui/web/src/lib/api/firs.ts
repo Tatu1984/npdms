@@ -41,6 +41,9 @@ export interface FIR {
   /** "HH:MM:SS" as stored in the TIME column. */
   incidentTime: string | null;
   incidentLocation: string;
+  /** Map point, both or neither; inside West Bengal. */
+  incidentLatitude: number | null;
+  incidentLongitude: number | null;
   incidentDescription: string;
   ipcSections: string[];
   status: FIRStatus;

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle, MapPin, Send } from "lucide-react";
+import { ArrowLeft, CheckCircle, Send } from "lucide-react";
 import { toast } from "@/stores/toastStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { LegacySelect as Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { SectionPicker } from "@/components/ui/SectionPicker";
+import { LocationPicker } from "@/components/ui/LocationPicker";
 import { useCreateFIR } from "@/hooks/use-firs";
 import { useOfficers } from "@/hooks/use-investigation";
 import { useAuthStore } from "@/stores/authStore";
@@ -46,6 +47,8 @@ const emptyForm = () => ({
   incidentDate: new Date().toISOString().split("T")[0],
   incidentTime: "",
   incidentLocation: "",
+  incidentLatitude: null as number | null,
+  incidentLongitude: null as number | null,
   incidentDescription: "",
   sections: [] as string[],
   priority: "MEDIUM" as FIRPriority,
@@ -109,6 +112,8 @@ export default function NewFIRPage() {
         incidentDate: `${form.incidentDate}T00:00:00Z`,
         incidentTime: form.incidentTime || null,
         incidentLocation: form.incidentLocation.trim(),
+        incidentLatitude: form.incidentLatitude,
+        incidentLongitude: form.incidentLongitude,
         incidentDescription: form.incidentDescription.trim(),
         ipcSections: form.sections,
         priority: form.priority,
@@ -209,15 +214,28 @@ export default function NewFIRPage() {
                     onChange={(v: string) => set("incidentTime", v)}
                   />
                 </div>
-                <Input
-                  label="Incident Location *"
-                  placeholder="Address or landmark, e.g. Gariahat Road near Rashbehari crossing"
-                  value={form.incidentLocation}
-                  onChange={(v: string) => set("incidentLocation", v)}
-                  icon={<MapPin className="h-4 w-4" />}
+                <LocationPicker
+                  value={{
+                    location: form.incidentLocation,
+                    latitude: form.incidentLatitude,
+                    longitude: form.incidentLongitude,
+                  }}
+                  onChange={(v) =>
+                    setForm((f) => ({
+                      ...f,
+                      incidentLocation: v.location,
+                      incidentLatitude: v.latitude,
+                      incidentLongitude: v.longitude,
+                    }))
+                  }
                   error={errors.incidentLocation}
                 />
-                <SectionPicker value={form.sections} onChange={(s) => set("sections", s)} error={errors.sections} />
+                <SectionPicker
+                  value={form.sections}
+                  onChange={(s) => set("sections", s)}
+                  error={errors.sections}
+                  incidentDate={form.incidentDate}
+                />
               </CardContent>
             </Card>
 
