@@ -35,9 +35,9 @@ import {
   GRIEVANCES,
   INCIDENTS,
   STATION_METRICS,
-  VIDEO_EVENTS,
   WORKSPACES,
 } from "@/lib/platform/mock";
+import { useVideoEventStats } from "@/hooks/use-video";
 import { act } from "@/components/platform/actions";
 import {
   PageHeader,
@@ -58,7 +58,9 @@ export default function DashboardPage() {
 
   const openInvestigations = STATION_METRICS.reduce((s, m) => s + m.openInvestigations, 0);
   const awaitingDispatch = INCIDENTS.filter((i) => i.status === "unassigned").length;
-  const unreviewedEvents = VIDEO_EVENTS.filter((e) => e.status === "new").length;
+  // Phase 03 is on the API: events awaiting triage, from the server.
+  const videoEventStats = useVideoEventStats();
+  const unreviewedEvents = videoEventStats.data?.raised ?? 0;
   const openGrievances = GRIEVANCES.filter((g) => g.status !== "closed").length;
   const aiFindings = CONTRADICTIONS.length + GAPS.length;
 
@@ -115,7 +117,7 @@ export default function DashboardPage() {
             href="/dispatch"
           />
           <StatTile
-            label="Unreviewed CCTV events"
+            label="CCTV events awaiting triage"
             value={unreviewedEvents}
             icon={ScanSearch}
             tone="warning"
