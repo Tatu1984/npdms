@@ -3,37 +3,27 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   Banknote,
-  Building2,
   FileUp,
-  Globe,
   IndianRupee,
-  Landmark,
   Link2,
   Network,
-  Phone,
   Snowflake,
   Users,
-  Wallet,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useI18n } from "@/lib/i18n";
-import { FRAUD_CASES, MULE_ACCOUNTS, type FraudCase, type MuleAccount } from "@/lib/platform/mock";
 import { DataTable, type Column } from "@/components/platform/data-table";
-import { act, ActionMenu, type Action } from "@/components/platform/actions";
-import {
-  Field,
-  PageHeader,
-  Panel,
-  PhaseBadge,
-  StatTile,
-  StatusPill,
-} from "@/components/platform/primitives";
-import { AIBadge, AIGovernanceNotice, ConfidenceMeter } from "@/components/platform/governance";
+import { act } from "@/components/platform/actions";
+import { EmptyState, PageHeader, Panel, PhaseBadge, StatTile, StatusPill } from "@/components/platform/primitives";
+import { selectClass, statusTone } from "./shared";
+import { OfficerPicker, RecordLinkPicker, type RecordLink } from "@/components/platform/pickers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -43,188 +33,121 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
+import { toast } from "@/stores/toastStore";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  useComplaintClusters,
+  useComplaints,
+  useFraudDashboard,
+  useRegisterComplaint,
+} from "@/hooks/use-cyber-fraud";
+import {
+  COMPLAINT_STATUSES,
+  COMPLAINT_TYPES,
+  PLATFORMS,
+  formatPaise,
+  rupeesToPaise,
+  type Complaint,
+  type ComplaintStatus,
+  type ComplaintType,
+  type Platform,
+  type Priority,
+} from "@/lib/api/cyber-fraud";
 
-const inr = (n: number) =>
-  `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+const PAGE_SIZE = 20;
+
+/** Lakh with two decimals, for stat tiles. */
+const lakh = (paise: number) => paise / 100 / 100000;
 
 export default function CyberIntelligencePage() {
   const router = useRouter();
-  const { t, pick } = useI18n();
+  const { t } = useI18n();
+  const { user } = useAuthStore();
+  const canRegister = user ? hasMinimumRole(user.role, "SI") : false;
 
-  const [tab, setTab] = React.useState("cases");
+  const [tab, setTab] = React.useState("complaints");
   const [intakeOpen, setIntakeOpen] = React.useState(false);
-  const [freezeFor, setFreezeFor] = React.useState<MuleAccount | null>(null);
-  const [caseSheet, setCaseSheet] = React.useState<FraudCase | null>(null);
+  const [search, setSearch] = React.useState("");
+  const deferredSearch = React.useDeferredValue(search.trim());
+  const [status, setStatus] = React.useState<ComplaintStatus | "">("");
+  const [type, setType] = React.useState<ComplaintType | "">("");
+  const [page, setPage] = React.useState(1);
 
-  const totalLoss = FRAUD_CASES.reduce((s, c) => s + c.lossAmount, 0);
-  const totalRecovered = FRAUD_CASES.reduce((s, c) => s + c.recovered, 0);
-  const totalFrozen = FRAUD_CASES.reduce((s, c) => s + c.frozen, 0);
-  const victims = FRAUD_CASES.reduce((s, c) => s + c.linkedVictims, 0);
+  const complaints = useComplaints({
+    page,
+    pageSize: PAGE_SIZE,
+    search: deferredSearch || undefined,
+    status: status || undefined,
+    type: type || undefined,
+  });
+  const dashboard = useFraudDashboard();
+  const clusters = useComplaintClusters(tab === "clusters");
 
-  const caseColumns: Column<FraudCase>[] = [
+  const rows = complaints.data?.data ?? [];
+  const totalPages = complaints.data?.totalPages ?? 0;
+
+  const columns: Column<Complaint>[] = [
     {
-      id: "ref",
-      header: "Complaint",
-      sortValue: (c) => c.refNumber,
+      id: "complaint",
+      header: t("fraud.complaints"),
       cell: (c) => (
         <div className="min-w-0">
-          <p className="truncate font-medium text-foreground">{pick(c.modus)}</p>
+          <p className="truncate font-medium text-foreground">{c.complainantName}</p>
           <p className="mt-0.5 font-mono text-xs text-foreground-subtle">
-            {c.refNumber} · {pick(c.complainant)}
+            {c.caseNumber}
+            {c.ncrpReference && ` · NCRP ${c.ncrpReference}`}
           </p>
         </div>
       ),
     },
     {
+      id: "type",
+      header: t("fraud.complaintType"),
+      hideBelow: "md",
+      cell: (c) => <span className="text-sm text-foreground-muted">{t(`fraud.type.${c.type}`)}</span>,
+    },
+    {
       id: "loss",
-      header: "Loss",
+      header: t("fraud.reportedLoss"),
       align: "right",
-      sortValue: (c) => c.lossAmount,
-      cell: (c) => <span className="tabular text-sm font-medium">{inr(c.lossAmount)}</span>,
+      cell: (c) => <span className="tabular text-sm font-medium">{formatPaise(c.reportedLossPaise)}</span>,
     },
     {
       id: "recovered",
-      header: "Recovered / frozen",
+      header: `${t("fraud.frozen")} / ${t("fraud.recovered")}`,
       align: "right",
       hideBelow: "md",
-      sortValue: (c) => c.recovered + c.frozen,
       cell: (c) => (
         <div className="text-right">
-          <p className="tabular text-sm text-success">{inr(c.recovered)}</p>
-          <p className="tabular text-xs text-info">{inr(c.frozen)} frozen</p>
+          <p className="tabular text-xs text-info">{formatPaise(c.frozenPaise)}</p>
+          <p className="tabular text-xs text-success">{formatPaise(c.recoveredPaise)}</p>
         </div>
       ),
     },
     {
-      id: "entities",
-      header: "Entities",
+      id: "links",
+      header: t("fraud.entities"),
       hideBelow: "lg",
-      sortValue: (c) => Object.values(c.entities).reduce((a, b) => a + b, 0),
       cell: (c) => (
         <div className="flex flex-wrap gap-1">
-          <StatusPill><Phone className="h-3 w-3" />{c.entities.phones}</StatusPill>
-          <StatusPill><Wallet className="h-3 w-3" />{c.entities.upi}</StatusPill>
-          <StatusPill><Landmark className="h-3 w-3" />{c.entities.accounts}</StatusPill>
+          <StatusPill>{c.entityCount} {t("fraud.entities").toLowerCase()}</StatusPill>
+          {c.linkedComplaints > 0 && (
+            <StatusPill tone="warning">
+              <Users className="h-3 w-3" />
+              {c.linkedComplaints}
+            </StatusPill>
+          )}
         </div>
-      ),
-    },
-    {
-      id: "victims",
-      header: "Linked victims",
-      align: "right",
-      sortValue: (c) => c.linkedVictims,
-      cell: (c) => (
-        <StatusPill tone={c.linkedVictims > 8 ? "warning" : "neutral"}>
-          <Users className="h-3 w-3" />
-          {c.linkedVictims}
-        </StatusPill>
       ),
     },
     {
       id: "status",
-      header: "Status",
-      sortValue: (c) => c.status,
-      cell: (c) => (
-        <StatusPill
-          tone={
-            c.status === "chargesheet"
-              ? "success"
-              : c.status === "frozen"
-                ? "info"
-                : c.status === "tracing"
-                  ? "warning"
-                  : "neutral"
-          }
-        >
-          {c.status}
-        </StatusPill>
-      ),
+      header: t("common.status"),
+      cell: (c) => <StatusPill tone={statusTone[c.status]}>{t(`fraud.status.${c.status}`)}</StatusPill>,
     },
   ];
 
-  const caseActions = (c: FraudCase): Action[] => [
-    act.label("h", c.refNumber),
-    act.run("open", "Case summary", () => setCaseSheet(c), { icon: Globe }),
-    act.link("graph", "Fraud network graph", `/cyber-intelligence?tab=graph`, { icon: Network }),
-    act.link("money", "Money trail", `/cyber-intelligence?tab=accounts`, { icon: IndianRupee }),
-    act.sep("s1"),
-    act.link("investigation", "Investigation workspace", "/investigation", { icon: Link2 }),
-    act.link("evidence", "Attached evidence", "/custody", { icon: FileUp }),
-  ];
-
-  const accountColumns: Column<MuleAccount>[] = [
-    {
-      id: "account",
-      header: "Account",
-      sortValue: (a) => a.account,
-      cell: (a) => (
-        <div className="min-w-0">
-          <p className="font-mono text-sm text-foreground">{a.account}</p>
-          <p className="mt-0.5 truncate text-xs text-foreground-subtle">
-            {pick(a.holder)} · {a.bank}
-          </p>
-        </div>
-      ),
-    },
-    {
-      id: "flow",
-      header: "In / out",
-      align: "right",
-      hideBelow: "sm",
-      sortValue: (a) => a.inflow,
-      cell: (a) => (
-        <div className="text-right">
-          <p className="tabular text-sm">{inr(a.inflow)}</p>
-          <p className="tabular text-xs text-foreground-subtle">{inr(a.outflow)} out</p>
-        </div>
-      ),
-    },
-    {
-      id: "victims",
-      header: "Victims",
-      align: "right",
-      sortValue: (a) => a.victims,
-      cell: (a) => <span className="tabular text-sm">{a.victims}</span>,
-    },
-    {
-      id: "velocity",
-      header: "Velocity",
-      hideBelow: "md",
-      sortValue: (a) => a.velocityScore,
-      cell: (a) => <ConfidenceMeter value={a.velocityScore} showLabel={false} />,
-    },
-    {
-      id: "flag",
-      header: "Assessment",
-      sortValue: (a) => a.flag,
-      cell: (a) => (
-        <div className="flex items-center gap-1.5">
-          <StatusPill
-            tone={a.flag === "confirmed" ? "danger" : a.flag === "probable" ? "warning" : "neutral"}
-          >
-            {a.flag} mule
-          </StatusPill>
-          <AIBadge compact />
-        </div>
-      ),
-    },
-  ];
-
-  const accountActions = (a: MuleAccount): Action[] => [
-    act.label("h", a.account),
-    act.run("freeze", "Request account freeze", () => setFreezeFor(a), { icon: Snowflake }),
-    act.link("graph", "Show in network graph", "/cyber-intelligence?tab=graph", { icon: Network }),
-    act.sep("s"),
-    act.link("bank", "Bank nodal contacts", "/inter-agency", { icon: Building2 }),
-    act.link("case", "Link to investigation", "/investigation", { icon: Link2 }),
-  ];
+  const d = dashboard.data;
 
   return (
     <DashboardLayout>
@@ -234,291 +157,419 @@ export default function CyberIntelligencePage() {
           description={t("modules.cyberIntelligenceDesc")}
           icon={Link2}
           badge={<PhaseBadge phase={5} />}
-          breadcrumb={[
-            { label: t("nav.investigationGroup") },
-            { label: t("modules.cyberIntelligence") },
-          ]}
+          breadcrumb={[{ label: t("nav.investigationGroup") }, { label: t("modules.cyberIntelligence") }]}
           actions={
-            <Button onClick={() => setIntakeOpen(true)}>
-              <FileUp className="h-4 w-4" />
-              Intake complaint
-            </Button>
+            canRegister ? (
+              <Button onClick={() => setIntakeOpen(true)}>
+                <FileUp className="h-4 w-4" />
+                {t("fraud.intake")}
+              </Button>
+            ) : undefined
           }
           menu={[
-            act.link("graph", "Network graph workspace", "/networks", { icon: Network }),
-            act.link("agencies", "Inter-agency requests", "/inter-agency", { icon: Building2 }),
-            act.link("ip", "IP and domain tracker", "/ip-tracker", { icon: Globe }),
+            act.link("custody", "Evidence register", "/custody", { icon: FileUp }),
+            act.link("ip", "Access log", "/ip-tracker", { icon: Network }),
           ]}
         />
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatTile label="Total reported loss" value={totalLoss / 100000} decimals={1} unit="lakh" icon={IndianRupee} tone="danger" />
-          <StatTile label="Recovered" value={totalRecovered / 100000} decimals={1} unit="lakh" icon={Banknote} tone="success" />
-          <StatTile label="Frozen" value={totalFrozen / 100000} decimals={1} unit="lakh" icon={Snowflake} tone="info" />
-          <StatTile label="Linked victims" value={victims} icon={Users} tone="warning" />
-        </div>
+        {dashboard.isError ? (
+          <Panel>
+            <p className="flex items-center gap-2 text-sm text-danger">
+              <AlertTriangle className="h-4 w-4" />
+              {dashboard.error.message}
+            </p>
+          </Panel>
+        ) : !d ? (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-24 w-full" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatTile label={t("fraud.reportedLoss")} value={lakh(d.reportedLossPaise)} decimals={2} unit={t("fraud.lakh")} icon={IndianRupee} tone="danger" />
+            <StatTile label={t("fraud.frozen")} value={lakh(d.frozenPaise)} decimals={2} unit={t("fraud.lakh")} icon={Snowflake} tone="info" />
+            <StatTile label={t("fraud.recovered")} value={lakh(d.recoveredPaise)} decimals={2} unit={t("fraud.lakh")} icon={Banknote} tone="success" />
+            <StatTile
+              label={t("fraud.linkedComplaints")}
+              value={d.linkedComplaints}
+              icon={Users}
+              tone="warning"
+              onClick={() => setTab("clusters")}
+            />
+          </div>
+        )}
 
-        <AIGovernanceNotice />
+        <p className="text-xs text-foreground-muted">{t("fraud.officerRecorded")}</p>
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
-            <TabsTrigger value="cases">Complaints ({FRAUD_CASES.length})</TabsTrigger>
-            <TabsTrigger value="graph">Fraud network</TabsTrigger>
-            <TabsTrigger value="accounts">Mule accounts ({MULE_ACCOUNTS.length})</TabsTrigger>
+            <TabsTrigger value="complaints">
+              {t("fraud.complaints")}
+              {complaints.data ? ` (${complaints.data.total})` : ""}
+            </TabsTrigger>
+            <TabsTrigger value="clusters">{t("fraud.clusters")}</TabsTrigger>
+            <TabsTrigger value="dashboard">{t("fraud.dashboard")}</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="cases">
-            <DataTable
-              rows={FRAUD_CASES}
-              columns={caseColumns}
-              rowKey={(c) => c.id}
-              onRowSelect={(c) => setCaseSheet(c)}
-              rowActions={caseActions}
-              searchPlaceholder="Search by complaint number, complainant or modus…"
-            />
+          <TabsContent value="complaints">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap gap-2">
+                <div className="min-w-[16rem] flex-1">
+                  <Input
+                    placeholder={t("fraud.searchPlaceholder")}
+                    value={search}
+                    onChange={(v) => {
+                      setSearch(v);
+                      setPage(1);
+                    }}
+                    aria-label={t("common.search")}
+                  />
+                </div>
+                <select
+                  aria-label={t("common.status")}
+                  className={selectClass}
+                  value={status}
+                  onChange={(e) => {
+                    setStatus(e.target.value as ComplaintStatus | "");
+                    setPage(1);
+                  }}
+                >
+                  <option value="">{t("common.all")}</option>
+                  {COMPLAINT_STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      {t(`fraud.status.${s}`)}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label={t("fraud.complaintType")}
+                  className={selectClass}
+                  value={type}
+                  onChange={(e) => {
+                    setType(e.target.value as ComplaintType | "");
+                    setPage(1);
+                  }}
+                >
+                  <option value="">{t("common.all")}</option>
+                  {COMPLAINT_TYPES.map((ct) => (
+                    <option key={ct} value={ct}>
+                      {t(`fraud.type.${ct}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {complaints.isPending ? (
+                <Skeleton className="h-64 w-full" />
+              ) : complaints.isError ? (
+                <EmptyState
+                  title={t("fraud.loadFailed")}
+                  description={complaints.error.message}
+                  icon={AlertTriangle}
+                  action={
+                    <Button size="sm" variant="outline" onClick={() => complaints.refetch()}>
+                      {t("common.retry")}
+                    </Button>
+                  }
+                />
+              ) : (
+                <DataTable
+                  rows={rows}
+                  columns={columns}
+                  rowKey={(c) => c.id}
+                  rowHref={(c) => `/cyber-intelligence/${c.id}`}
+                  searchable={false}
+                  emptyTitle={deferredSearch || status || type ? t("common.noData") : t("fraud.noneRegistered")}
+                  rowActions={(c) => [
+                    act.label("h", c.caseNumber),
+                    act.link("open", t("common.view"), `/cyber-intelligence/${c.id}`, { icon: Link2 }),
+                    act.link("network", t("fraud.network"), `/cyber-intelligence/${c.id}?tab=network`, { icon: Network }),
+                  ]}
+                />
+              )}
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between text-sm text-foreground-muted">
+                  <span>
+                    {t("common.showing")} {page} {t("common.of")} {totalPages}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                      {t("common.previous")}
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                      {t("common.next")}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </TabsContent>
 
-          <TabsContent value="graph">
-            <Panel
-              title="Fraud network"
-              description="Victims, phones, UPI handles, accounts and infrastructure connected across complaints"
-              menu={[
-                act.link("full", "Open full graph workspace", "/networks", { icon: Network }),
-                act.link("export", "Export for inter-agency request", "/inter-agency", {
-                  icon: Building2,
-                }),
-              ]}
-            >
-              <FraudGraph />
-              <p className="mt-3 text-xs text-foreground-muted">
-                17 complaints across three police stations resolve to the same receiving
-                infrastructure. Clustering is a lead for the investigating officer, not a finding.
-              </p>
+          <TabsContent value="clusters">
+            <Panel title={t("fraud.clusters")} description={clusters.data?.rule}>
+              {clusters.isPending ? (
+                <Skeleton className="h-40 w-full" />
+              ) : clusters.isError ? (
+                <p className="text-sm text-danger">{clusters.error.message}</p>
+              ) : clusters.data.data.length === 0 ? (
+                <EmptyState title={t("fraud.noClusters")} icon={Users} />
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {clusters.data.data.map((cluster) => (
+                    <div
+                      key={cluster.complaints.map((c) => c.id).join()}
+                      data-testid="cluster"
+                      className="rounded-md border border-border p-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-foreground">
+                          {cluster.complaints.length} {t("fraud.complaints").toLowerCase()}
+                        </p>
+                        <span className="tabular text-sm text-danger">{formatPaise(cluster.reportedLossPaise)}</span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {cluster.sharedEntities.map((e) => (
+                          <span
+                            key={e.id}
+                            className="rounded border border-border bg-surface-sunken px-1.5 py-0.5 font-mono text-xs text-foreground"
+                          >
+                            {t(`fraud.entityType.${e.type}`)}: {e.displayValue}
+                          </span>
+                        ))}
+                      </div>
+                      <ul className="mt-2 divide-y divide-border">
+                        {cluster.complaints.map((c) => (
+                          <li key={c.id}>
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/cyber-intelligence/${c.id}`)}
+                              className="flex w-full items-center justify-between gap-2 py-1.5 text-left hover:text-accent"
+                            >
+                              <span className="text-sm">
+                                <span className="font-mono text-xs text-foreground-subtle">{c.caseNumber}</span> ·{" "}
+                                {c.complainantName}
+                              </span>
+                              <span className="tabular text-xs">{formatPaise(c.reportedLossPaise)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Panel>
           </TabsContent>
 
-          <TabsContent value="accounts">
-            <DataTable
-              rows={MULE_ACCOUNTS}
-              columns={accountColumns}
-              rowKey={(a) => a.id}
-              onRowSelect={(a) => setFreezeFor(a)}
-              rowActions={accountActions}
-              searchPlaceholder="Search by account number, holder or bank…"
-            />
+          <TabsContent value="dashboard">
+            {!d ? (
+              <Skeleton className="h-40 w-full" />
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                <Panel title={t("fraud.freezeRequests")}>
+                  <dl className="grid grid-cols-2 gap-2 text-sm">
+                    {(["DRAFTED", "SENT", "ACKNOWLEDGED", "FROZEN", "REJECTED"] as const).map((s) => (
+                      <React.Fragment key={s}>
+                        <dt className="text-foreground-muted">{t(`fraud.freezeStatus.${s}`)}</dt>
+                        <dd className="tabular text-right">{d.freezeByStatus[s] ?? 0}</dd>
+                      </React.Fragment>
+                    ))}
+                  </dl>
+                </Panel>
+                <Panel title={t("fraud.complaintType")}>
+                  <dl className="grid grid-cols-2 gap-2 text-sm">
+                    {COMPLAINT_TYPES.filter((ct) => (d.byType[ct] ?? 0) > 0).map((ct) => (
+                      <React.Fragment key={ct}>
+                        <dt className="text-foreground-muted">{t(`fraud.type.${ct}`)}</dt>
+                        <dd className="tabular text-right">{d.byType[ct]}</dd>
+                      </React.Fragment>
+                    ))}
+                    <dt className="font-medium">{t("fraud.openComplaints")}</dt>
+                    <dd className="tabular text-right font-medium">
+                      {d.openComplaints} / {d.complaints}
+                    </dd>
+                  </dl>
+                </Panel>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
 
-      {/* intake */}
-      <Dialog open={intakeOpen} onOpenChange={setIntakeOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Intake a cyber complaint</DialogTitle>
-            <DialogDescription>
-              Entities are extracted automatically from the complaint and any attachments. The
-              officer confirms them before they enter the graph.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="cy-complaint">Complaint narrative</Label>
-              <Textarea id="cy-complaint" rows={4} placeholder="In the complainant's words" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label htmlFor="cy-loss">Amount lost</Label>
-                <Input id="cy-loss" type="number" placeholder="₹" />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="cy-date">Date of transaction</Label>
-                <Input id="cy-date" type="date" />
-              </div>
-            </div>
-            <div className="rounded-md border border-[var(--ai-border)] bg-ai-subtle px-3 py-2">
-              <div className="flex items-center justify-between">
-                <AIBadge model="entity-extractor" />
-                <ConfidenceMeter value={0.86} />
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {["9831-XXXX-42", "upi@okaxis", "XXXXXXXX4419", "secure-verify.in", "103.21.xx.xx"].map(
-                  (e) => (
-                    <span
-                      key={e}
-                      className="rounded border border-border bg-surface px-1.5 py-0.5 font-mono text-[0.65rem] text-foreground-muted"
-                    >
-                      {e}
-                    </span>
-                  ),
-                )}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIntakeOpen(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={() => { setIntakeOpen(false); setTab("graph"); }}>
-              Create and extract entities
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* freeze */}
-      <Dialog open={freezeFor !== null} onOpenChange={(o) => !o && setFreezeFor(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Request account freeze</DialogTitle>
-            <DialogDescription>
-              {freezeFor ? `${freezeFor.account} · ${freezeFor.bank}` : ""}
-            </DialogDescription>
-          </DialogHeader>
-          {freezeFor && (
-            <div className="grid gap-3">
-              <dl className="grid grid-cols-2 gap-3">
-                <Field label="Holder" value={pick(freezeFor.holder)} />
-                <Field label="Linked victims" value={freezeFor.victims} />
-                <Field label="Inflow" value={inr(freezeFor.inflow)} />
-                <Field label="Outflow" value={inr(freezeFor.outflow)} />
-              </dl>
-              <div className="grid gap-1.5">
-                <Label htmlFor="fz-amount">Amount to freeze</Label>
-                <Input id="fz-amount" type="number" defaultValue={freezeFor.inflow - freezeFor.outflow} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="fz-ground">Grounds</Label>
-                <Textarea id="fz-ground" rows={3} placeholder="Basis for the request, with case references" />
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFreezeFor(null)}>
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={() => { setFreezeFor(null); router.push("/inter-agency"); }}>
-              <Snowflake className="h-4 w-4" />
-              Send request
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* case sheet */}
-      <Sheet open={caseSheet !== null} onOpenChange={(o) => !o && setCaseSheet(null)}>
-        <SheetContent className="w-[32rem]">
-          {caseSheet && (
-            <>
-              <SheetHeader>
-                <SheetTitle>{pick(caseSheet.modus)}</SheetTitle>
-                <SheetDescription>
-                  {caseSheet.refNumber} · {pick(caseSheet.complainant)}
-                </SheetDescription>
-              </SheetHeader>
-              <div className="flex flex-col gap-4 overflow-y-auto px-5 pb-5">
-                <dl className="grid grid-cols-2 gap-3">
-                  <Field label="Reported on" value={caseSheet.reportedOn} />
-                  <Field label="Status" value={<StatusPill tone="warning">{caseSheet.status}</StatusPill>} />
-                  <Field label="Loss" value={inr(caseSheet.lossAmount)} />
-                  <Field label="Recovered" value={inr(caseSheet.recovered)} />
-                  <Field label="Frozen" value={inr(caseSheet.frozen)} />
-                  <Field label="Linked victims" value={caseSheet.linkedVictims} />
-                </dl>
-
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-foreground-subtle">
-                    Extracted entities
-                  </p>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {[
-                      { label: "Phones", value: caseSheet.entities.phones, icon: Phone },
-                      { label: "UPI handles", value: caseSheet.entities.upi, icon: Wallet },
-                      { label: "Accounts", value: caseSheet.entities.accounts, icon: Landmark },
-                      { label: "Domains", value: caseSheet.entities.domains, icon: Globe },
-                      { label: "Devices", value: caseSheet.entities.devices, icon: Network },
-                    ].map((e) => (
-                      <div
-                        key={e.label}
-                        className="flex items-center gap-2 rounded-md border border-border p-2.5"
-                      >
-                        <e.icon className="h-4 w-4 text-foreground-subtle" />
-                        <span className="text-sm text-foreground">{e.value}</span>
-                        <span className="text-xs text-foreground-subtle">{e.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <Button variant="outline" onClick={() => { setCaseSheet(null); setTab("graph"); }}>
-                    <Network className="h-4 w-4" />
-                    Open fraud network
-                  </Button>
-                  <Button variant="outline" onClick={() => { setCaseSheet(null); setTab("accounts"); }}>
-                    <IndianRupee className="h-4 w-4" />
-                    Follow the money trail
-                  </Button>
-                  <Button variant="outline" onClick={() => router.push("/investigation")}>
-                    <Link2 className="h-4 w-4" />
-                    Open investigation workspace
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+      <IntakeDialog
+        open={intakeOpen}
+        onOpenChange={setIntakeOpen}
+        onRegistered={(c) => router.push(`/cyber-intelligence/${c.id}`)}
+      />
     </DashboardLayout>
   );
 }
 
-/** Layered money-flow diagram: victims → collection → mule layer → exit. */
-function FraudGraph() {
-  const layers = [
-    { title: "Victims", nodes: ["17 complainants"], color: "var(--info)" },
-    { title: "Collection", nodes: ["upi@okaxis", "9831-XXXX-42"], color: "var(--warning)" },
-    { title: "Mule layer", nodes: ["XXXX4419", "XXXX8872", "XXXX2210"], color: "var(--danger)" },
-    { title: "Exit", nodes: ["Cash withdrawal", "Crypto exchange"], color: "var(--foreground-muted)" },
-  ];
+const today = () => new Date().toISOString().slice(0, 10);
+
+function IntakeDialog({
+  open,
+  onOpenChange,
+  onRegistered,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onRegistered: (c: Complaint) => void;
+}) {
+  const { t } = useI18n();
+  const register = useRegisterComplaint();
+  const [form, setForm] = React.useState({
+    complainantName: "",
+    complainantPhone: "",
+    complainantEmail: "",
+    type: "ONLINE_FRAUD" as ComplaintType,
+    platform: "BANKING" as Platform,
+    platformName: "",
+    priority: "MEDIUM" as Priority,
+    incidentDate: today(),
+    incidentDescription: "",
+    ncrpReference: "",
+    helplineReference: "",
+    loss: "",
+  });
+  const [link, setLink] = React.useState<RecordLink | null>(null);
+  const [io, setIo] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const submit = async () => {
+    setError(null);
+    const paise = form.loss.trim() === "" ? 0 : rupeesToPaise(form.loss);
+    if (paise === null) {
+      setError(t("fraud.enterRupees"));
+      return;
+    }
+    try {
+      const created = await register.mutateAsync({
+        complainantName: form.complainantName,
+        complainantPhone: form.complainantPhone || null,
+        complainantEmail: form.complainantEmail || null,
+        type: form.type,
+        platform: form.platform,
+        platformName: form.platformName || null,
+        priority: form.priority,
+        incidentDate: `${form.incidentDate}T00:00:00Z`,
+        incidentDescription: form.incidentDescription,
+        ncrpReference: form.ncrpReference || null,
+        helplineReference: form.helplineReference || null,
+        reportedLossPaise: paise,
+        firId: link ? (link.kind === "case" ? link.firId : link.id) : null,
+        investigatingOfficer: io,
+      });
+      toast.success(t("fraud.register"), created.caseNumber);
+      onOpenChange(false);
+      onRegistered(created);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The complaint was not registered");
+    }
+  };
 
   return (
-    <div className="overflow-x-auto">
-      <div className="flex min-w-[40rem] items-stretch gap-3">
-        {layers.map((layer, li) => (
-          <React.Fragment key={layer.title}>
-            <div className="flex flex-1 flex-col gap-2">
-              <p className="text-center text-xs font-semibold uppercase tracking-wide text-foreground-subtle">
-                {layer.title}
-              </p>
-              {layer.nodes.map((n) => (
-                <div
-                  key={n}
-                  className="rounded-md border px-3 py-2.5 text-center font-mono text-xs"
-                  style={{
-                    borderColor: `color-mix(in oklab, ${layer.color} 35%, transparent)`,
-                    background: `color-mix(in oklab, ${layer.color} 8%, transparent)`,
-                    color: "var(--foreground)",
-                  }}
-                >
-                  {n}
-                </div>
-              ))}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{t("fraud.intakeTitle")}</DialogTitle>
+          <DialogDescription>{t("fraud.intakeHint")}</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="cy-name">{t("fraud.complainant")} *</Label>
+              <Input id="cy-name" value={form.complainantName} onChange={set("complainantName")} />
             </div>
-            {li < layers.length - 1 && (
-              <div className="flex items-center">
-                <svg width="24" height="16" viewBox="0 0 24 16" aria-hidden>
-                  <path
-                    d="M0 8 H18 M14 4 L18 8 L14 12"
-                    stroke="var(--border-strong)"
-                    strokeWidth="1.5"
-                    fill="none"
-                  />
-                </svg>
-              </div>
-            )}
-          </React.Fragment>
-        ))}
-      </div>
-    </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="cy-phone">{t("fraud.complainantPhone")}</Label>
+              <Input id="cy-phone" value={form.complainantPhone} onChange={set("complainantPhone")} placeholder="+91 98300 00000" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="cy-email">{t("fraud.complainantEmail")}</Label>
+              <Input id="cy-email" value={form.complainantEmail} onChange={set("complainantEmail")} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="cy-date">{t("fraud.incidentDate")} *</Label>
+              <Input id="cy-date" type="date" value={form.incidentDate} onChange={set("incidentDate")} max={today()} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="cy-type">{t("fraud.complaintType")} *</Label>
+              <select id="cy-type" className={selectClass} value={form.type} onChange={(e) => set("type")(e.target.value)}>
+                {COMPLAINT_TYPES.map((ct) => (
+                  <option key={ct} value={ct}>
+                    {t(`fraud.type.${ct}`)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="cy-platform">{t("fraud.platform")} *</Label>
+              <select id="cy-platform" className={selectClass} value={form.platform} onChange={(e) => set("platform")(e.target.value)}>
+                {PLATFORMS.map((p) => (
+                  <option key={p} value={p}>
+                    {t(`fraud.platformType.${p}`)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="cy-platform-name">{t("fraud.platformName")}</Label>
+              <Input id="cy-platform-name" value={form.platformName} onChange={set("platformName")} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="cy-priority">{t("common.priority")}</Label>
+              <select id="cy-priority" className={selectClass} value={form.priority} onChange={(e) => set("priority")(e.target.value)}>
+                {(["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const).map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="cy-ncrp">{t("fraud.ncrp")}</Label>
+              <Input id="cy-ncrp" value={form.ncrpReference} onChange={set("ncrpReference")} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="cy-1930">{t("fraud.helpline")}</Label>
+              <Input id="cy-1930" value={form.helplineReference} onChange={set("helplineReference")} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="cy-loss">{t("fraud.lossAmount")}</Label>
+              <Input id="cy-loss" inputMode="decimal" value={form.loss} onChange={set("loss")} placeholder="0" />
+            </div>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="cy-narrative">{t("fraud.narrative")} *</Label>
+            <Textarea id="cy-narrative" rows={4} value={form.incidentDescription} onChange={set("incidentDescription")} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>{t("fraud.linkRecord")}</Label>
+            <RecordLinkPicker value={link} onChange={setLink} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>{t("fraud.ioOptional")}</Label>
+            <OfficerPicker value={io ?? undefined} onChange={(id) => setIo(id)} />
+          </div>
+          {error && (
+            <p role="alert" className="rounded-md border border-danger/40 bg-danger-subtle px-3 py-2 text-sm text-danger">
+              {error}
+            </p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {t("common.cancel")}
+          </Button>
+          <Button onClick={submit} disabled={register.isPending}>
+            {t("fraud.register")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
