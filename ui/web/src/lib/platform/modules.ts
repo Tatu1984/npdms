@@ -303,9 +303,9 @@ export const MODULES: PlatformModule[] = [
     icon: Radio,
     nameKey: "modules.dispatch",
     descKey: "modules.dispatchDesc",
-    status: "preview",
+    status: "live",
     ops: true,
-    aiAssisted: true,
+    aiAssisted: false,
   },
   {
     id: "workload",

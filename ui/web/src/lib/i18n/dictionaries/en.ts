@@ -1,3 +1,4 @@
+import { dispatchEn } from "./dispatch.en";
 import { custodyEn } from "./custody.en";
 
 /**
@@ -8,6 +9,7 @@ import { custodyEn } from "./custody.en";
  */
 export const en = {
   custodyScreen: custodyEn,
+  dispatchScreen: dispatchEn,
 
   common: {
     appName: "Kolkata Police Digital Intelligence Platform",
@@ -122,7 +124,7 @@ export const en = {
       "Traffic incident reconstruction from CCTV, ANPR and signal data",
     dispatch: "Dispatch & Response",
     dispatchDesc:
-      "Incident intake, severity scoring, unit recommendation and escalation",
+      "Incident intake, operator classification, distance-ranked unit dispatch and escalation",
     workload: "Station Performance",
     workloadDesc:
       "Workload, investigation backlog, SLA monitoring and bottleneck detection",
