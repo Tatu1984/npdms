@@ -244,9 +244,7 @@ export const MODULES: PlatformModule[] = [
     icon: Camera,
     nameKey: "modules.bodycam",
     descKey: "modules.bodycamDesc",
-    status: "preview",
-    chainAnchored: true,
-    aiAssisted: true,
+    status: "live",
   },
   {
     id: "missing-persons",
