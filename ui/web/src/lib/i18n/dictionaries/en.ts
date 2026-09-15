@@ -3,6 +3,7 @@ import { custodyEn } from "./custody.en";
 import { investigationEn } from "./investigation.en";
 import { accidentEn } from "./accident.en";
 import { grievanceEn } from "./grievance.en";
+import { riskEn } from "./risk.en";
 
 /**
  * English dictionary — the source of truth for translation keys.
@@ -16,6 +17,7 @@ export const en = {
   accidentScreen: accidentEn,
   dispatchScreen: dispatchEn,
   grievanceScreen: grievanceEn,
+  riskScreen: riskEn,
 
   common: {
     appName: "Kolkata Police Digital Intelligence Platform",

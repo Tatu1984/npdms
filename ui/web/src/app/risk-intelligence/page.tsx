@@ -1,79 +1,110 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import {
-  BarChart3,
-  Calendar,
-  Info,
-  Lightbulb,
-  MapPinned,
-  Radio,
-  Route,
-  Sparkles,
-  TrendingDown,
-  TrendingUp,
-  Users,
-} from "lucide-react";
+import dynamic from "next/dynamic";
+import { Info, Lock, MapPinned, Plus, Route, Scale, SlidersHorizontal } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useI18n } from "@/lib/i18n";
-import { RISK_AREAS, type RiskArea } from "@/lib/platform/mock";
-import { act, ActionMenu, type Action } from "@/components/platform/actions";
-import {
-  Field,
-  PageHeader,
-  Panel,
-  PhaseBadge,
-  StatTile,
-  StatusPill,
-} from "@/components/platform/primitives";
-import { AIBadge, AIGovernanceNotice } from "@/components/platform/governance";
+import { PageHeader, Panel, PhaseBadge, StatusPill } from "@/components/platform/primitives";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { hasMinimumRole, useAuthStore } from "@/stores/authStore";
+import type { RiskLevel, RiskQuery, RiskShift } from "@/lib/api/risk";
+import { useRiskAreas, useRiskBeats, useRiskFactors, useRiskRecommendations } from "@/hooks/use-risk";
+import {
+  BeatList,
+  CreateBeatDialog,
+  FactorTable,
+  PlacementPanel,
+  SimulationDialog,
+  WeightsDialog,
+  officerMessage,
+} from "./risk-parts";
 
-function scoreTone(score: number) {
-  if (score >= 70) return { color: "var(--danger)", label: "Elevated" };
-  if (score >= 55) return { color: "var(--warning)", label: "Moderate" };
-  return { color: "var(--success)", label: "Low" };
+const InteractiveMap = dynamic(() => import("@/components/ui/Map").then((m) => m.InteractiveMap), {
+  ssr: false,
+  loading: () => <div className="h-72 rounded-lg bg-surface-sunken" />,
+});
+
+const fieldClass =
+  "h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent";
+
+function isoDay(d: Date) {
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+function Figure({ label, value, hint, testId }: { label: string; value: React.ReactNode; hint?: string; testId?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-surface p-4" data-testid={testId}>
+      <p className="text-xs uppercase tracking-wide text-foreground-subtle">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground" data-value>{value}</p>
+      {hint && <p className="mt-0.5 text-xs text-foreground-muted">{hint}</p>}
+    </div>
+  );
 }
 
 export default function RiskIntelligencePage() {
-  const router = useRouter();
-  const { t, pick } = useI18n();
+  const { t } = useI18n();
+  const { user } = useAuthStore();
+  const allowed = Boolean(user && hasMinimumRole(user.role, "SHO"));
+  const wide = Boolean(user && hasMinimumRole(user.role, "DSP"));
+  const canEditWeights = Boolean(user && hasMinimumRole(user.role, "SP"));
 
-  const [areaSheet, setAreaSheet] = React.useState<RiskArea | null>(null);
+  const [from, setFrom] = React.useState(() => isoDay(new Date(Date.now() - 29 * 86400000)));
+  const [to, setTo] = React.useState(() => isoDay(new Date()));
+  const [level, setLevel] = React.useState<RiskLevel>("station");
+  const [shift, setShift] = React.useState<RiskShift>("all");
+  const [stationId, setStationId] = React.useState("");
+  const [top, setTop] = React.useState(3);
+  const [selected, setSelected] = React.useState<string | null>(null);
   const [simOpen, setSimOpen] = React.useState(false);
-  const [patrolFor, setPatrolFor] = React.useState<RiskArea | null>(null);
+  const [weightsOpen, setWeightsOpen] = React.useState(false);
+  const [beatOpen, setBeatOpen] = React.useState(false);
 
-  const elevated = RISK_AREAS.filter((a) => a.score >= 70).length;
-  const rising = RISK_AREAS.filter((a) => a.trend === "rising").length;
+  const query: RiskQuery = { level, from, to, shift, stationId: wide ? stationId || undefined : undefined };
+  // Check the period before asking the API, so a date half-way through being
+  // edited does not flash an error.
+  const spanDays = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
+  const periodError = !(spanDays >= 1) ? t("riskScreen.filters.invalidOrder") : spanDays > 366 ? t("riskScreen.filters.tooLong") : null;
+  const ready = allowed && !periodError;
+  const areas = useRiskAreas(query, ready);
+  const recs = useRiskRecommendations(query, top, ready);
+  const factors = useRiskFactors(allowed);
+  // The station filter lists the stations in scope, from station-level scoring.
+  const stationList = useRiskAreas({ level: "station", from, to, shift: "all" }, ready && wide);
+  const beats = useRiskBeats(wide ? stationId || undefined : undefined, allowed);
 
-  const areaActions = (a: RiskArea): Action[] => [
-    act.label("h", pick(a.area)),
-    act.run("open", "Open risk breakdown", () => setAreaSheet(a), { icon: Info }),
-    act.run("patrol", "Act on the recommendation", () => setPatrolFor(a), { icon: Route }),
-    act.sep("s"),
-    act.link("map", "Show on map", "/gis", { icon: MapPinned }),
-    act.link("dispatch", "Dispatch console", "/dispatch", { icon: Radio }),
-    act.link("grievance", "Complaints from this locality", "/grievance", { icon: Users }),
-  ];
+  if (!allowed) {
+    return (
+      <DashboardLayout>
+        <div className="flex h-96 flex-col items-center justify-center gap-2 text-center">
+          <Lock className="mb-2 h-12 w-12 text-foreground-muted" />
+          <h2 className="text-xl font-bold text-foreground">{t("riskScreen.restrictedTitle")}</h2>
+          <p className="max-w-md text-foreground-muted">{t("riskScreen.restrictedBody")}</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const stations = (stationList.data?.areas ?? []).map((a) => ({ id: a.id, name: a.name }));
+  const placementStation = wide ? stationId || undefined : user?.stationId;
+  const data = areas.data;
+  const rows = data?.areas ?? [];
+  const scoring = rows.filter((a) => a.score > 0).length;
+  const firs = rows.reduce((n, a) => n + a.firCount, 0);
+  const prev = rows.reduce((n, a) => n + a.previousFirCount, 0);
+  const current = (selected && rows.find((a) => a.id === selected)) || rows[0];
+  const markers = rows
+    .filter((a) => a.latitude !== null && a.longitude !== null)
+    .map((a) => ({
+      id: a.id,
+      lat: a.latitude as number,
+      lng: a.longitude as number,
+      title: a.name,
+      description: `${t("riskScreen.table.total")} ${a.score.toFixed(2)} · ${a.firCount} FIR`,
+      type: "incident" as const,
+    }));
 
   return (
     <DashboardLayout>
@@ -85,304 +116,277 @@ export default function RiskIntelligencePage() {
           badge={<PhaseBadge phase={10} />}
           breadcrumb={[{ label: t("nav.citizenGroup") }, { label: t("modules.riskIntelligence") }]}
           actions={
-            <Button onClick={() => setSimOpen(true)}>
-              <Sparkles className="h-4 w-4" />
-              Resource simulation
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setWeightsOpen(true)} disabled={!factors.data}>
+                <SlidersHorizontal className="h-4 w-4" />
+                {canEditWeights ? t("riskScreen.weights.edit") : t("riskScreen.weights.history")}
+              </Button>
+              <Button onClick={() => setSimOpen(true)} disabled={rows.length === 0}>
+                <Scale className="h-4 w-4" />
+                {t("riskScreen.simulation.open")}
+              </Button>
+            </>
           }
-          menu={[
-            act.link("map", "Map view", "/gis", { icon: MapPinned }),
-            act.link("analytics", "Crime analytics", "/analytics", { icon: BarChart3 }),
-            act.link("dispatch", "Patrol deployment", "/dispatch", { icon: Radio }),
-          ]}
         />
 
         <Alert variant="info">
           <Info />
           <div>
-            <AlertTitle>This scores places, not people</AlertTitle>
-            <AlertDescription>
-              The model identifies areas that may warrant additional public-safety attention, using
-              incident, complaint, traffic and emergency-call history. It makes no assessment of any
-              individual and produces no watchlist.
-            </AlertDescription>
+            <AlertTitle>{t("riskScreen.placesTitle")}</AlertTitle>
+            <AlertDescription>{t("riskScreen.placesBody")}</AlertDescription>
           </div>
         </Alert>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatTile label="Areas monitored" value={RISK_AREAS.length} icon={MapPinned} />
-          <StatTile label="Elevated score" value={elevated} icon={TrendingUp} tone="danger" />
-          <StatTile label="Rising trend" value={rising} icon={TrendingUp} tone="warning" />
-          <StatTile label="Recommendations open" value={RISK_AREAS.length} icon={Lightbulb} tone="info" />
-        </div>
-
-        <AIGovernanceNotice />
-
-        <div className="grid gap-3 md:grid-cols-2">
-          {RISK_AREAS.map((a) => {
-            const tone = scoreTone(a.score);
-            return (
-              <div key={a.id} className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-foreground">{pick(a.area)}</p>
-                    <p className="mt-0.5 text-xs text-foreground-subtle">{a.division} Division</p>
-                  </div>
-                  <ActionMenu size="sm" actions={areaActions(a)} />
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <ScoreDial score={a.score} color={tone.color} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium" style={{ color: tone.color }}>
-                      {tone.label}
-                    </p>
-                    <StatusPill
-                      tone={a.trend === "rising" ? "danger" : a.trend === "falling" ? "success" : "neutral"}
-                    >
-                      {a.trend === "rising" ? (
-                        <TrendingUp className="h-3 w-3" />
-                      ) : a.trend === "falling" ? (
-                        <TrendingDown className="h-3 w-3" />
-                      ) : null}
-                      {a.trend}
-                    </StatusPill>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <p className="text-xs uppercase tracking-wide text-foreground-subtle">
-                    Contributing factors
-                  </p>
-                  {a.factors.map((f) => (
-                    <div key={f.label.en} className="flex items-center gap-2">
-                      <span className="w-8 shrink-0 tabular text-right text-xs text-foreground-muted">
-                        {f.weight}%
-                      </span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-sunken">
-                        <div
-                          className="h-full rounded-full bg-accent"
-                          style={{ width: `${f.weight}%` }}
-                        />
-                      </div>
-                      <span className="min-w-0 flex-1 truncate text-xs text-foreground-muted">
-                        {pick(f.label)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-3">
-                  <AIBadge compact />
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setAreaSheet(a)}>
-                      {t("ai.explainTitle")}
-                    </Button>
-                    <Button size="sm" onClick={() => setPatrolFor(a)}>
-                      <Route className="h-3.5 w-3.5" />
-                      Act
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* simulation */}
-      <Dialog open={simOpen} onOpenChange={setSimOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Resource simulation</DialogTitle>
-            <DialogDescription>
-              Model the effect of a deployment change before committing to it.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="rs-area">Area</Label>
-              <Input id="rs-area" defaultValue="Gariahat market perimeter" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label htmlFor="rs-units">Additional units</Label>
-                <Input id="rs-units" type="number" defaultValue={2} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="rs-hours">Hours of deployment</Label>
-                <Input id="rs-hours" defaultValue="18:00 – 21:00" />
-              </div>
-            </div>
-            <div className="rounded-md border border-[var(--ai-border)] bg-ai-subtle p-3">
-              <div className="flex items-center justify-between">
-                <AIBadge confidence={0.68} model="deployment-simulator" />
-                <span className="text-xs text-foreground-muted">Projection, not a guarantee</span>
-              </div>
-              <dl className="mt-3 grid grid-cols-2 gap-3">
-                <Field label="Projected score" value="72 → 61" />
-                <Field label="Response time" value="7.4 → 6.1 min" />
-                <Field label="Coverage gap" value="Reduced by 22%" />
-                <Field label="Cost" value="6 officer-hours / day" />
-              </dl>
-            </div>
+        <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-3">
+          <div className="grid gap-1">
+            <Label htmlFor="rf-level">{t("riskScreen.filters.level")}</Label>
+            <select
+              id="rf-level"
+              className={fieldClass}
+              value={level}
+              onChange={(e) => {
+                setLevel(e.target.value as RiskLevel);
+                setSelected(null);
+              }}
+            >
+              <option value="station">{t("riskScreen.filters.station")}</option>
+              <option value="beat">{t("riskScreen.filters.beat")}</option>
+            </select>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSimOpen(false)}>
-              {t("common.close")}
-            </Button>
-            <Button onClick={() => { setSimOpen(false); router.push("/dispatch"); }}>
-              Take to deployment
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* act on recommendation */}
-      <Dialog open={patrolFor !== null} onOpenChange={(o) => !o && setPatrolFor(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Act on the recommendation</DialogTitle>
-            <DialogDescription>{patrolFor ? pick(patrolFor.area) : ""}</DialogDescription>
-          </DialogHeader>
-          {patrolFor && (
-            <div className="flex flex-col gap-3">
-              <p className="rounded-md border border-border bg-surface-sunken px-3 py-2 text-sm text-foreground-muted">
-                {pick(patrolFor.recommendation)}
-              </p>
-              <div className="grid gap-1.5">
-                <Label htmlFor="rp-action">Action to record</Label>
-                <Input id="rp-action" defaultValue="Additional evening foot patrol" />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="rp-owner">Assign to</Label>
-                <Input id="rp-owner" placeholder="Officer-in-charge or division" />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="rp-review">Review after</Label>
-                <Input id="rp-review" type="date" />
-              </div>
+          {wide && (
+            <div className="grid gap-1">
+              <Label htmlFor="rf-station">{t("riskScreen.filters.stationFilter")}</Label>
+              <select
+                id="rf-station"
+                className={fieldClass}
+                value={stationId}
+                onChange={(e) => {
+                  setStationId(e.target.value);
+                  setSelected(null);
+                }}
+              >
+                <option value="">{t("riskScreen.filters.allStations")}</option>
+                {stations.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPatrolFor(null)}>
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={() => { setPatrolFor(null); router.push("/dispatch"); }}>
-              Record and deploy
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <div className="grid gap-1">
+            <Label htmlFor="rf-from">{t("riskScreen.filters.from")}</Label>
+            <input id="rf-from" type="date" className={fieldClass} value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} />
+          </div>
+          <div className="grid gap-1">
+            <Label htmlFor="rf-to">{t("riskScreen.filters.to")}</Label>
+            <input id="rf-to" type="date" className={fieldClass} value={to} onChange={(e) => e.target.value && setTo(e.target.value)} />
+          </div>
+          <div className="grid gap-1">
+            <Label htmlFor="rf-shift">{t("riskScreen.filters.shift")}</Label>
+            <select id="rf-shift" className={fieldClass} value={shift} onChange={(e) => setShift(e.target.value as RiskShift)}>
+              <option value="all">{t("riskScreen.filters.shiftAll")}</option>
+              <option value="day">{t("riskScreen.filters.shiftDay")}</option>
+              <option value="night">{t("riskScreen.filters.shiftNight")}</option>
+            </select>
+          </div>
+        </div>
 
-      {/* explainability sheet */}
-      <Sheet open={areaSheet !== null} onOpenChange={(o) => !o && setAreaSheet(null)}>
-        <SheetContent className="w-[32rem]">
-          {areaSheet && (
-            <>
-              <SheetHeader>
-                <SheetTitle>{pick(areaSheet.area)}</SheetTitle>
-                <SheetDescription>
-                  {areaSheet.division} Division · score {areaSheet.score}/100
-                </SheetDescription>
-              </SheetHeader>
-              <div className="flex flex-col gap-4 overflow-y-auto px-5 pb-5">
-                <div className="flex items-center gap-4">
-                  <ScoreDial score={areaSheet.score} color={scoreTone(areaSheet.score).color} size={88} />
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: scoreTone(areaSheet.score).color }}>
-                      {scoreTone(areaSheet.score).label}
-                    </p>
-                    <p className="text-xs text-foreground-muted">Trend: {areaSheet.trend}</p>
-                  </div>
-                </div>
+        {periodError ? (
+          <Alert variant="warning">
+            <AlertTitle>{t("riskScreen.filters.from")} / {t("riskScreen.filters.to")}</AlertTitle>
+            <AlertDescription>{periodError}</AlertDescription>
+          </Alert>
+        ) : areas.isError ? (
+          <Alert variant="danger">
+            <AlertTitle>{t("riskScreen.areasTitle")}</AlertTitle>
+            <AlertDescription>
+              {officerMessage(areas.error)}{" "}
+              <Button variant="outline" size="sm" onClick={() => areas.refetch()}>
+                {t("common.retry")}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : !data ? (
+          <p className="text-sm text-foreground-muted">…</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Figure testId="fig-areas" label={t("riskScreen.stats.areas")} value={rows.length} hint={data.period.shiftLabel} />
+              <Figure testId="fig-scoring" label={t("riskScreen.stats.scoring")} value={scoring} />
+              <Figure testId="fig-firs" label={t("riskScreen.stats.firs")} value={firs} hint={t("riskScreen.stats.previous", { count: prev })} />
+              <Figure
+                testId="fig-weights"
+                label={t("riskScreen.stats.weights")}
+                value={t("riskScreen.stats.version", { version: data.weightSet.version })}
+                hint={data.weightSet.reason}
+              />
+            </div>
 
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-foreground-subtle">
-                    {t("ai.explainTitle")}
+            <Panel title={t("riskScreen.formula")}>
+              <p className="text-sm text-foreground" data-testid="formula">
+                {data.formula}
+              </p>
+              <p className="mt-1 text-xs text-foreground-muted" data-testid="period">
+                {t("riskScreen.period", {
+                  from: data.period.from,
+                  to: data.period.to,
+                  days: data.period.days,
+                  previousFrom: data.period.previousFrom,
+                  previousTo: data.period.previousTo,
+                })}
+              </p>
+              <ul className="mt-2 list-disc pl-5 text-xs text-foreground-muted">
+                {data.notes.map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+            </Panel>
+
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+              <Panel title={t("riskScreen.areasTitle")}>
+                {rows.length === 0 ? (
+                  <p className="text-sm text-foreground-muted">
+                    {level === "beat" ? t("riskScreen.noAreasBeat") : t("riskScreen.noAreasStation")}
                   </p>
-                  <p className="mt-1 text-sm text-foreground-muted">
-                    The score is the weighted sum below. No factor is hidden and none derives from
-                    personal characteristics.
-                  </p>
-                  <ul className="mt-3 flex flex-col gap-2.5">
-                    {areaSheet.factors.map((f) => (
-                      <li key={f.label.en} className="flex items-center gap-3">
-                        <span className="w-10 shrink-0 tabular text-right text-sm font-medium text-foreground">
-                          {f.weight}%
-                        </span>
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-sunken">
-                          <div className="h-full rounded-full bg-accent" style={{ width: `${f.weight}%` }} />
-                        </div>
-                        <span className="min-w-0 flex-[1.4] truncate text-sm text-foreground-muted">
-                          {pick(f.label)}
-                        </span>
+                ) : (
+                  <ul className="flex flex-col divide-y divide-border" data-testid="area-list">
+                    {rows.map((a) => (
+                      <li key={a.id}>
+                        <button
+                          type="button"
+                          data-area={a.name}
+                          onClick={() => setSelected(a.id)}
+                          className={`flex w-full items-center justify-between gap-3 px-2 py-2 text-left hover:bg-surface-sunken ${
+                            current?.id === a.id ? "bg-surface-sunken" : ""
+                          }`}
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-medium text-foreground">{a.name}</span>
+                            <span className="block text-xs text-foreground-muted">
+                              {t("riskScreen.comparison", {
+                                current: a.firCount,
+                                previous: a.previousFirCount,
+                                change: a.change > 0 ? `+${a.change}` : String(a.change),
+                              })}
+                            </span>
+                          </span>
+                          <span className="text-lg font-semibold tabular-nums text-foreground" data-score={a.id}>
+                            {a.score.toFixed(2)}
+                          </span>
+                        </button>
                       </li>
                     ))}
                   </ul>
-                </div>
+                )}
+              </Panel>
 
-                <div className="rounded-md border border-border bg-surface-sunken p-3">
-                  <p className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-foreground-subtle">
-                    <Lightbulb className="h-3.5 w-3.5" />
-                    Recommendation
-                  </p>
-                  <p className="mt-1.5 text-sm text-foreground">{pick(areaSheet.recommendation)}</p>
-                </div>
+              {current && (
+                <Panel title={current.name} description={current.level === "beat" ? current.stationName : undefined}>
+                  <FactorTable area={current} />
+                  {current.coverage && (
+                    <p className="mt-2 text-xs text-foreground-muted" data-testid="coverage">
+                      {t("riskScreen.coverage", { placed: current.coverage.placed, total: current.coverage.stationTotal })}
+                    </p>
+                  )}
+                </Panel>
+              )}
+            </div>
 
-                <div className="flex flex-col gap-2">
-                  <Button onClick={() => { setPatrolFor(areaSheet); setAreaSheet(null); }}>
-                    <Route className="h-4 w-4" />
-                    Act on this recommendation
-                  </Button>
-                  <Button variant="outline" onClick={() => { setAreaSheet(null); setSimOpen(true); }}>
-                    <Sparkles className="h-4 w-4" />
-                    Simulate a deployment change
-                  </Button>
-                  <Button variant="outline" onClick={() => router.push("/analytics")}>
-                    <Calendar className="h-4 w-4" />
-                    Compare with previous periods
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
-    </DashboardLayout>
-  );
-}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Panel
+                title={t("riskScreen.recommendations.title")}
+                actions={
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="rf-top" className="text-xs">
+                      {t("riskScreen.recommendations.top")}
+                    </Label>
+                    <select id="rf-top" className={fieldClass} value={top} onChange={(e) => setTop(Number(e.target.value))}>
+                      {[1, 3, 5, 10].map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                }
+              >
+                {recs.isError && <p className="text-sm text-danger">{officerMessage(recs.error)}</p>}
+                {recs.data && (
+                  <div className="flex flex-col gap-2" data-testid="recommendations">
+                    <p className="text-xs text-foreground-muted">
+                      <span className="font-medium">{t("riskScreen.recommendations.rule")}:</span> {recs.data.rule}
+                    </p>
+                    {recs.data.recommendations.length === 0 ? (
+                      <p className="text-sm text-foreground-muted">{t("riskScreen.recommendations.none")}</p>
+                    ) : (
+                      <ol className="flex flex-col gap-2">
+                        {recs.data.recommendations.map((r) => (
+                          <li key={r.areaId} className="rounded-md border border-border p-2">
+                            <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+                              <Route className="h-4 w-4 text-accent" />
+                              {r.rank}. {r.areaName}
+                              <StatusPill tone="info">{r.score.toFixed(2)}</StatusPill>
+                            </p>
+                            <p className="mt-1 text-xs text-foreground-muted">{r.reasoning}</p>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                )}
+              </Panel>
 
-function ScoreDial({ score, color, size = 64 }: { score: number; color: string; size?: number }) {
-  const stroke = 7;
-  const r = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * r;
-  const offset = circumference * (1 - score / 100);
+              <Panel title={t("riskScreen.map")} description={t("riskScreen.mapNote")}>
+                {markers.length === 0 ? (
+                  <p className="text-sm text-foreground-muted">{t("riskScreen.noCoordinates")}</p>
+                ) : (
+                  <InteractiveMap markers={markers} center={[markers[0].lat, markers[0].lng]} zoom={12} height="288px" />
+                )}
+              </Panel>
+            </div>
+          </>
+        )}
 
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`Risk score ${score} of 100`}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-sunken)" strokeWidth={stroke} />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth={stroke}
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Panel
+            title={t("riskScreen.beats.title")}
+            actions={
+              <Button size="sm" onClick={() => setBeatOpen(true)}>
+                <Plus className="h-4 w-4" />
+                {t("riskScreen.beats.create")}
+              </Button>
+            }
+          >
+            {beats.isError ? (
+              <p className="text-sm text-danger">{officerMessage(beats.error)}</p>
+            ) : (
+              <BeatList beats={beats.data?.data ?? []} />
+            )}
+          </Panel>
+          <Panel title={t("riskScreen.placement.title")}>
+            <PlacementPanel stationId={periodError ? undefined : placementStation} from={from} to={to} beats={beats.data?.data ?? []} />
+          </Panel>
+        </div>
+      </div>
+
+      <SimulationDialog open={simOpen} onOpenChange={setSimOpen} query={query} areas={rows} />
+      {factors.data && (
+        <WeightsDialog
+          open={weightsOpen}
+          onOpenChange={setWeightsOpen}
+          factors={factors.data.factors}
+          current={factors.data.weightSet}
+          canEdit={canEditWeights}
+        />
+      )}
+      <CreateBeatDialog
+        open={beatOpen}
+        onOpenChange={setBeatOpen}
+        stations={stations}
+        defaultStation={wide ? stationId || undefined : user?.stationId}
+        canChooseStation={wide}
       />
-      <text
-        x={size / 2}
-        y={size / 2 + 4}
-        textAnchor="middle"
-        className="fill-[var(--foreground)] font-semibold"
-        style={{ fontSize: size / 3.6 }}
-      >
-        {score}
-      </text>
-    </svg>
+    </DashboardLayout>
   );
 }

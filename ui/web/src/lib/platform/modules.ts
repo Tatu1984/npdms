@@ -291,8 +291,8 @@ export const MODULES: PlatformModule[] = [
     icon: MapPinned,
     nameKey: "modules.riskIntelligence",
     descKey: "modules.riskIntelligenceDesc",
-    status: "preview",
-    aiAssisted: true,
+    status: "live",
+    aiAssisted: false,
   },
 
   {
