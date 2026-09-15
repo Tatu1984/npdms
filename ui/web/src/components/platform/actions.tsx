@@ -111,10 +111,13 @@ export function ActionMenu({
             <DropdownMenuItem
               key={action.id}
               disabled={action.disabled}
-              onSelect={(e) => {
-                e.preventDefault();
+              onSelect={() => {
+                // Let the menu close before acting. Preventing the close kept
+                // the modal menu mounted under any dialog the action opened,
+                // and its pointer-events lock on <body> outlived the dialog —
+                // the whole page stopped responding to clicks.
                 if (action.kind === "link") router.push(action.href);
-                else action.onSelect();
+                else window.setTimeout(action.onSelect, 0);
               }}
               className={cn(
                 "items-start",

@@ -375,50 +375,6 @@ export const CUSTODY_CHAIN: CustodyEvent[] = [
   { id: "cc-3", at: "2024-11-24T11:00:00", from: { en: "Malkhana — Bhowanipore PS", bn: "মালখানা — ভবানীপুর থানা" }, to: { en: "Cyber cell — Lalbazar", bn: "সাইবার সেল — লালবাজার" }, reason: { en: "Forensic examination", bn: "ফরেনসিক পরীক্ষা" }, signedBy: { en: "Insp. Arindam Chatterjee", bn: "ইন্সপেক্টর অরিন্দম চ্যাটার্জি" }, block: 184602, sealIntact: true },
 ];
 
-/* ---------------------------------------------------- 03 Video intelligence */
-
-export interface CameraFeed {
-  id: string;
-  code: string;
-  name: Bilingual;
-  location: Bilingual;
-  lat: number;
-  lng: number;
-  status: "online" | "offline" | "degraded";
-  owner: "KP" | "KMC" | "Private" | "Traffic";
-  analytics: string[];
-  lastEvent?: string;
-}
-
-export const CAMERAS: CameraFeed[] = [
-  { id: "cam-1", code: "KP-ESP-014", name: { en: "Esplanade crossing", bn: "এসপ্ল্যানেড মোড়" }, location: { en: "Esplanade", bn: "এসপ্ল্যানেড" }, lat: 22.5646, lng: 88.3512, status: "online", owner: "KP", analytics: ["Person", "Vehicle", "Crowd"], lastEvent: "3 min ago" },
-  { id: "cam-2", code: "TR-PKS-007", name: { en: "Park Street / Camac Street", bn: "পার্ক স্ট্রিট / ক্যামাক স্ট্রিট" }, location: { en: "Park Street", bn: "পার্ক স্ট্রিট" }, lat: 22.5525, lng: 88.3529, status: "online", owner: "Traffic", analytics: ["ANPR", "Wrong-way", "Stopped vehicle"], lastEvent: "just now" },
-  { id: "cam-3", code: "KMC-GRH-022", name: { en: "Gariahat flyover south", bn: "গড়িয়াহাট উড়ালপুল দক্ষিণ" }, location: { en: "Gariahat", bn: "গড়িয়াহাট" }, lat: 22.5183, lng: 88.366, status: "degraded", owner: "KMC", analytics: ["Vehicle", "Crowd"], lastEvent: "21 min ago" },
-  { id: "cam-4", code: "KP-SLD-031", name: { en: "Sealdah station approach", bn: "শিয়ালদহ স্টেশন প্রবেশপথ" }, location: { en: "Sealdah", bn: "শিয়ালদহ" }, lat: 22.5674, lng: 88.3702, status: "online", owner: "KP", analytics: ["Person", "Abandoned object", "Crowd"], lastEvent: "8 min ago" },
-  { id: "cam-5", code: "KP-BHW-009", name: { en: "Harish Mukherjee Road", bn: "হরিশ মুখার্জি রোড" }, location: { en: "Bhowanipore", bn: "ভবানীপুর" }, lat: 22.5301, lng: 88.3421, status: "offline", owner: "KP", analytics: ["ANPR", "Person"], lastEvent: "2 h ago" },
-  { id: "cam-6", code: "TR-EMB-044", name: { en: "EM Bypass, Ruby crossing", bn: "ইএম বাইপাস, রুবি মোড়" }, location: { en: "Kasba", bn: "কসবা" }, lat: 22.5147, lng: 88.4017, status: "online", owner: "Traffic", analytics: ["ANPR", "Speed", "Accident"], lastEvent: "1 min ago" },
-];
-
-export interface VideoEvent {
-  id: string;
-  camera: string;
-  cameraCode: string;
-  at: string;
-  type: Bilingual;
-  severity: Severity;
-  confidence: number;
-  reason: Bilingual;
-  status: "new" | "confirmed" | "dismissed";
-}
-
-export const VIDEO_EVENTS: VideoEvent[] = [
-  { id: "ve-1", camera: "Park Street / Camac Street", cameraCode: "TR-PKS-007", at: "14:52:11", type: { en: "Wrong-way movement", bn: "উল্টো পথে চলাচল" }, severity: "high", confidence: 0.93, reason: { en: "Two-wheeler travelling against the marked flow for 40 m.", bn: "দুই চাকার যান চিহ্নিত প্রবাহের বিপরীতে ৪০ মিটার চলেছে।" }, status: "new" },
-  { id: "ve-2", camera: "Sealdah station approach", cameraCode: "KP-SLD-031", at: "14:47:38", type: { en: "Abandoned object", bn: "পরিত্যক্ত বস্তু" }, severity: "critical", confidence: 0.81, reason: { en: "Bag stationary for 6 minutes with no person within 3 m.", bn: "ব্যাগ ৬ মিনিট স্থির, ৩ মিটারের মধ্যে কোনো ব্যক্তি নেই।" }, status: "new" },
-  { id: "ve-3", camera: "Esplanade crossing", cameraCode: "KP-ESP-014", at: "14:31:02", type: { en: "Crowd density rising", bn: "ভিড়ের ঘনত্ব বাড়ছে" }, severity: "medium", confidence: 0.76, reason: { en: "Estimated 240 persons in the zone against a 150 baseline.", bn: "অঞ্চলে আনুমানিক ২৪০ জন, স্বাভাবিক ১৫০-এর তুলনায়।" }, status: "confirmed" },
-  { id: "ve-4", camera: "EM Bypass, Ruby crossing", cameraCode: "TR-EMB-044", at: "14:12:55", type: { en: "Stopped vehicle in live lane", bn: "চলন্ত লেনে থেমে থাকা গাড়ি" }, severity: "high", confidence: 0.88, reason: { en: "Light goods vehicle stationary in lane 2 for 4 minutes.", bn: "হালকা মালবাহী যান লেন ২-এ ৪ মিনিট স্থির।" }, status: "confirmed" },
-  { id: "ve-5", camera: "Gariahat flyover south", cameraCode: "KMC-GRH-022", at: "13:58:20", type: { en: "Person detection in restricted area", bn: "নিষিদ্ধ এলাকায় ব্যক্তি শনাক্ত" }, severity: "low", confidence: 0.58, reason: { en: "Low light; may be a maintenance worker.", bn: "কম আলো; রক্ষণাবেক্ষণ কর্মী হতে পারে।" }, status: "dismissed" },
-];
-
 /* ------------------------------------------------------- 04 Missing persons */
 
 export interface MissingPerson {
