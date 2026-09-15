@@ -1,4 +1,5 @@
 import { custodyEn } from "./custody.en";
+import { grievanceEn } from "./grievance.en";
 
 /**
  * English dictionary — the source of truth for translation keys.
@@ -8,6 +9,7 @@ import { custodyEn } from "./custody.en";
  */
 export const en = {
   custodyScreen: custodyEn,
+  grievanceScreen: grievanceEn,
 
   common: {
     appName: "Kolkata Police Digital Intelligence Platform",
