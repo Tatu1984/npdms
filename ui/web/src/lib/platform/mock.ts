@@ -731,44 +731,6 @@ export const SAMPLE_ANSWERS: KnowledgeAnswer[] = [
 
 /* ------------------------------------------- 12 Case file & court readiness */
 
-export interface CaseFileDoc {
-  id: string;
-  serial: string;
-  title: Bilingual;
-  type: "fir" | "statement" | "seizure" | "photograph" | "forensic" | "medical" | "correspondence" | "cctv";
-  pages: number;
-  addedOn: string;
-  signed: boolean;
-  issues: Bilingual[];
-}
-
-export const CASE_FILE_DOCS: CaseFileDoc[] = [
-  { id: "cf-1", serial: "D-01", title: { en: "First Information Report", bn: "প্রথম তথ্য প্রতিবেদন" }, type: "fir", pages: 4, addedOn: "2024-11-18", signed: true, issues: [] },
-  { id: "cf-2", serial: "D-02", title: { en: "Seizure list — showroom premises", bn: "বাজেয়াপ্ত তালিকা — দোকান প্রাঙ্গণ" }, type: "seizure", pages: 3, addedOn: "2024-11-19", signed: true, issues: [] },
-  { id: "cf-3", serial: "D-03", title: { en: "Statement of complainant u/s BNSS 180", bn: "বিএনএসএস ১৮০ ধারায় অভিযোগকারীর বয়ান" }, type: "statement", pages: 6, addedOn: "2024-11-19", signed: true, issues: [] },
-  { id: "cf-4", serial: "D-04", title: { en: "Statement of witness — Bikash Haldar", bn: "সাক্ষীর বয়ান — বিকাশ হালদার" }, type: "statement", pages: 4, addedOn: "2024-11-20", signed: false, issues: [{ en: "Signature of the recording officer missing on page 4", bn: "৪ নম্বর পৃষ্ঠায় রেকর্ডিং আধিকারিকের স্বাক্ষর অনুপস্থিত" }] },
-  { id: "cf-5", serial: "D-05", title: { en: "Crime scene photographs", bn: "ঘটনাস্থলের আলোকচিত্র" }, type: "photograph", pages: 42, addedOn: "2024-11-19", signed: true, issues: [] },
-  { id: "cf-6", serial: "D-06", title: { en: "Ballistics report", bn: "ব্যালিস্টিক প্রতিবেদন" }, type: "forensic", pages: 0, addedOn: "—", signed: false, issues: [{ en: "Not received from the State FSL", bn: "রাজ্য এফএসএল থেকে পাওয়া যায়নি" }] },
-  { id: "cf-7", serial: "D-07", title: { en: "CCTV certificate u/s BSA 63", bn: "বিএসএ ৬৩ ধারায় সিসিটিভি শংসাপত্র" }, type: "cctv", pages: 2, addedOn: "2024-11-22", signed: false, issues: [{ en: "Certificate not signed by the custodian of the device", bn: "যন্ত্রের রক্ষকের স্বাক্ষর শংসাপত্রে নেই" }] },
-];
-
-export interface EvidenceMatrixRow {
-  id: string;
-  evidence: Bilingual;
-  establishes: Bilingual;
-  source: Bilingual;
-  witness: Bilingual;
-  documentRef: string;
-  strength: "strong" | "supporting" | "weak";
-}
-
-export const EVIDENCE_MATRIX: EvidenceMatrixRow[] = [
-  { id: "em-1", evidence: { en: "Showroom DVR footage", bn: "দোকানের ডিভিআর ফুটেজ" }, establishes: { en: "Presence and conduct of three persons inside the premises", bn: "প্রাঙ্গণের ভিতরে তিনজনের উপস্থিতি ও আচরণ" }, source: { en: "Seized from complainant", bn: "অভিযোগকারীর কাছ থেকে বাজেয়াপ্ত" }, witness: { en: "Sharmila Dutta", bn: "শর্মিলা দত্ত" }, documentRef: "D-05 / EV-001", strength: "strong" },
-  { id: "em-2", evidence: { en: "ANPR detection of WB-02-AK-4471", bn: "WB-02-AK-4471-এর এএনপিআর শনাক্তকরণ" }, establishes: { en: "Vehicle in the vicinity three minutes before entry", bn: "প্রবেশের তিন মিনিট আগে গাড়িটি নিকটবর্তী এলাকায়" }, source: { en: "Traffic ANPR, Jagubazar", bn: "ট্রাফিক এএনপিআর, যদুবাবুর বাজার" }, witness: { en: "—", bn: "—" }, documentRef: "EV-004", strength: "supporting" },
-  { id: "em-3", evidence: { en: "CDR tower location", bn: "সিডিআর টাওয়ার অবস্থান" }, establishes: { en: "Handset of the accused in the locality during the incident", bn: "ঘটনার সময় অভিযুক্তের হ্যান্ডসেট এলাকায় ছিল" }, source: { en: "Service provider", bn: "পরিষেবা প্রদানকারী" }, witness: { en: "Nodal officer", bn: "নোডাল আধিকারিক" }, documentRef: "D-09", strength: "supporting" },
-  { id: "em-4", evidence: { en: "Ballistics report", bn: "ব্যালিস্টিক প্রতিবেদন" }, establishes: { en: "Nature of the weapon used", bn: "ব্যবহৃত অস্ত্রের প্রকৃতি" }, source: { en: "State FSL", bn: "রাজ্য এফএসএল" }, witness: { en: "—", bn: "—" }, documentRef: "D-06 (awaited)", strength: "weak" },
-];
-
 /* ------------------------------------------------------------- 13 Bodycam */
 
 export interface BodycamDevice {
