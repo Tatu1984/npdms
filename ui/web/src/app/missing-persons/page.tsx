@@ -40,6 +40,7 @@ import { LocationPicker, type LocationValue } from "@/components/ui/LocationPick
 import { DataTable, type Column } from "@/components/platform/data-table";
 import { act, type Action } from "@/components/platform/actions";
 import { EmptyState, PageHeader, PhaseBadge, StatTile, StatusPill } from "@/components/platform/primitives";
+import { SharedRegisterNote } from "@/components/platform/force";
 import { OfficerPicker, RecordLinkPicker, type RecordLink } from "@/components/platform/pickers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -216,6 +217,10 @@ export default function MissingPersonsPage() {
             act.link("audit", pick(L.audit), "/audit", { icon: ClipboardList }),
           ]}
         />
+
+        {/* A missing child does not stop being missing at a jurisdiction
+            boundary, so this register is one of the four every force sees. */}
+        <SharedRegisterNote />
 
         {photoFailure && (
           <Alert variant="danger">

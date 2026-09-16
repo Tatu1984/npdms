@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState, Panel, StatusPill } from "@/components/platform/primitives";
+import { SharedRegisterNote } from "@/components/platform/force";
 import { useAddWatch, useRemoveWatch, useWatchlist } from "@/hooks/use-anpr";
 import { WATCH_PRIORITIES, type WatchlistEntry, type WatchPriority } from "@/lib/api/anpr";
 import { formatDateTime } from "@/lib/utils";
@@ -60,6 +61,11 @@ export function WatchlistPanel({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
+      {/* Stolen and wanted vehicles are a state-wide register, and this is where
+          they are read on this screen. The hits on the other tabs are the
+          reading force's own cameras, so the line is scoped to the watchlist. */}
+      <SharedRegisterNote variant="watchlist" className="lg:col-span-3" />
+
       <Panel title={t("anprScreen.watchlist.add")} className="lg:col-span-1">
         {canManage ? (
           <div className="flex flex-col gap-3" data-testid="watchlist-form">

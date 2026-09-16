@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   Bell,
-  Building2,
   Check,
+  Landmark,
   LogOut,
   Moon,
   Search,
@@ -16,7 +16,6 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useI18n, LOCALES } from "@/lib/i18n";
 import { useAuthStore, getRoleDisplayName } from "@/stores/authStore";
 import {
@@ -29,13 +28,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { StatusPill } from "@/components/platform/primitives";
+import { ForceStatement, useForce } from "@/components/platform/force";
 import { CommandPalette } from "./CommandPalette";
 
 export function PlatformTopbar() {
   const router = useRouter();
-  const { t, locale, setLocale, pick } = useI18n();
+  const { t, locale, setLocale } = useI18n();
   const { theme, setTheme } = useTheme();
   const { user, syncState, logout } = useAuthStore();
+  const { label: forceLabel } = useForce();
+  const forceFull = forceLabel.full;
+  const forceParent = forceLabel.parent;
 
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
@@ -67,26 +70,39 @@ export function PlatformTopbar() {
         </button>
 
         <div className="ml-auto flex items-center gap-1">
-          {/* Where the officer is posted. Read from the session, not chosen:
-              the platform holds one force's records, and an officer cannot
-              browse another force's. A switcher here implied otherwise. */}
-          {user?.stationName && (
+          {/* Which department, and where posted. Both read from the session,
+              neither chosen: an officer sees their own force's records, and a
+              switcher here would imply they could see another's. A wing is
+              shown with its parent, so a CID officer can tell at a glance. */}
+          {user && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="hidden items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground-muted md:flex">
-                  <Building2 className="h-3.5 w-3.5 shrink-0 text-foreground-subtle" aria-hidden />
-                  <span className="max-w-[12rem] truncate font-medium text-foreground">
-                    {user.stationName}
-                  </span>
-                  {user.districtName && (
-                    <>
-                      <span className="text-foreground-subtle">·</span>
-                      <span className="max-w-[8rem] truncate">{user.districtName}</span>
-                    </>
+                <span className="hidden items-center gap-2 md:flex">
+                  <ForceStatement />
+                  {user.stationName && (
+                    <span className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground-muted">
+                      <Landmark
+                        className="h-3.5 w-3.5 shrink-0 text-foreground-subtle"
+                        aria-hidden
+                      />
+                      <span className="max-w-[12rem] truncate font-medium text-foreground">
+                        {user.stationName}
+                      </span>
+                      {user.districtName && (
+                        <>
+                          <span className="text-foreground-subtle">·</span>
+                          <span className="max-w-[8rem] truncate">{user.districtName}</span>
+                        </>
+                      )}
+                    </span>
                   )}
                 </span>
               </TooltipTrigger>
-              <TooltipContent>{t("agency.postedAt")}</TooltipContent>
+              <TooltipContent>
+                <p className="font-medium">{forceFull}</p>
+                {forceParent && <p className="text-foreground-muted">{forceParent}</p>}
+                <p className="text-foreground-muted">{t("force.postedNote")}</p>
+              </TooltipContent>
             </Tooltip>
           )}
 

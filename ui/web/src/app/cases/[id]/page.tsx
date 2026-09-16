@@ -17,6 +17,8 @@ import {
   Package,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { OtherForceRecord, otherForceRefusal } from "@/components/platform/force";
+import { useI18n } from "@/lib/i18n";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -149,6 +151,7 @@ const toEditForm = (c: Case): EditForm => ({
 export default function CaseDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useI18n();
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<"overview" | "accused" | "court">("overview");
 
@@ -178,6 +181,26 @@ export default function CaseDetailPage() {
   }
 
   if (isError) {
+    // Another force's case is a refusal the platform made on purpose. Saying
+    // "not found" would be untrue, and a toast would read as a fault.
+    const otherForce = otherForceRefusal(error);
+    if (otherForce) {
+      return (
+        <DashboardLayout>
+          <div className="mx-auto max-w-2xl py-8">
+            <OtherForceRecord
+              refusal={otherForce}
+              action={
+                <Link href="/cases">
+                  <Button variant="secondary">{t("force.otherBack")}</Button>
+                </Link>
+              }
+            />
+          </div>
+        </DashboardLayout>
+      );
+    }
+
     const notFound = error instanceof ApiClientError && error.code === 404;
     return (
       <DashboardLayout>

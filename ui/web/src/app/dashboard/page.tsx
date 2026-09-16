@@ -27,7 +27,9 @@ import {
   GROUP_ORDER,
   MODULES,
   PHASED_MODULES,
+  modulesForForce,
 } from "@/lib/platform/modules";
+import { useForce } from "@/components/platform/force";
 import { useVideoEventStats } from "@/hooks/use-video";
 import { useWorkspaces } from "@/hooks/use-investigation";
 import { useDispatchStats } from "@/hooks/use-dispatch";
@@ -52,6 +54,12 @@ export default function DashboardPage() {
   const router = useRouter();
   const { t, pick } = useI18n();
   const user = useAuthStore((s) => s.user);
+  const { force, label: forceLabel } = useForce();
+  // The module index and the roadmap show this department's work, the same set
+  // the navigation offers. A module index that listed screens the sidebar will
+  // not open is a promise the platform does not keep.
+  const forceModules = modulesForForce(force.code, MODULES);
+  const forcePhases = modulesForForce(force.code, PHASED_MODULES);
 
   // Every figure below comes from the API; a panel the officer's rank cannot
   // read shows a dash rather than a made-up number.
@@ -264,11 +272,11 @@ export default function DashboardPage() {
               The platform, in <GradientText>fourteen phased modules</GradientText>
             </>
           }
-          description="One platform consuming authorised data from the systems Kolkata Police already operates"
+          description={`One platform consuming authorised data from the systems ${forceLabel.full} already operates`}
           bodyClassName="flex flex-col gap-5"
         >
           {GROUP_ORDER.filter((g) => g !== "core").map((group) => {
-            const items = MODULES.filter((m) => m.group === group);
+            const items = forceModules.filter((m) => m.group === group);
             if (items.length === 0) return null;
             return (
               <div key={group}>
@@ -315,7 +323,7 @@ export default function DashboardPage() {
           bodyClassName="p-0"
         >
           <ol className="divide-y divide-border">
-            {PHASED_MODULES.map((m) => (
+            {forcePhases.map((m) => (
               <li key={m.id}>
                 <Link
                   href={m.href}

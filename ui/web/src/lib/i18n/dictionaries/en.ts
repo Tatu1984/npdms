@@ -389,6 +389,31 @@ export const en = {
     station: "Police station",
   },
 
+  force: {
+    // The department line in the top bar. A statement of where the officer is
+    // posted, never a control: the posting decides the force.
+    yours: "Your department",
+    postedNote:
+      "Your department and posting, taken from your account. Records are your own force's unless a screen says otherwise.",
+    wingOf: "A wing of {parent}",
+    headquarters: "Headquarters",
+
+    // The four state-wide registers.
+    sharedTitle: "A state-wide register",
+    sharedBody:
+      "All four departments — Kolkata Police, Kolkata Traffic Police, West Bengal Police and CID — see this register. The rest of your screens hold your own force's records.",
+    sharedWatchlistBody:
+      "The watchlist is shared by all four departments. The camera hits below it are your own force's.",
+
+    // A record that belongs to another force.
+    otherTitle: "This record belongs to another force",
+    otherBody:
+      "It was recorded by {force}. An officer sees their own force's records; this one reaches you only if that force refers the case or you ask for assistance and it is granted.",
+    otherBodyUnknown:
+      "It was recorded by another force. An officer sees their own force's records; this one reaches you only if that force refers the case or you ask for assistance and it is granted.",
+    otherBack: "Back to your own records",
+  },
+
   workload: {
     scope: "Scope",
     station: "Station",

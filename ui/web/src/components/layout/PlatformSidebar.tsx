@@ -6,7 +6,14 @@ import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, ShieldHalf } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
-import { GROUP_LABEL, GROUP_ORDER, MODULES, type PlatformModule } from "@/lib/platform/modules";
+import {
+  GROUP_LABEL,
+  GROUP_ORDER,
+  MODULES,
+  modulesForForce,
+  type PlatformModule,
+} from "@/lib/platform/modules";
+import { useForce } from "@/components/platform/force";
 import { useAuthStore, hasMinimumRole } from "@/stores/authStore";
 import { PhaseBadge } from "@/components/platform/primitives";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,6 +26,7 @@ export function PlatformSidebar() {
   const pathname = usePathname();
   const { t } = useI18n();
   const user = useAuthStore((s) => s.user);
+  const { force, label: forceLabel } = useForce();
   const [collapsed, setCollapsed] = React.useState(false);
 
   React.useEffect(() => {
@@ -41,12 +49,14 @@ export function PlatformSidebar() {
     });
   };
 
+  // Two filters, in this order: the modules that are this department's work,
+  // then the ones this rank may open.
   const visible = React.useMemo(
     () =>
-      MODULES.filter(
+      modulesForForce(force.code, MODULES).filter(
         (m) => !m.minRole || (user && hasMinimumRole(user.role as Role, m.minRole as Role)),
       ),
-    [user],
+    [force.code, user],
   );
 
   const isActive = (m: PlatformModule) =>
@@ -69,11 +79,14 @@ export function PlatformSidebar() {
         </span>
         {!collapsed && (
           <div className="min-w-0">
+            {/* The officer's own department, not the platform's first customer.
+                A West Bengal Police officer reading "Kolkata Police" here was
+                being told something untrue about their own screens. */}
             <p className="truncate text-sm font-semibold leading-tight text-foreground">
-              {t("agency.kp")}
+              {forceLabel.full}
             </p>
             <p className="truncate text-[0.7rem] leading-tight text-foreground-subtle">
-              Digital Intelligence Platform
+              {forceLabel.parent ?? "Digital Intelligence Platform"}
             </p>
           </div>
         )}

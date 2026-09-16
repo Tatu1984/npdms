@@ -7,7 +7,8 @@ import { useI18n } from "@/lib/i18n";
 import { useRecordSearch } from "@/hooks/use-legacy-registers";
 import { SEARCH_MIN_LENGTH } from "@/lib/api/search";
 import { SEARCH_KIND_LABEL, SEARCH_LABELS } from "@/app/search/labels";
-import { GROUP_LABEL, GROUP_ORDER, MODULES } from "@/lib/platform/modules";
+import { GROUP_LABEL, GROUP_ORDER, MODULES, modulesForForce } from "@/lib/platform/modules";
+import { useForce } from "@/components/platform/force";
 import {
   CommandDialog,
   CommandEmpty,
@@ -34,6 +35,10 @@ export function CommandPalette({
 }) {
   const router = useRouter();
   const { t, pick } = useI18n();
+  const { force } = useForce();
+  // The palette must not offer what the navigation does not: a traffic officer
+  // typing "malkhana" should find nothing rather than a screen not theirs.
+  const forceModules = React.useMemo(() => modulesForForce(force.code, MODULES), [force.code]);
   const [query, setQuery] = React.useState("");
   const deferred = React.useDeferredValue(query.trim());
   const records = useRecordSearch(open ? deferred : "");
@@ -56,13 +61,16 @@ export function CommandPalette({
     router.push(href);
   };
 
+  // Each shortcut names the module it creates into, so it disappears with that
+  // module: offering "Issue traffic challan" to a CID officer would be an
+  // invitation to a screen that is not theirs.
   const quickCreate = [
-    { id: "new-fir", label: "Register FIR / GD", href: "/fir/new", icon: FileText },
-    { id: "new-case", label: "Open case file", href: "/cases/new", icon: Package },
-    { id: "new-evidence", label: "Register evidence", href: "/custody?register=1", icon: Package },
-    { id: "new-officer", label: "Add officer to the roster", href: "/personnel/new", icon: Users },
-    { id: "new-challan", label: "Issue traffic challan", href: "/traffic/challans/new", icon: Car },
-  ];
+    { id: "new-fir", module: "fir", label: "Register FIR / GD", href: "/fir/new", icon: FileText },
+    { id: "new-case", module: "cases", label: "Open case file", href: "/cases/new", icon: Package },
+    { id: "new-evidence", module: "custody", label: "Register evidence", href: "/custody?register=1", icon: Package },
+    { id: "new-officer", module: "personnel", label: "Add officer to the roster", href: "/personnel/new", icon: Users },
+    { id: "new-challan", module: "traffic-challans", label: "Issue traffic challan", href: "/traffic/challans/new", icon: Car },
+  ].filter((item) => forceModules.some((m) => m.id === item.module));
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
@@ -123,7 +131,7 @@ export function CommandPalette({
         <CommandSeparator />
 
         {GROUP_ORDER.map((group) => {
-          const items = MODULES.filter((m) => m.group === group);
+          const items = forceModules.filter((m) => m.group === group);
           if (items.length === 0) return null;
           return (
             <CommandGroup key={group} heading={t(GROUP_LABEL[group])}>

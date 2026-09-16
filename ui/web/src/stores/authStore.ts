@@ -56,6 +56,10 @@ export const useAuthStore = create<AuthState>()(
             districtName: apiUser.districtName || '',
             stateId: apiUser.stateId || '',
             stateName: apiUser.stateName || '',
+            // Left undefined when the API sends no force. Screens read it
+            // through forceOf(), which takes that to be Kolkata Police —
+            // every account that predates the departments is one.
+            force: apiUser.force,
           };
           set({
             user,

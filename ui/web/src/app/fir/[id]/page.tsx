@@ -20,6 +20,7 @@ import {
   Package,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { OtherForceRecord, otherForceRefusal } from "@/components/platform/force";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -148,6 +149,27 @@ export default function FIRDetailPage() {
   }
 
   if (isError) {
+    // A record belonging to another force is not a fault and not a gap in the
+    // register: the platform refused on purpose, so it is stated as a refusal
+    // rather than shown as "not found".
+    const otherForce = otherForceRefusal(error);
+    if (otherForce) {
+      return (
+        <DashboardLayout>
+          <div className="mx-auto max-w-2xl py-8">
+            <OtherForceRecord
+              refusal={otherForce}
+              action={
+                <Link href="/fir">
+                  <Button variant="secondary">{t("force.otherBack")}</Button>
+                </Link>
+              }
+            />
+          </div>
+        </DashboardLayout>
+      );
+    }
+
     const notFound = error instanceof ApiClientError && error.code === 404;
     return (
       <DashboardLayout>

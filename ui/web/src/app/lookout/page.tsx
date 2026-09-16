@@ -17,6 +17,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { SharedRegisterNote } from "@/components/platform/force";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,6 +88,10 @@ export default function LookoutPage() {
             </Button>
           )}
         </div>
+
+        {/* Lookouts — and the stolen and wanted vehicles among them — are one of
+            the four state-wide registers, so this list is not this force's alone. */}
+        <SharedRegisterNote />
 
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
           {statCards.map(({ key, label, value, icon: Icon, wrap, color, filter }) => (

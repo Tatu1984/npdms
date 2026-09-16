@@ -16,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { SharedRegisterNote } from "@/components/platform/force";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -291,6 +292,10 @@ export default function AlertsPage() {
             </Button>
           )}
         </div>
+
+        {/* Alerts are raised for other forces to act on, so they are one of the
+            four state-wide registers rather than this force's own. */}
+        <SharedRegisterNote />
 
         {/* Counts come from the server's active and unacknowledged lists */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

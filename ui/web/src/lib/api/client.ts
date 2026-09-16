@@ -6,6 +6,10 @@ interface ApiError {
   error: string;
   message: string;
   code: number;
+  // Refusals carry the fact that explains them — which force recorded a record
+  // the reader may not see, for instance. Anything beyond the three fields
+  // above is kept as-is and handed to the screen.
+  [key: string]: unknown;
 }
 
 interface RefreshResponse {
@@ -241,7 +245,12 @@ class ApiClient {
       }));
       // Not every error body carries `code` — the rate limiter's 429 does not — so
       // fall back to the HTTP status; callers branch on it (retry, not-found).
-      throw new ApiClientError(error.message, error.code ?? response.status, error.error);
+      throw new ApiClientError(
+        error.message,
+        error.code ?? response.status,
+        error.error,
+        error,
+      );
     }
 
     // Handle empty responses
@@ -299,12 +308,20 @@ class ApiClient {
 export class ApiClientError extends Error {
   code: number;
   errorType: string;
+  /** The whole error body, for refusals that state a fact alongside the message. */
+  details: Record<string, unknown>;
 
-  constructor(message: string, code: number, errorType: string) {
+  constructor(
+    message: string,
+    code: number,
+    errorType: string,
+    details: Record<string, unknown> = {},
+  ) {
     super(message);
     this.name = 'ApiClientError';
     this.code = code;
     this.errorType = errorType;
+    this.details = details;
   }
 }
 

@@ -1,4 +1,5 @@
 import apiClient from './client';
+import type { Force } from '@/lib/platform/forces';
 
 export interface User {
   id: string;
@@ -14,6 +15,13 @@ export interface User {
   districtName?: string;
   stateId?: string;
   stateName?: string;
+  /**
+   * The officer's department, joined from the `forces` table. Optional: an API
+   * older than the departments sends neither field, and the interface has to
+   * keep working against one.
+   */
+  forceId?: string;
+  force?: Force;
   isActive: boolean;
 }
 

@@ -1,3 +1,7 @@
+import type { Force } from "@/lib/platform/forces";
+
+export type { Force };
+
 // User & Auth Types
 export type Role =
   | "CONSTABLE"
@@ -24,6 +28,12 @@ export interface User {
   districtName: string;
   stateId: string;
   stateName: string;
+  /**
+   * The department the officer belongs to. It follows from the posting and is
+   * never chosen. Optional because an older API sends no force; read it
+   * through `forceOf()`, which treats that as Kolkata Police.
+   */
+  force?: Force;
   avatar?: string;
 }
 

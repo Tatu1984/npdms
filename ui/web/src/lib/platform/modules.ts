@@ -26,6 +26,7 @@ import {
   Video,
 } from "lucide-react";
 import type { TranslationKey } from "@/lib/i18n";
+import { SHARED_REGISTER_MODULES } from "./forces";
 
 /**
  * The platform is one product with phased modules, not fourteen apps.
@@ -428,3 +429,102 @@ export const ALERT_MODULE: PlatformModule = {
   descKey: "modules.dashboardDesc",
   status: "live",
 };
+
+// ---------------------------------------------------------------------------
+// Which modules belong to which department
+// ---------------------------------------------------------------------------
+//
+// The starting point is that every department does police work and sees the
+// whole platform. Only the exceptions are written down, and each one carries
+// the reason it is an exception, so that an officer who disagrees can argue
+// with the reason rather than guess at the list.
+//
+// The test applied to each line was not "would this department use this
+// often?" — plenty of screens are rarely opened and still belong — but "does
+// this work belong to this department at all?". A traffic wing keeps no
+// property store because seized property goes to the police station's
+// malkhana; that is a fact about how the wings are organised, not a guess
+// about usage. Where the answer was uncertain the module was left visible.
+//
+// Kolkata Police and West Bengal Police are forces in their own right and do
+// the general run of police work, so neither has an exception. A force code
+// this build does not know — a fifth department added later — also gets the
+// general set, because hiding work from an officer on the strength of an
+// unrecognised code would be the worse mistake.
+//
+// The four state-wide registers are never hidden, whatever is written here;
+// `modulesForForce` enforces that against SHARED_REGISTER_MODULES.
+
+/** Module ids a force does not see, each with the reason it does not. */
+export interface ForceModuleRule {
+  hidden: Record<string, string>;
+}
+
+export const FORCE_MODULE_RULES: Record<string, ForceModuleRule> = {
+  KP: { hidden: {} },
+  WBP: { hidden: {} },
+
+  // Kolkata Traffic Police — regulation, road accidents and prosecutions. It
+  // does not investigate crime and it does not run a police station.
+  TRAFFIC: {
+    hidden: {
+      investigation:
+        "Investigating crime is the station's work; the traffic wing hands a case over rather than taking it up.",
+      "case-file":
+        "A case diary is kept by the investigating officer at the station that registered the case.",
+      "cyber-intelligence":
+        "Cyber investigation is done by the cyber cells of the two forces, not by a traffic wing.",
+      forensics:
+        "Forensic examination is requisitioned by the investigating officer, who is not a traffic officer.",
+      custody:
+        "A person arrested by a traffic sergeant is produced at the police station, which makes the custody entry.",
+      malkhana:
+        "The traffic wing keeps no property store; a seized vehicle or article is deposited at the station's malkhana.",
+      bail: "Bail follows an arrest and a case the station holds, not a traffic prosecution.",
+      warrants:
+        "Warrants are issued in cases the stations investigate and are executed by them.",
+      "face-match-review":
+        "Face match candidates are raised against missing-person and wanted records, which the traffic wing does not work.",
+    },
+  },
+
+  // CID — specialised investigation of cases referred to it. It has no
+  // patrolling, no road-traffic duty and no public counter.
+  CID: {
+    hidden: {
+      "traffic-challans":
+        "Traffic prosecutions are issued by the traffic wing in its own area; CID prosecutes no road offences.",
+      "accident-reconstruction":
+        "Road accident scenes are worked by the traffic wing; a case reaches CID as a referred case, not as a scene.",
+      dispatch:
+        "Emergency calls are answered and units are sent by the city and district forces; CID runs no response control room.",
+      grievance:
+        "Public grievances are received at the station counter; CID takes up a matter on a referral, not on a walk-in.",
+    },
+  },
+};
+
+/**
+ * The modules an officer of this force sees, in registry order.
+ *
+ * Unknown force codes get the general set. The state-wide registers are added
+ * back whatever the rules say, so the shared-register promise cannot be broken
+ * by an edit to the table above.
+ */
+export function modulesForForce(
+  forceCode: string | undefined,
+  modules: PlatformModule[] = MODULES,
+): PlatformModule[] {
+  const hidden = FORCE_MODULE_RULES[forceCode ?? ""]?.hidden;
+  if (!hidden) return modules;
+  return modules.filter((m) => !hidden[m.id] || m.id in SHARED_REGISTER_MODULES);
+}
+
+/** Why a module is not shown to this force, for anywhere that must explain it. */
+export function moduleHiddenReason(
+  forceCode: string | undefined,
+  moduleId: string,
+): string | undefined {
+  if (moduleId in SHARED_REGISTER_MODULES) return undefined;
+  return FORCE_MODULE_RULES[forceCode ?? ""]?.hidden[moduleId];
+}
