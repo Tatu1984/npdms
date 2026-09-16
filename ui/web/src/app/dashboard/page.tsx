@@ -269,7 +269,9 @@ export default function DashboardPage() {
         <Panel
           title={
             <>
-              The platform, in <GradientText>fourteen phased modules</GradientText>
+              {/* No count: the module list differs by department, so a number
+                  here would be wrong for three of the four. */}
+              The platform, <GradientText>module by module</GradientText>
             </>
           }
           description={`One platform consuming authorised data from the systems ${forceLabel.full} already operates`}

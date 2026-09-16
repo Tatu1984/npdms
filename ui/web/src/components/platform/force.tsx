@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Building2, Globe2, ShieldAlert } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeftRight, Building2, Globe2, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 import { useAuthStore } from "@/stores/authStore";
 import { ApiClientError } from "@/lib/api/client";
 import { forceLabel, forceOf, type Force, type ForceLabel } from "@/lib/platform/forces";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 /**
  * The officer's department, read off the session.
@@ -85,32 +87,24 @@ export function SharedRegisterNote({
   );
 }
 
-/** The error codes the API uses to say a record belongs to another force. */
-const OTHER_FORCE_ERRORS = new Set([
-  "other_force",
-  "cross_force",
-  "force_scope",
-  "not_your_force",
-]);
-
 export interface OtherForceRefusal {
-  /** The recording force's name, when the API names it. */
+  /** The recording force's name, which the API sends in `force`. */
   force?: string;
-  /** What the API said, kept so a stated rule is not replaced by our wording. */
+  /** What the API said. It names the force and the remedy, so it is shown as sent. */
   message?: string;
 }
 
 /**
- * Reads a refusal that means "this record is another force's".
+ * Reads the refusal that means "this record is another force's".
  *
  * A 403 alone is not enough — a rank refusal is also a 403 — so the error code
- * in the body decides. Anything else is left to the screen's own handling, and
- * in particular is never turned into an empty list.
+ * decides, and the code is `other_force`. Anything else is left to the screen's
+ * own handling, and in particular is never turned into an empty list.
  */
 export function otherForceRefusal(error: unknown): OtherForceRefusal | null {
   if (!(error instanceof ApiClientError)) return null;
-  if (!OTHER_FORCE_ERRORS.has(error.errorType)) return null;
-  const named = error.details["force"] ?? error.details["forceName"];
+  if (error.errorType !== "other_force") return null;
+  const named = error.details["force"];
   return {
     force: typeof named === "string" && named ? named : undefined,
     message: error.message || undefined,
@@ -134,20 +128,36 @@ export function OtherForceRecord({
   action?: React.ReactNode;
   className?: string;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+
+  // The API's own message names the force and says what to do about it. It is
+  // shown as sent rather than paraphrased, so the officer reads the rule the
+  // server applied. Bengali has no server wording, so the screen supplies it.
+  const body =
+    locale === "en" && refusal.message
+      ? refusal.message
+      : refusal.force
+        ? t("force.otherBody", { force: refusal.force })
+        : t("force.otherBodyUnknown");
+
   return (
     <Alert variant="warning" className={className} data-testid="other-force-record">
       <ShieldAlert />
       <div className="flex flex-col gap-3">
         <div>
           <AlertTitle>{t("force.otherTitle")}</AlertTitle>
-          <AlertDescription>
-            {refusal.force
-              ? t("force.otherBody", { force: refusal.force })
-              : t("force.otherBodyUnknown")}
-          </AlertDescription>
+          <AlertDescription>{body}</AlertDescription>
         </div>
-        {action}
+        <div className="flex flex-wrap items-center gap-2">
+          {action}
+          {/* The remedy the refusal names, made reachable rather than described. */}
+          <Link href="/referrals">
+            <Button variant="outline" size="sm">
+              <ArrowLeftRight className="h-4 w-4" />
+              {t("force.otherReferrals")}
+            </Button>
+          </Link>
+        </div>
       </div>
     </Alert>
   );

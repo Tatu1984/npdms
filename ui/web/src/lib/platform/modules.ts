@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  ArrowLeftRight,
   Boxes,
   Brain,
   BookOpenCheck,
@@ -370,6 +371,17 @@ export const MODULES: PlatformModule[] = [
     descKey: "modules.knowledgeDesc",
     status: "live",
     aiAssisted: false,
+  },
+  {
+    // The one screen that is about the boundary rather than inside it, so it
+    // belongs to every department and is never hidden by the mapping below.
+    id: "referrals",
+    href: "/referrals",
+    group: "knowledge",
+    icon: ArrowLeftRight,
+    nameKey: "referrals.name",
+    descKey: "referrals.desc",
+    status: "live",
   },
   {
     id: "audit",

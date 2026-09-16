@@ -88,12 +88,16 @@ export function forceLabel(force: Force, bengali: boolean): ForceLabel {
  * A missing child does not stop being missing at a jurisdiction boundary and a
  * stolen car is driven across one within the hour, so these four are state-wide
  * by decision rather than by accident. The screens that show them say so.
+ *
+ * The stolen and wanted vehicles are shared as the ANPR watchlist, which is
+ * what is actually read across forces; the vehicle register at /vehicles is
+ * each department's own fleet and is not shared.
  */
 export const SHARED_REGISTERS = [
   "MISSING_PERSONS",
-  "VEHICLES",
   "LOOKOUTS",
   "ALERTS",
+  "ANPR_WATCHLIST",
 ] as const;
 
 export type SharedRegister = (typeof SHARED_REGISTERS)[number];
@@ -110,6 +114,55 @@ export type SharedRegister = (typeof SHARED_REGISTERS)[number];
  */
 export const SHARED_REGISTER_MODULES: Record<string, SharedRegister> = {
   "missing-persons": "MISSING_PERSONS",
-  "vehicle-detection": "VEHICLES",
+  "vehicle-detection": "ANPR_WATCHLIST",
   alerts: "ALERTS",
 };
+
+/**
+ * The four departments, for the one place the interface has to name a force
+ * other than the reader's own: choosing where to refer a record to.
+ *
+ * This is not a picker for who you are — the posting decides that and nothing
+ * here changes it. It is the list of destinations a referral can be addressed
+ * to, held on the client because the API exposes no directory endpoint. Kept
+ * in step with migration 000082, which is the source.
+ */
+export const FORCE_DIRECTORY: Force[] = [
+  {
+    code: "KP",
+    name: "Kolkata Police",
+    nameBn: "কলকাতা পুলিশ",
+    shortName: "KP",
+    kind: "FORCE",
+  },
+  {
+    code: "TRAFFIC",
+    name: "Kolkata Traffic Police",
+    nameBn: "কলকাতা ট্রাফিক পুলিশ",
+    shortName: "KTP",
+    kind: "WING",
+    parentCode: "KP",
+    parentName: "Kolkata Police",
+  },
+  {
+    code: "WBP",
+    name: "West Bengal Police",
+    nameBn: "পশ্চিমবঙ্গ পুলিশ",
+    shortName: "WBP",
+    kind: "FORCE",
+  },
+  {
+    code: "CID",
+    name: "Criminal Investigation Department",
+    nameBn: "অপরাধ তদন্ত বিভাগ",
+    shortName: "CID",
+    kind: "WING",
+    parentCode: "WBP",
+    parentName: "West Bengal Police",
+  },
+];
+
+/** The departments a record can be referred to — every force but the reader's own. */
+export function referralDestinations(own: Force): Force[] {
+  return FORCE_DIRECTORY.filter((f) => f.code !== own.code);
+}
