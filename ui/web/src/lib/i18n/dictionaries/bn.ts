@@ -390,14 +390,9 @@ export const bn: DeepPartial<Dictionary> = {
   },
 
   agency: {
-    label: "সংস্থা",
     kp: "কলকাতা পুলিশ",
-    wbp: "পশ্চিমবঙ্গ পুলিশ",
-    cid: "সিআইডি পশ্চিমবঙ্গ",
-    traffic: "ট্রাফিক পুলিশ",
-    division: "ডিভিশন",
+    postedAt: "আপনার পোস্টিং। রেকর্ড আপনার নিজের বাহিনীর।",
     station: "থানা",
-    allStations: "সমস্ত থানা",
   },
 
   workload: {

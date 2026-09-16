@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n, LOCALES } from "@/lib/i18n";
-import { AGENCIES, ALL_DIVISIONS } from "@/lib/platform/wb";
 import { useAuthStore, getRoleDisplayName } from "@/stores/authStore";
 import {
   DropdownMenu,
@@ -39,8 +38,6 @@ export function PlatformTopbar() {
   const { user, syncState, logout } = useAuthStore();
 
   const [paletteOpen, setPaletteOpen] = React.useState(false);
-  const [agency, setAgency] = React.useState(AGENCIES[0]);
-  const [division, setDivision] = React.useState(ALL_DIVISIONS[0]);
   const [mounted, setMounted] = React.useState(false);
 
   // next-themes resolves on the client; avoid a theme-icon hydration mismatch
@@ -52,10 +49,6 @@ export function PlatformTopbar() {
     logout();
     router.push("/login");
   };
-
-  const divisionsForAgency = ALL_DIVISIONS.filter(
-    (d) => d.agency === agency.id || (agency.id === "traffic" && d.agency === "kp"),
-  );
 
   return (
     <>
@@ -74,52 +67,28 @@ export function PlatformTopbar() {
         </button>
 
         <div className="ml-auto flex items-center gap-1">
-          {/* Agency + division context */}
-          <DropdownMenu>
-            <DropdownMenuTrigger className="hidden items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground-muted transition-colors hover:bg-surface-hover hover:text-foreground md:flex">
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ background: agency.colorVar }}
-                aria-hidden
-              />
-              <span className="font-medium text-foreground">{agency.shortName}</span>
-              <span className="text-foreground-subtle">·</span>
-              <span className="max-w-[9rem] truncate">{pick(division.name)}</span>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel>{t("agency.label")}</DropdownMenuLabel>
-              {AGENCIES.map((a) => (
-                <DropdownMenuItem
-                  key={a.id}
-                  onSelect={() => {
-                    setAgency(a);
-                    const first = ALL_DIVISIONS.find(
-                      (d) => d.agency === a.id || (a.id === "traffic" && d.agency === "kp"),
-                    );
-                    if (first) setDivision(first);
-                  }}
-                >
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ background: a.colorVar }}
-                    aria-hidden
-                  />
-                  <span className="flex-1">{pick(a.name)}</span>
-                  {a.id === agency.id && <Check className="h-3.5 w-3.5 text-accent" />}
-                </DropdownMenuItem>
-              ))}
-
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>{t("agency.division")}</DropdownMenuLabel>
-              {divisionsForAgency.map((d) => (
-                <DropdownMenuItem key={d.id} onSelect={() => setDivision(d)}>
-                  <Building2 className="h-3.5 w-3.5 text-foreground-subtle" />
-                  <span className="flex-1">{pick(d.name)}</span>
-                  {d.id === division.id && <Check className="h-3.5 w-3.5 text-accent" />}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Where the officer is posted. Read from the session, not chosen:
+              the platform holds one force's records, and an officer cannot
+              browse another force's. A switcher here implied otherwise. */}
+          {user?.stationName && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="hidden items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground-muted md:flex">
+                  <Building2 className="h-3.5 w-3.5 shrink-0 text-foreground-subtle" aria-hidden />
+                  <span className="max-w-[12rem] truncate font-medium text-foreground">
+                    {user.stationName}
+                  </span>
+                  {user.districtName && (
+                    <>
+                      <span className="text-foreground-subtle">·</span>
+                      <span className="max-w-[8rem] truncate">{user.districtName}</span>
+                    </>
+                  )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{t("agency.postedAt")}</TooltipContent>
+            </Tooltip>
+          )}
 
           {/* Connectivity — this is an offline-first field tool */}
           <Tooltip>

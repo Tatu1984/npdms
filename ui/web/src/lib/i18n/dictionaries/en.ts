@@ -384,14 +384,9 @@ export const en = {
   },
 
   agency: {
-    label: "Agency",
     kp: "Kolkata Police",
-    wbp: "West Bengal Police",
-    cid: "CID West Bengal",
-    traffic: "Traffic Police",
-    division: "Division",
+    postedAt: "Your posting. Records are those of your own force.",
     station: "Police station",
-    allStations: "All stations",
   },
 
   workload: {
