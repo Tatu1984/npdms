@@ -10,12 +10,38 @@ import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
-// Demo credentials for demonstration purposes
-const DEMO_CREDENTIALS = {
-  username: "admin",
-  password: "Demo@123",
-  role: "DGP (Full Access)"
-};
+// The demonstration accounts, one per department.
+//
+// This page offered a single account — Kolkata Police's administrator — so a
+// visitor had no way of knowing the other three departments existed, let alone
+// how to sign into them. The platform connects four; the door should show all
+// four.
+//
+// Every one of these officers is fictional and they share one password. They
+// exist on the demonstration deployment only and must be removed, or their
+// passwords rotated, before the platform holds a real record.
+const DEMO_PASSWORD = "Demo@123";
+
+interface DemoAccount {
+  username: string;
+  force: string;
+  forceBn: string;
+  rank: string;
+  posting: string;
+}
+
+const DEMO_ACCOUNTS: DemoAccount[] = [
+  { username: "sho", force: "Kolkata Police", forceBn: "কলকাতা পুলিশ",
+    rank: "Officer in charge", posting: "Bhowanipore Police Station" },
+  { username: "admin", force: "Kolkata Police", forceBn: "কলকাতা পুলিশ",
+    rank: "Director General", posting: "Lalbazar — sees every module" },
+  { username: "oc.brs", force: "West Bengal Police", forceBn: "পশ্চিমবঙ্গ পুলিশ",
+    rank: "Officer in charge", posting: "Barasat Police Station" },
+  { username: "sp.cid", force: "CID", forceBn: "সিআইডি",
+    rank: "Superintendent", posting: "Homicide Squad, Bhabani Bhavan" },
+  { username: "oc.tg.pks", force: "Kolkata Traffic Police", forceBn: "কলকাতা ট্রাফিক পুলিশ",
+    rank: "Officer in charge", posting: "Park Street Traffic Guard" },
+];
 
 // Login validation schema
 const loginSchema = z.object({
@@ -58,10 +84,12 @@ export default function LoginPage() {
     }
   }, []);
 
-  // Fill demo credentials
-  const fillDemoCredentials = () => {
-    setValue("username", DEMO_CREDENTIALS.username);
-    setValue("password", DEMO_CREDENTIALS.password);
+  // Put one of the demonstration officers into the form, so that trying a
+  // department takes one click rather than knowing a username.
+  const useAccount = (account: DemoAccount) => {
+    setValue("username", account.username);
+    setValue("password", DEMO_PASSWORD);
+    setError("");
   };
 
   const onSubmit = async (data: LoginFormData) => {
@@ -160,46 +188,56 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        {/* Demo Credentials Box */}
-        <div className="mt-4 p-4 rounded-lg bg-accent/5 border border-accent/20">
-          <div className="flex items-center gap-2 mb-3">
-            <Info className="h-4 w-4 text-accent" />
-            <span className="text-sm font-medium text-foreground">Demo Credentials</span>
+        {/* The demonstration accounts, one per department */}
+        <div className="mt-4 rounded-lg border border-accent/20 bg-accent/5 p-4">
+          <div className="mb-1 flex items-center gap-2">
+            <Info className="h-4 w-4 shrink-0 text-accent" />
+            <span className="text-sm font-medium text-foreground">
+              Demonstration accounts · প্রদর্শনী অ্যাকাউন্ট
+            </span>
           </div>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between items-center">
-              <span className="text-foreground-muted">Username:</span>
-              <code className="px-2 py-0.5 bg-background rounded text-foreground font-mono">
-                {DEMO_CREDENTIALS.username}
-              </code>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-foreground-muted">Password:</span>
-              <code className="px-2 py-0.5 bg-background rounded text-foreground font-mono">
-                {DEMO_CREDENTIALS.password}
-              </code>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-foreground-muted">Role:</span>
-              <span className="text-accent font-medium">{DEMO_CREDENTIALS.role}</span>
-            </div>
+          <p className="mb-3 text-xs leading-relaxed text-foreground-muted">
+            The platform connects four departments. Choose one to sign in as that
+            officer — each sees their own department&apos;s records and their own
+            modules. Every account below is fictional.
+          </p>
+
+          <div className="space-y-1.5">
+            {DEMO_ACCOUNTS.map((account) => (
+              <button
+                key={account.username}
+                type="button"
+                onClick={() => useAccount(account)}
+                className="flex w-full items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-left transition-colors hover:border-accent hover:bg-surface-hover"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-foreground">
+                    {account.force}
+                  </span>
+                  <span className="block truncate text-xs text-foreground-muted">
+                    {account.rank} · {account.posting}
+                  </span>
+                </span>
+                <code className="shrink-0 rounded bg-surface-sunken px-2 py-0.5 font-mono text-xs text-foreground-muted">
+                  {account.username}
+                </code>
+              </button>
+            ))}
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full mt-3"
-            onClick={fillDemoCredentials}
-          >
-            Use Demo Credentials
-          </Button>
+
+          <p className="mt-3 text-xs text-foreground-subtle">
+            All use the password <code className="font-mono">{DEMO_PASSWORD}</code>.
+            Remove these accounts before the platform holds a real record.
+          </p>
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-xs text-foreground-muted mt-6">
-          Government of India - Ministry of Home Affairs
+        {/* Whose platform this is. Policing is a state subject: this belongs to
+            West Bengal's forces, not to the central ministry the page used to
+            name. */}
+        <p className="mt-6 text-center text-xs text-foreground-muted">
+          Kolkata Police · West Bengal Police
           <br />
-          Authorized Personnel Only
+          Authorised personnel only · শুধুমাত্র অনুমোদিত কর্মীদের জন্য
         </p>
       </div>
     </div>
