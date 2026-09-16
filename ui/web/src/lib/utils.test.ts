@@ -1,236 +1,82 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from "vitest";
 
-// Utility functions to test
-const formatDate = (date: Date | string): string => {
-  const d = new Date(date);
-  return d.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-};
+import { cn, formatDate, formatTime, formatDateTime } from "./utils";
 
-const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
+// These test the functions the application actually uses.
+//
+// The previous version of this file defined its own copies of formatDate,
+// formatCurrency, generateFIRNumber and three validators inside the test file
+// and asserted against those. It imported nothing from the application, so its
+// twenty-two green checks proved nothing about the product — and one of them
+// failed, against a validator that exists nowhere in it. Four of the six
+// functions it "tested" do not exist in this codebase at all.
+//
+// Dates are the part worth testing here: every screen shows them, the platform
+// is in one time zone, and en-IN formatting is not the default anywhere.
 
-const generateFIRNumber = (stationCode: string, year: number, sequence: number): string => {
-  return `${stationCode}/${year}/${String(sequence).padStart(5, '0')}`;
-};
-
-const validatePhoneNumber = (phone: string): boolean => {
-  const pattern = /^[6-9]\d{9}$/;
-  return pattern.test(phone.replace(/\D/g, ''));
-};
-
-const validateAadhaar = (aadhaar: string): boolean => {
-  const pattern = /^\d{12}$/;
-  return pattern.test(aadhaar.replace(/\D/g, ''));
-};
-
-const validateVehicleNumber = (vehicleNumber: string): boolean => {
-  // Indian vehicle registration: XX-NN-XX-NNNN or XX-NN-X-NNNN
-  const pattern = /^[A-Z]{2}[-\s]?\d{2}[-\s]?[A-Z]{1,2}[-\s]?\d{4}$/;
-  return pattern.test(vehicleNumber.toUpperCase());
-};
-
-const truncateText = (text: string, maxLength: number): string => {
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength - 3) + '...';
-};
-
-const capitalize = (text: string): string => {
-  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
-};
-
-const slugify = (text: string): string => {
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/--+/g, '-')
-    .trim();
-};
-
-describe('Date Formatting', () => {
-  it('should format date correctly', () => {
-    const date = new Date('2024-01-15');
-    const formatted = formatDate(date);
-    expect(formatted).toContain('15');
-    expect(formatted).toContain('2024');
+describe("cn", () => {
+  it("joins class names", () => {
+    expect(cn("a", "b")).toBe("a b");
   });
 
-  it('should handle string dates', () => {
-    const formatted = formatDate('2024-06-20');
-    expect(formatted).toContain('20');
-    expect(formatted).toContain('2024');
+  it("drops falsy values, so a conditional class can be written inline", () => {
+    expect(cn("a", false && "b", undefined, null, "c")).toBe("a c");
+  });
+
+  it("lets a later Tailwind class win over an earlier one of the same kind", () => {
+    // This is the reason tailwind-merge is here: without it both survive and
+    // which one applies depends on stylesheet order.
+    expect(cn("px-2", "px-4")).toBe("px-4");
+    expect(cn("text-sm text-foreground", "text-lg")).toBe("text-foreground text-lg");
   });
 });
 
-describe('Currency Formatting', () => {
-  it('should format INR correctly', () => {
-    const formatted = formatCurrency(100000);
-    expect(formatted).toContain('1,00,000');
-    expect(formatted).toContain('₹');
+describe("formatDate", () => {
+  // The month's abbreviation is ICU's, and it differs between Node versions —
+  // "Sep" on some, "Sept" on others. Asserting the exact string makes the suite
+  // fail on a colleague's machine for no reason, so these assert what the
+  // format is for: day first, month in words, four-digit year.
+  it("renders an Indian date, day first and the month in words", () => {
+    // 14 September 2026. The month is spelled so that 09/10 is never read as
+    // October by a reader expecting the American order.
+    expect(formatDate(new Date(2026, 8, 14))).toMatch(/^14 Sept? 2026$/);
   });
 
-  it('should handle large amounts', () => {
-    const formatted = formatCurrency(10000000);
-    expect(formatted).toContain('1,00,00,000');
+  it("accepts a string, because that is what the API returns", () => {
+    expect(formatDate("2026-09-14T10:30:00")).toMatch(/^14 Sept? 2026$/);
   });
 
-  it('should handle zero', () => {
-    const formatted = formatCurrency(0);
-    expect(formatted).toContain('0');
-  });
-});
-
-describe('FIR Number Generation', () => {
-  it('should generate valid FIR number', () => {
-    const firNumber = generateFIRNumber('BHW', 2026, 89);
-    expect(firNumber).toBe('BHW/2026/00089');
-  });
-
-  it('should pad sequence numbers correctly', () => {
-    expect(generateFIRNumber('PKS', 2026, 1)).toBe('PKS/2026/00001');
-    expect(generateFIRNumber('PKS', 2026, 12345)).toBe('PKS/2026/12345');
+  it("pads a single-digit day", () => {
+    expect(formatDate(new Date(2026, 0, 5))).toBe("05 Jan 2026");
   });
 });
 
-describe('Phone Number Validation', () => {
-  it('should validate Indian phone numbers', () => {
-    expect(validatePhoneNumber('9876543210')).toBe(true);
-    expect(validatePhoneNumber('8765432109')).toBe(true);
-    expect(validatePhoneNumber('7654321098')).toBe(true);
-    expect(validatePhoneNumber('6543210987')).toBe(true);
+describe("formatTime", () => {
+  it("renders a time of day", () => {
+    const rendered = formatTime(new Date(2026, 8, 14, 14, 30));
+    // en-IN gives a twelve-hour clock; assert the parts rather than the exact
+    // spacing, which differs between Node versions.
+    expect(rendered).toMatch(/02:30/);
+    expect(rendered.toLowerCase()).toContain("pm");
   });
 
-  it('should reject invalid phone numbers', () => {
-    expect(validatePhoneNumber('1234567890')).toBe(false); // Doesn't start with 6-9
-    expect(validatePhoneNumber('987654321')).toBe(false); // Too short
-    expect(validatePhoneNumber('98765432109')).toBe(false); // Too long
-    expect(validatePhoneNumber('abcdefghij')).toBe(false); // Non-numeric
-  });
-
-  it('should handle formatted numbers', () => {
-    expect(validatePhoneNumber('+91 98765 43210')).toBe(true);
-    expect(validatePhoneNumber('98765-43210')).toBe(true);
+  it("pads the hour before noon", () => {
+    expect(formatTime(new Date(2026, 8, 14, 9, 5))).toMatch(/09:05/);
   });
 });
 
-describe('Aadhaar Validation', () => {
-  it('should validate 12-digit Aadhaar', () => {
-    expect(validateAadhaar('123456789012')).toBe(true);
-    expect(validateAadhaar('987654321098')).toBe(true);
-  });
-
-  it('should reject invalid Aadhaar', () => {
-    expect(validateAadhaar('12345678901')).toBe(false); // 11 digits
-    expect(validateAadhaar('1234567890123')).toBe(false); // 13 digits
-    expect(validateAadhaar('abcdefghijkl')).toBe(false); // Non-numeric
-  });
-
-  it('should handle formatted Aadhaar', () => {
-    expect(validateAadhaar('1234 5678 9012')).toBe(true);
-    expect(validateAadhaar('1234-5678-9012')).toBe(true);
+describe("formatDateTime", () => {
+  it("puts the date before the time", () => {
+    const rendered = formatDateTime(new Date(2026, 8, 14, 14, 30));
+    expect(rendered).toMatch(/^14 Sept? 2026 /);
+    expect(rendered).toMatch(/02:30/);
   });
 });
 
-describe('Vehicle Number Validation', () => {
-  it('should validate Indian vehicle numbers', () => {
-    expect(validateVehicleNumber('WB-01-AB-1234')).toBe(true);
-    expect(validateVehicleNumber('WB01AB1234')).toBe(true);
-    expect(validateVehicleNumber('MH-12-CD-5678')).toBe(true);
-    expect(validateVehicleNumber('DL 01 A 1234')).toBe(true);
-  });
-
-  it('should reject invalid vehicle numbers', () => {
-    expect(validateVehicleNumber('123-AB-CD-5678')).toBe(false);
-    expect(validateVehicleNumber('KA-1-AB-1234')).toBe(false);
-    expect(validateVehicleNumber('invalid')).toBe(false);
-  });
-});
-
-describe('Text Utilities', () => {
-  it('should truncate long text', () => {
-    const longText = 'This is a very long text that needs to be truncated';
-    expect(truncateText(longText, 20)).toBe('This is a very lo...');
-    expect(truncateText(longText, 100)).toBe(longText);
-  });
-
-  it('should capitalize text', () => {
-    expect(capitalize('hello')).toBe('Hello');
-    expect(capitalize('HELLO')).toBe('Hello');
-    expect(capitalize('hELLO')).toBe('Hello');
-  });
-
-  it('should slugify text', () => {
-    expect(slugify('Hello World')).toBe('hello-world');
-    expect(slugify('Armed Robbery Case')).toBe('armed-robbery-case');
-    expect(slugify('Test!@#$%^&*()')).toBe('test');
-    expect(slugify('Multiple   Spaces')).toBe('multiple-spaces');
-  });
-});
-
-describe('Priority Helpers', () => {
-  const getPriorityColor = (priority: string): string => {
-    const colors: Record<string, string> = {
-      HIGH: 'red',
-      MEDIUM: 'yellow',
-      LOW: 'green',
-    };
-    return colors[priority] || 'gray';
-  };
-
-  const getPriorityLabel = (priority: string): string => {
-    const labels: Record<string, string> = {
-      HIGH: 'High Priority',
-      MEDIUM: 'Medium Priority',
-      LOW: 'Low Priority',
-    };
-    return labels[priority] || 'Unknown';
-  };
-
-  it('should return correct priority colors', () => {
-    expect(getPriorityColor('HIGH')).toBe('red');
-    expect(getPriorityColor('MEDIUM')).toBe('yellow');
-    expect(getPriorityColor('LOW')).toBe('green');
-    expect(getPriorityColor('UNKNOWN')).toBe('gray');
-  });
-
-  it('should return correct priority labels', () => {
-    expect(getPriorityLabel('HIGH')).toBe('High Priority');
-    expect(getPriorityLabel('MEDIUM')).toBe('Medium Priority');
-    expect(getPriorityLabel('LOW')).toBe('Low Priority');
-  });
-});
-
-describe('Status Helpers', () => {
-  const getStatusBadge = (status: string): { color: string; label: string } => {
-    const badges: Record<string, { color: string; label: string }> = {
-      REGISTERED: { color: 'blue', label: 'Registered' },
-      UNDER_INVESTIGATION: { color: 'yellow', label: 'Under Investigation' },
-      CHARGESHEET_FILED: { color: 'purple', label: 'Chargesheet Filed' },
-      COURT_PROCEEDINGS: { color: 'orange', label: 'Court Proceedings' },
-      CLOSED: { color: 'green', label: 'Closed' },
-      DISMISSED: { color: 'gray', label: 'Dismissed' },
-    };
-    return badges[status] || { color: 'gray', label: status };
-  };
-
-  it('should return correct status badges', () => {
-    expect(getStatusBadge('REGISTERED')).toEqual({ color: 'blue', label: 'Registered' });
-    expect(getStatusBadge('UNDER_INVESTIGATION')).toEqual({ color: 'yellow', label: 'Under Investigation' });
-    expect(getStatusBadge('CLOSED')).toEqual({ color: 'green', label: 'Closed' });
-  });
-
-  it('should handle unknown status', () => {
-    const badge = getStatusBadge('UNKNOWN_STATUS');
-    expect(badge.color).toBe('gray');
-    expect(badge.label).toBe('UNKNOWN_STATUS');
+describe("what these functions do with rubbish", () => {
+  it("renders an unparseable date as Invalid Date rather than throwing", () => {
+    // A screen showing "Invalid Date" is wrong, but a screen that throws takes
+    // the whole record with it. Worth knowing which one happens.
+    expect(formatDate("not a date")).toBe("Invalid Date");
   });
 });
