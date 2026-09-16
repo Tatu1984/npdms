@@ -13,6 +13,7 @@ import { missingBoardEn } from "./missing-board.en";
 import { faceRecognitionEn } from "./face-recognition.en";
 import { anprEn } from "./anpr.en";
 import { aiReviewEn } from "./ai-review.en";
+import { officersEn } from "./officers.en";
 
 /**
  * English dictionary — the source of truth for translation keys.
@@ -36,6 +37,7 @@ export const en = {
   faceRecognitionScreen: faceRecognitionEn,
   anprScreen: anprEn,
   aiScreen: aiReviewEn,
+  officersScreen: officersEn,
 
   common: {
     appName: "Kolkata Police Digital Intelligence Platform",

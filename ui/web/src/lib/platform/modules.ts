@@ -23,6 +23,7 @@ import {
   Search,
   ShieldCheck,
   Siren,
+  UserCog,
   Users,
   Video,
 } from "lucide-react";
@@ -382,6 +383,22 @@ export const MODULES: PlatformModule[] = [
     nameKey: "referrals.name",
     descKey: "referrals.desc",
     status: "live",
+  },
+  {
+    // Officer accounts. It sits with the knowledge and administration work
+    // rather than with the registers, because it is not a record of policing:
+    // it is the register of who may do the policing.
+    //
+    // DSP reads the roster; every write is a Superintendent's, which the API
+    // enforces and the screen mirrors.
+    id: "officers",
+    href: "/officers",
+    group: "knowledge",
+    icon: UserCog,
+    nameKey: "officersScreen.nav.name",
+    descKey: "officersScreen.nav.desc",
+    status: "live",
+    minRole: "DSP",
   },
   {
     id: "audit",
