@@ -310,9 +310,6 @@ npdms/
 │       ├── semantic_search/    # Similar FIR search
 │       │   ├── app.py
 │       │   └── requirements.txt
-│       ├── crime_prediction/   # Hotspot & forecast
-│       │   ├── app.py
-│       │   └── requirements.txt
 │       └── Dockerfile
 │
 ├── ui/
@@ -385,8 +382,6 @@ All modules follow the same REST pattern:
 - `GET /api/v1/ml/health` - ML services health check
 - `POST /api/v1/ml/classify` - Classify text (FIR description)
 - `POST /api/v1/ml/search` - Semantic search for similar FIRs
-- `GET /api/v1/ml/predictions?forecast_days=7` - Crime predictions
-- `GET /api/v1/ml/hotspots?hours=24&top_k=10` - Crime hotspots
 
 ---
 
@@ -427,13 +422,6 @@ curl -X POST http://localhost:8080/api/v1/ml/search \
     "query": "chain snatching by motorcycle riders",
     "top_k": 5
   }'
-```
-
-### Get Crime Hotspots
-
-```bash
-curl http://localhost:8080/api/v1/ml/hotspots?hours=24&top_k=10 \
-  -H "Authorization: Bearer $TOKEN"
 ```
 
 ---

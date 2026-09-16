@@ -73,7 +73,6 @@ JWT_SECRET=CHANGE_THIS_JWT_SECRET_MIN_32_CHARS
 # ML Services
 ML_FIR_CLASSIFIER_URL=http://ml-fir-classifier:8001
 ML_SEMANTIC_SEARCH_URL=http://ml-semantic-search:8002
-ML_CRIME_PREDICTION_URL=http://ml-crime-prediction:8003
 
 # Environment
 ENV=production
@@ -179,7 +178,6 @@ pip install -r requirements.txt
 python app.py
 
 # Crime Prediction
-cd crime_prediction
 pip install -r requirements.txt
 python app.py
 ```
@@ -209,7 +207,6 @@ docker build -t npdms-api:latest .
 cd ../ml
 docker build --target fir_classifier -t npdms-ml-fir-classifier:latest .
 docker build --target semantic_search -t npdms-ml-semantic-search:latest .
-docker build --target crime_prediction -t npdms-ml-crime-prediction:latest .
 
 # Build frontend
 cd ../../ui/web
@@ -501,8 +498,8 @@ docker-compose logs ml-fir-classifier
 # 3. Port conflict - change port in docker-compose.yml
 
 # Rebuild ML services
-docker-compose down ml-fir-classifier ml-semantic-search ml-crime-prediction
-docker-compose up -d --build ml-fir-classifier ml-semantic-search ml-crime-prediction
+docker-compose down ml-fir-classifier ml-semantic-search
+docker-compose up -d --build ml-fir-classifier ml-semantic-search
 ```
 
 ### PWA Not Working
