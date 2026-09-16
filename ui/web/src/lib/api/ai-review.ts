@@ -345,6 +345,12 @@ export interface RecordEvaluationInput {
   notes?: string;
 }
 
+export interface ModuleSwitchInput {
+  enabled: boolean;
+  /** Required; the API answers 400 without it. */
+  reason: string;
+}
+
 export interface ReviewInput {
   status: "APPROVED" | "REJECTED" | "OVERRIDDEN";
   humanDecision?: string;
@@ -378,14 +384,8 @@ export const aiReviewApi = {
   /** Every registered model with whether its service can be reached from here. */
   gateway: () => apiClient.get<AIGatewayState>("/ai-review/gateway"),
 
-  /**
-   * The registry. The API wraps the list as `{configs}`; a bare array is
-   * accepted too, so the client keeps working either way.
-   */
-  models: () =>
-    apiClient
-      .get<AIModelConfig[] | { configs: AIModelConfig[] | null }>("/ai-review/models")
-      .then((response) => (Array.isArray(response) ? response : (response.configs ?? []))),
+  /** Retired models come back last. */
+  models: () => apiClient.get<{ data: AIModelConfig[] | null }>("/ai-review/models").then((r) => r.data ?? []),
 
   model: (modelName: string) => apiClient.get<AIModelConfig>(`/ai-review/models/${encodeURIComponent(modelName)}`),
 
@@ -402,6 +402,22 @@ export const aiReviewApi = {
     apiClient.post<AIModelEvaluation>("/ai-review/evaluations", input),
 
   modules: () => apiClient.get<{ data: AIModuleSwitch[] | null }>("/ai-review/modules"),
+
+  /**
+   * Switches one module on or off. The reason is required. A rule the database
+   * enforces — face recognition without an authorisation — comes back 409 and
+   * is shown as that rule, not as a fault.
+   */
+  setModuleSwitch: (module: string, input: ModuleSwitchInput) =>
+    apiClient.put<AIModuleSwitch>(`/ai-review/modules/${encodeURIComponent(module)}`, input),
+
+  /**
+   * Withdraws a model from use. It stays in the registry, switched off, and
+   * cannot be switched back on: a suggestion an officer acted on must keep
+   * naming the model that made it.
+   */
+  retireModel: (modelName: string, reason: string) =>
+    apiClient.post<AIModelConfig>(`/ai-review/models/${encodeURIComponent(modelName)}/retire`, { reason }),
 
   acceptance: (query: AcceptanceQuery = {}) =>
     apiClient.get<AIAcceptanceResponse>(

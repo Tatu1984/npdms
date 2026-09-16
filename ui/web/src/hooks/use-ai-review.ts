@@ -5,6 +5,7 @@ import aiReviewApi, {
   type AcceptanceQuery,
   type AIQueueQuery,
   type FeedbackInput,
+  type ModuleSwitchInput,
   type RecordEvaluationInput,
   type RegisterModelInput,
   type ReviewInput,
@@ -135,6 +136,40 @@ export function useUpdateAIModel() {
       qc.invalidateQueries({ queryKey: aiKeys.gateway });
       qc.invalidateQueries({ queryKey: aiKeys.model(variables.modelName) });
       qc.invalidateQueries({ queryKey: aiKeys.modules });
+    },
+  });
+}
+
+/**
+ * Withdraws a model. It cannot be switched back on afterwards, so the caller
+ * confirms first; this only sends what the officer confirmed.
+ */
+export function useRetireAIModel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ modelName, reason }: { modelName: string; reason: string }) =>
+      aiReviewApi.retireModel(modelName, reason),
+    onSuccess: (_model, variables) => {
+      qc.invalidateQueries({ queryKey: aiKeys.models });
+      qc.invalidateQueries({ queryKey: aiKeys.gateway });
+      qc.invalidateQueries({ queryKey: aiKeys.model(variables.modelName) });
+    },
+  });
+}
+
+/**
+ * Switches one module on or off, with the officer's reason. A rule the
+ * database enforces comes back 409 and the caller shows it as the rule.
+ */
+export function useSetAIModuleSwitch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ module, input }: { module: string; input: ModuleSwitchInput }) =>
+      aiReviewApi.setModuleSwitch(module, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: aiKeys.modules });
+      qc.invalidateQueries({ queryKey: aiKeys.models });
+      qc.invalidateQueries({ queryKey: aiKeys.gateway });
     },
   });
 }

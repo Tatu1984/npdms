@@ -26,6 +26,7 @@ import type {
   AcceptanceGroupBy,
   AIAcceptance,
   AIGatewayStatus,
+  AIModuleSwitch,
   RecordEvaluationInput,
   RegisterModelInput,
 } from "@/lib/api/ai-review";
@@ -37,12 +38,16 @@ import {
   useAIModuleSwitches,
   useRecordAIEvaluation,
   useRegisterAIModel,
+  useRetireAIModel,
+  useSetAIModuleSwitch,
   useUpdateAIModel,
 } from "@/hooks/use-ai-review";
 import { toast } from "@/stores/toastStore";
+import { cn } from "@/lib/utils";
 import { pct, selectClass, stamp, useAIOfficer } from "@/components/ai/shared";
 import { RegisterModelDialog } from "@/components/ai/RegisterModelDialog";
 import { RecordEvaluationDialog } from "@/components/ai/RecordEvaluationDialog";
+import { ReasonDialog } from "@/components/ai/ReasonDialog";
 
 /**
  * AI oversight — the governance screen for DSP rank and above.
@@ -121,7 +126,7 @@ export default function AIOversightPage() {
             <Evaluations canGovern={canGovern} />
           </TabsContent>
           <TabsContent value="modules">
-            <ModuleSwitches />
+            <ModuleSwitches canGovern={canGovern} />
           </TabsContent>
           <TabsContent value="acceptance">
             <Acceptance />
@@ -185,10 +190,14 @@ function Registry({ canGovern }: { canGovern: boolean }) {
   const update = useUpdateAIModel();
   const register = useRegisterAIModel();
 
+  const retire = useRetireAIModel();
+
   const [registerOpen, setRegisterOpen] = React.useState(false);
   const [registerError, setRegisterError] = React.useState<string | null>(null);
   /** A refusal is a stated rule, not a fault; it is shown against the model. */
   const [refusal, setRefusal] = React.useState<{ modelName: string; message: string } | null>(null);
+  const [retiring, setRetiring] = React.useState<AIGatewayStatus | null>(null);
+  const [retireError, setRetireError] = React.useState<string | null>(null);
 
   const rows = gateway.data?.data ?? [];
 
@@ -205,6 +214,21 @@ function Registry({ canGovern }: { canGovern: boolean }) {
           }
           toast.error(error instanceof Error ? error.message : t("aiScreen.common.loadFailed"));
         },
+      },
+    );
+  };
+
+  const submitRetirement = (reason: string) => {
+    if (!retiring) return;
+    setRetireError(null);
+    retire.mutate(
+      { modelName: retiring.modelName, reason },
+      {
+        onSuccess: () => {
+          toast.success(t("aiScreen.registry.retireDone"));
+          setRetiring(null);
+        },
+        onError: (error) => setRetireError(error instanceof Error ? error.message : t("aiScreen.common.loadFailed")),
       },
     );
   };
@@ -260,6 +284,10 @@ function Registry({ canGovern }: { canGovern: boolean }) {
             busy={update.isPending}
             refusal={refusal?.modelName === status.modelName ? refusal.message : null}
             onToggle={() => toggle(status)}
+            onRetire={() => {
+              setRetireError(null);
+              setRetiring(status);
+            }}
           />
         ))}
       </div>
@@ -271,6 +299,22 @@ function Registry({ canGovern }: { canGovern: boolean }) {
         submitting={register.isPending}
         error={registerError}
       />
+
+      <ReasonDialog
+        open={retiring !== null}
+        onOpenChange={(open) => !open && setRetiring(null)}
+        title={`${t("aiScreen.registry.retireTitle")} — ${retiring?.modelName ?? ""}`}
+        body={t("aiScreen.registry.retireBody")}
+        warning={t("aiScreen.registry.retireIrreversible")}
+        reasonLabel={t("aiScreen.registry.retireReason")}
+        reasonRequiredMessage={t("aiScreen.registry.retireReasonRequired")}
+        confirmLabel={t("aiScreen.registry.retireConfirm")}
+        confirmingLabel={t("aiScreen.registry.retiring")}
+        destructive
+        submitting={retire.isPending}
+        error={retireError}
+        onConfirm={submitRetirement}
+      />
     </Panel>
   );
 }
@@ -281,26 +325,29 @@ function ModelRow({
   busy,
   refusal,
   onToggle,
+  onRetire,
 }: {
   status: AIGatewayStatus;
   canGovern: boolean;
   busy: boolean;
   refusal: string | null;
   onToggle: () => void;
+  onRetire: () => void;
 }) {
   const { t } = useI18n();
   const mismatch =
     status.reports?.modelVersion && status.modelVersion && status.reports.modelVersion !== status.modelVersion;
+  const retired = Boolean(status.retiredAt);
 
   return (
-    <article className="rounded-lg border border-border bg-surface-sunken p-4">
+    <article className={cn("rounded-lg border border-border bg-surface-sunken p-4", retired && "opacity-75")}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-mono text-sm font-semibold text-foreground">{status.modelName}</h3>
             <StatusPill>{status.modelVersion}</StatusPill>
             <StatusPill tone="ai">{t(`aiScreen.types.${status.decisionType}`)}</StatusPill>
-            {status.retiredAt && <StatusPill tone="neutral">{t("aiScreen.registry.retired")}</StatusPill>}
+            {retired && <StatusPill tone="danger">{t("aiScreen.registry.retired")}</StatusPill>}
           </div>
           {status.description && <p className="mt-1 max-w-xl text-sm text-foreground-muted">{status.description}</p>}
         </div>
@@ -309,13 +356,26 @@ function ModelRow({
           <StatusPill tone={status.isEnabled ? "success" : "neutral"}>
             {status.isEnabled ? t("aiScreen.registry.on") : t("aiScreen.registry.off")}
           </StatusPill>
-          {canGovern && (
-            <Button size="sm" variant={status.isEnabled ? "outline" : "default"} disabled={busy} onClick={onToggle}>
-              {status.isEnabled ? t("aiScreen.registry.switchOff") : t("aiScreen.registry.switchOn")}
-            </Button>
+          {/* A retired model is off for good; it is not offered a switch. */}
+          {canGovern && !retired && (
+            <>
+              <Button size="sm" variant={status.isEnabled ? "outline" : "default"} disabled={busy} onClick={onToggle}>
+                {status.isEnabled ? t("aiScreen.registry.switchOff") : t("aiScreen.registry.switchOn")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={onRetire}>
+                {t("aiScreen.registry.retire")}
+              </Button>
+            </>
           )}
         </div>
       </div>
+
+      {retired && (
+        <dl className="mt-3 grid gap-3 rounded-md border border-danger/25 bg-danger-subtle p-3 sm:grid-cols-2">
+          <Field label={t("aiScreen.registry.retiredOn")} value={stamp(status.retiredAt)} />
+          <Field label={t("aiScreen.registry.retiredReason")} value={status.retiredReason || t("aiScreen.common.unknown")} />
+        </dl>
+      )}
 
       <div className="mt-3 flex flex-wrap gap-2">
         <StatusPill tone={status.measured ? "success" : "warning"}>
@@ -471,7 +531,10 @@ function Evaluations({ canGovern }: { canGovern: boolean }) {
     >
       <Alert variant="info" className="mb-3">
         <Info />
-        <AlertDescription>{t("aiScreen.rule.appendOnly")}</AlertDescription>
+        <div>
+          <AlertDescription>{t("aiScreen.rule.appendOnly")}</AlertDescription>
+          <AlertDescription className="mt-1">{t("aiScreen.evaluations.registrationNote")}</AlertDescription>
+        </div>
       </Alert>
 
       {evaluations.isLoading && <Skeleton className="h-32 w-full" />}
@@ -537,10 +600,42 @@ function Evaluations({ canGovern }: { canGovern: boolean }) {
 
 /* --------------------------------------------------------- module switches */
 
-function ModuleSwitches() {
+function ModuleSwitches({ canGovern }: { canGovern: boolean }) {
   const { t } = useI18n();
   const switches = useAIModuleSwitches();
+  const setSwitch = useSetAIModuleSwitch();
   const rows = switches.data ?? [];
+
+  const [changing, setChanging] = React.useState<AIModuleSwitch | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  /** A refusal is the rule that stopped it, shown against that module. */
+  const [refusal, setRefusal] = React.useState<{ module: string; message: string } | null>(null);
+
+  const submit = (reason: string) => {
+    if (!changing) return;
+    const turningOn = !changing.enabled;
+    setError(null);
+    setRefusal(null);
+    setSwitch.mutate(
+      { module: changing.module, input: { enabled: turningOn, reason } },
+      {
+        onSuccess: () => {
+          toast.success(t(turningOn ? "aiScreen.modules.switchedOn" : "aiScreen.modules.switchedOff"));
+          setChanging(null);
+        },
+        onError: (err) => {
+          // 409 is a rule the database enforces — face recognition without an
+          // authorisation — so it is stated against the module, not thrown away.
+          if (err instanceof ApiClientError && err.code === 409) {
+            setRefusal({ module: changing.module, message: err.message });
+            setChanging(null);
+            return;
+          }
+          setError(err instanceof Error ? err.message : t("aiScreen.common.loadFailed"));
+        },
+      },
+    );
+  };
 
   return (
     <Panel title={t("aiScreen.modules.title")} description={t("aiScreen.modules.description")}>
@@ -557,17 +652,57 @@ function ModuleSwitches() {
                   {entry.enabled ? t("aiScreen.registry.on") : t("aiScreen.registry.off")}
                 </StatusPill>
               </div>
-              <span className="text-xs text-foreground-muted">
-                {t("aiScreen.modules.changedBy")} {entry.updatedByName || t("aiScreen.common.unknown")} · {stamp(entry.updatedAt)}
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs text-foreground-muted">
+                  {t("aiScreen.modules.changedBy")} {entry.updatedByName || t("aiScreen.common.unknown")} · {stamp(entry.updatedAt)}
+                </span>
+                {canGovern && (
+                  <Button
+                    size="sm"
+                    variant={entry.enabled ? "outline" : "default"}
+                    disabled={setSwitch.isPending}
+                    onClick={() => {
+                      setError(null);
+                      setRefusal(null);
+                      setChanging(entry);
+                    }}
+                  >
+                    {entry.enabled ? t("aiScreen.modules.switchOff") : t("aiScreen.modules.switchOn")}
+                  </Button>
+                )}
+              </div>
             </div>
             <dl className="mt-3 grid gap-3 sm:grid-cols-2">
               <Field label={t("aiScreen.modules.reason")} value={entry.reason || t("aiScreen.modules.noReason")} />
               {entry.note && <Field label={t("aiScreen.modules.note")} value={entry.note} />}
             </dl>
+
+            {refusal?.module === entry.module && (
+              <Alert variant="info" className="mt-3">
+                <ShieldCheck />
+                <div>
+                  <AlertTitle>{t("aiScreen.modules.refusedTitle")}</AlertTitle>
+                  <AlertDescription>{refusal.message}</AlertDescription>
+                </div>
+              </Alert>
+            )}
           </li>
         ))}
       </ul>
+
+      <ReasonDialog
+        open={changing !== null}
+        onOpenChange={(open) => !open && setChanging(null)}
+        title={`${t("aiScreen.modules.changeTitle")} — ${changing?.module ?? ""}`}
+        body={t(changing?.enabled ? "aiScreen.modules.changeOff" : "aiScreen.modules.changeOn")}
+        reasonLabel={t("aiScreen.modules.changeReason")}
+        reasonRequiredMessage={t("aiScreen.modules.changeReasonRequired")}
+        confirmLabel={t("aiScreen.modules.confirm")}
+        confirmingLabel={t("aiScreen.modules.changing")}
+        submitting={setSwitch.isPending}
+        error={error}
+        onConfirm={submit}
+      />
     </Panel>
   );
 }
