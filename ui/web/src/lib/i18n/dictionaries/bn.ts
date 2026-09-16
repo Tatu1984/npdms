@@ -13,6 +13,7 @@ import { legalBn } from "./legal.bn";
 import { missingBoardBn } from "./missing-board.bn";
 import { faceRecognitionBn } from "./face-recognition.bn";
 import { anprBn } from "./anpr.bn";
+import { aiReviewBn } from "./ai-review.bn";
 
 /**
  * Bengali dictionary.
@@ -40,6 +41,7 @@ export const bn: DeepPartial<Dictionary> = {
   missingBoard: missingBoardBn,
   faceRecognitionScreen: faceRecognitionBn,
   anprScreen: anprBn,
+  aiScreen: aiReviewBn,
 
   common: {
     appName: "কলকাতা পুলিশ ডিজিটাল ইন্টেলিজেন্স প্ল্যাটফর্ম",

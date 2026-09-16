@@ -380,6 +380,27 @@ export const MODULES: PlatformModule[] = [
     status: "live",
     minRole: "SHO",
   },
+  {
+    id: "ai-review",
+    href: "/ai-review",
+    group: "knowledge",
+    icon: Brain,
+    nameKey: "aiScreen.nav.review",
+    descKey: "aiScreen.nav.reviewDesc",
+    status: "live",
+    aiAssisted: true,
+  },
+  {
+    id: "ai-oversight",
+    href: "/ai-oversight",
+    group: "knowledge",
+    icon: ShieldCheck,
+    nameKey: "aiScreen.nav.oversight",
+    descKey: "aiScreen.nav.oversightDesc",
+    status: "live",
+    minRole: "DSP",
+    aiAssisted: true,
+  },
 ];
 
 /** The fourteen programme phases, in phase order, for the roadmap view. */
