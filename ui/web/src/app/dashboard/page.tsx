@@ -59,6 +59,16 @@ export default function DashboardPage() {
   // the navigation offers. A module index that listed screens the sidebar will
   // not open is a promise the platform does not keep.
   const forceModules = modulesForForce(force.code, MODULES);
+
+  // Whether this department has a module at all. The sidebar has always
+  // obeyed this; the dashboard did not, so a traffic officer opened on
+  // "Active investigations" and a primary button leading to a module their
+  // own force is not shown — the one dead end the platform promises not to
+  // have. Same mapping, one source.
+  const has = React.useCallback(
+    (moduleId: string) => forceModules.some((m) => m.id === moduleId),
+    [forceModules],
+  );
   const forcePhases = modulesForForce(force.code, PHASED_MODULES);
 
   // Every figure below comes from the API; a panel the officer's rank cannot
@@ -87,28 +97,48 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-5">
         <PageHeader
           title={`${greeting()}, ${user?.name?.split(" ")[0] ?? "Officer"}`}
-          description="Operational picture across investigation, evidence, surveillance, traffic and citizen services."
+          description={
+            has("investigation")
+              ? "Operational picture across investigation, evidence, surveillance, traffic and citizen services."
+              : `Operational picture across ${forceLabel.full}'s own work.`
+          }
           icon={LayoutDashboard}
           actions={
             <>
-              <Button variant="outline" onClick={() => router.push("/fir/new")}>
-                <FileText className="h-4 w-4" />
-                Register FIR
-              </Button>
-              <Button onClick={() => router.push("/investigation")}>
-                <Brain className="h-4 w-4" />
-                Investigation Copilot
-              </Button>
+              {has("fir") && (
+                <Button variant="outline" onClick={() => router.push("/fir/new")}>
+                  <FileText className="h-4 w-4" />
+                  Register FIR
+                </Button>
+              )}
+              {has("investigation") ? (
+                <Button onClick={() => router.push("/investigation")}>
+                  <Brain className="h-4 w-4" />
+                  Investigation Copilot
+                </Button>
+              ) : has("traffic-challans") ? (
+                <Button onClick={() => router.push("/traffic")}>
+                  <ClipboardList className="h-4 w-4" />
+                  Traffic challans
+                </Button>
+              ) : null}
             </>
           }
           menu={[
-            act.link("dispatch", "Dispatch console", "/dispatch", { icon: Radio }),
-            act.link("workload", "Station workload", "/workload", { icon: Gauge }),
+            ...(has("dispatch")
+              ? [act.link("dispatch", "Dispatch console", "/dispatch", { icon: Radio })]
+              : []),
+            ...(has("workload")
+              ? [act.link("workload", "Station workload", "/workload", { icon: Gauge })]
+              : []),
           ]}
         />
 
-        {/* headline numbers — each one is a route */}
+        {/* Headline numbers — each one is a route, and each is shown only to
+            a department that has the module behind it. A figure that leads
+            somewhere an officer cannot go is worse than no figure. */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          {has("investigation") && (
           <StatTile
             label="Active investigations"
             value={activeWorkspaces.data?.total ?? 0}
@@ -116,6 +146,7 @@ export default function DashboardPage() {
             href="/investigation"
             deltaLabel={activeWorkspaces.isError ? "not available" : "investigation workspaces"}
           />
+          )}
           <StatTile
             label="Alerts to acknowledge"
             value={unacknowledged.data?.length ?? 0}
@@ -124,6 +155,7 @@ export default function DashboardPage() {
             href="/alerts"
             deltaLabel={unacknowledged.isError ? "not available" : "issued and not yet acknowledged"}
           />
+          {has("dispatch") && (
           <StatTile
             label="Awaiting dispatch"
             value={dispatchStats.data?.awaitingDispatch ?? 0}
@@ -132,6 +164,8 @@ export default function DashboardPage() {
             href="/dispatch"
             deltaLabel={dispatchStats.isError ? "not available" : `${dispatchStats.data?.active ?? 0} active`}
           />
+          )}
+          {has("video-intelligence") && (
           <StatTile
             label="CCTV events awaiting triage"
             value={videoEventStats.data?.raised ?? 0}
@@ -140,6 +174,8 @@ export default function DashboardPage() {
             href="/video-intelligence"
             deltaLabel={videoEventStats.isError ? "not available" : undefined}
           />
+          )}
+          {has("grievance") && (
           <StatTile
             label="Open grievances"
             value={complaintStats.data?.open ?? 0}
@@ -148,12 +184,16 @@ export default function DashboardPage() {
             href="/grievance"
             deltaLabel={complaintStats.isError ? "not available" : `${complaintStats.data?.unrouted ?? 0} not yet routed`}
           />
+          )}
         </div>
 
         <AIGovernanceNotice />
 
         <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
-          {/* active workspaces */}
+          {/* Active workspaces — for a department that investigates. The
+              traffic wing hands a case to the station rather than taking it
+              up, so it is shown its own work instead. */}
+          {has("investigation") ? (
           <Panel
             title="Your investigation workspaces"
             description="Cases where you are the investigating or supervisory officer"
@@ -207,8 +247,37 @@ export default function DashboardPage() {
               </AnimatedList>
             )}
           </Panel>
+          ) : (
+            <Panel
+              title={`What ${forceLabel.short} works`}
+              description="The modules this department operates"
+              bodyClassName="p-0"
+            >
+              <ul className="divide-y divide-border">
+                {forceModules
+                  .filter((m) => m.id !== "dashboard")
+                  .slice(0, 8)
+                  .map((m) => (
+                    <li key={m.id}>
+                      <Link
+                        href={m.href}
+                        className="flex items-center justify-between gap-3 p-3 transition-colors hover:bg-surface-hover"
+                      >
+                        <span className="flex min-w-0 items-center gap-3">
+                          <m.icon className="h-4 w-4 shrink-0 text-foreground-subtle" />
+                          <span className="truncate text-sm text-foreground">{t(m.nameKey)}</span>
+                        </span>
+                        <ArrowRight className="h-4 w-4 shrink-0 text-foreground-subtle" />
+                      </Link>
+                    </li>
+                  ))}
+              </ul>
+            </Panel>
+          )}
 
-          {/* six-month trend */}
+          {/* Six-month trend — FIRs and cases, so it belongs to a department
+              that registers them. A flat line of zeroes is not a trend. */}
+          {has("fir") && (
           <Panel
             title="Six-month trend"
             description="FIRs and cases registered per month, from the station workload records"
@@ -222,6 +291,16 @@ export default function DashboardPage() {
               <p className="text-sm text-foreground-muted">Loading trend…</p>
             ) : trends.isError ? (
               <p className="text-sm text-foreground-muted">The trend could not be loaded.</p>
+            ) : trendBuckets.length === 0 ||
+              (firSeries?.values ?? []).every((v) => v === 0) &&
+                (caseSeries?.values ?? []).every((v) => v === 0) ? (
+              // An empty set of axes is not a trend. Departments that register
+              // few FIRs — the traffic wing hands most cases to the station —
+              // were shown a blank chart and left to guess whether it was
+              // still loading.
+              <p className="text-sm text-foreground-muted">
+                No FIRs or cases were registered at this posting in the last six months.
+              </p>
             ) : (
               <>
                 {/* Pixel heights: percentage heights collapse to zero inside these flex columns. */}
@@ -263,6 +342,7 @@ export default function DashboardPage() {
               </>
             )}
           </Panel>
+          )}
         </div>
 
         {/* the fourteen modules, grouped */}
