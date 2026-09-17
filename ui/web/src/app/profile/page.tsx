@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, KeyRound, Loader2, User } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { EmptyState, Field, PageHeader, Panel } from "@/components/platform/primitives";
+import { ActivityTrail } from "@/components/platform/ActivityTrail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/stores/toastStore";
@@ -127,6 +128,16 @@ export default function ProfilePage() {
                 </Button>
               </div>
             </div>
+          </Panel>
+
+          {/* An officer can read their own trail. The platform records where
+              officers go in it, and somebody who is recorded should be able to
+              see the record and how long it is kept — which the panel states. */}
+          <Panel
+            title="Where you have been"
+            description="The screens you opened in this platform, and for how long."
+          >
+            <ActivityTrail days={7} />
           </Panel>
         </div>
       </div>

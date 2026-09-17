@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   Copy,
+  Clock,
   KeyRound,
   Shield,
   Loader2,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { ActivityTrail } from "@/components/platform/ActivityTrail";
 import {
   useAssignRole,
   useRoles,
@@ -82,6 +84,7 @@ export default function OfficersPage() {
   const [reopening, setReopening] = React.useState<Officer | null>(null);
   const [resetting, setResetting] = React.useState<Officer | null>(null);
   const [editingRoles, setEditingRoles] = React.useState<Officer | null>(null);
+  const [viewingActivity, setViewingActivity] = React.useState<Officer | null>(null);
   const [issued, setIssued] = React.useState<IssuedPassword | null>(null);
 
   const forbidden =
@@ -331,6 +334,19 @@ export default function OfficersPage() {
       {closing && <DeactivateDialog officer={closing} onClose={() => setClosing(null)} />}
       {reopening && <ReactivateDialog officer={reopening} onClose={() => setReopening(null)} />}
 
+      {viewingActivity && (
+        <Modal
+          isOpen
+          onClose={() => setViewingActivity(null)}
+          title={`Activity — ${viewingActivity.name}`}
+          size="lg"
+        >
+          <ActivityTrail officerId={viewingActivity.id} days={7} />
+          <ModalFooter>
+            <Button onClick={() => setViewingActivity(null)}>Done</Button>
+          </ModalFooter>
+        </Modal>
+      )}
       {editingRoles && (
         <OfficerRolesDialog officer={editingRoles} onClose={() => setEditingRoles(null)} />
       )}

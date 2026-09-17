@@ -3,6 +3,7 @@ import { Inter, Noto_Sans_Bengali } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { PlatformProviders } from "@/components/providers/platform-providers";
+import { ActivityTracker } from "@/components/platform/ActivityTracker";
 import { ErrorBoundary } from "@/components/error-boundary";
 
 const inter = Inter({
@@ -57,6 +58,10 @@ export default function RootLayout({
         <ErrorBoundary>
           <QueryProvider>
             <PlatformProviders>
+              {/* Records which screens were opened and for how long. An
+                  officer can read their own trail on their profile, where the
+                  retention is stated. */}
+              <ActivityTracker />
               {children}
             </PlatformProviders>
           </QueryProvider>
