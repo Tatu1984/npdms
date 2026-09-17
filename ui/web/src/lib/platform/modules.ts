@@ -21,6 +21,7 @@ import {
   Scale,
   ScanFace,
   Search,
+  Shield,
   ShieldCheck,
   Siren,
   UserCog,
@@ -397,6 +398,18 @@ export const MODULES: PlatformModule[] = [
     icon: UserCog,
     nameKey: "officersScreen.nav.name",
     descKey: "officersScreen.nav.desc",
+    status: "live",
+    minRole: "DSP",
+  },
+  {
+    // Beside officer accounts: that screen says who an officer is and how
+    // senior, this one says what their job lets them do.
+    id: "roles",
+    href: "/settings/roles",
+    group: "knowledge",
+    icon: Shield,
+    nameKey: "rolesScreen.nav.name",
+    descKey: "rolesScreen.nav.desc",
     status: "live",
     minRole: "DSP",
   },

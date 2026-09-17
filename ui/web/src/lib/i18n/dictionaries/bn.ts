@@ -15,6 +15,7 @@ import { faceRecognitionBn } from "./face-recognition.bn";
 import { anprBn } from "./anpr.bn";
 import { aiReviewBn } from "./ai-review.bn";
 import { officersBn } from "./officers.bn";
+import { rolesBn } from "./roles.bn";
 
 /**
  * Bengali dictionary.
@@ -44,6 +45,7 @@ export const bn: DeepPartial<Dictionary> = {
   anprScreen: anprBn,
   aiScreen: aiReviewBn,
   officersScreen: officersBn,
+  rolesScreen: rolesBn,
 
   common: {
     appName: "কলকাতা পুলিশ ডিজিটাল ইন্টেলিজেন্স প্ল্যাটফর্ম",

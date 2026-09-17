@@ -14,6 +14,7 @@ import { faceRecognitionEn } from "./face-recognition.en";
 import { anprEn } from "./anpr.en";
 import { aiReviewEn } from "./ai-review.en";
 import { officersEn } from "./officers.en";
+import { rolesEn } from "./roles.en";
 
 /**
  * English dictionary — the source of truth for translation keys.
@@ -38,6 +39,7 @@ export const en = {
   anprScreen: anprEn,
   aiScreen: aiReviewEn,
   officersScreen: officersEn,
+  rolesScreen: rolesEn,
 
   common: {
     appName: "Kolkata Police Digital Intelligence Platform",

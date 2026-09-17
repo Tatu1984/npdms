@@ -46,3 +46,15 @@ next-env.d.ts
 
 # Redis writes its snapshot into whatever directory it was started from
 dump.rdb
+
+# Sync-conflict duplicates. iCloud and OneDrive both write "name 2.ext"
+# beside the original; they are stale copies that break the TypeScript build
+# when they materialise, and one `git add -A` commits a hundred of them.
+*\ 2.ts
+*\ 2.tsx
+*\ 2.js
+*\ 2.mjs
+*\ 2.json
+*\ 2.css
+*\ 2.md
+*\ 2.rdb

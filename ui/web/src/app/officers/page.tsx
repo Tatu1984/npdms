@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   Copy,
   KeyRound,
+  Shield,
   Loader2,
   Lock,
   PencilLine,
@@ -15,6 +16,12 @@ import {
 } from "lucide-react";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import {
+  useAssignRole,
+  useRoles,
+  useRolesOfOfficer,
+  useUnassignRole,
+} from "@/hooks/use-roles";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { hasMinimumRole, useAuthStore } from "@/stores/authStore";
 import {
@@ -74,6 +81,7 @@ export default function OfficersPage() {
   const [closing, setClosing] = React.useState<Officer | null>(null);
   const [reopening, setReopening] = React.useState<Officer | null>(null);
   const [resetting, setResetting] = React.useState<Officer | null>(null);
+  const [editingRoles, setEditingRoles] = React.useState<Officer | null>(null);
   const [issued, setIssued] = React.useState<IssuedPassword | null>(null);
 
   const forbidden =
@@ -185,6 +193,16 @@ export default function OfficersPage() {
         label: t("officersScreen.actions.resetPassword"),
         icon: KeyRound,
         onSelect: () => setResetting(o),
+      },
+      {
+        // Rank is amended above; this is the officer's job. The two are kept
+        // apart deliberately — a promotion should not silently change what
+        // somebody is responsible for.
+        kind: "action",
+        id: "roles",
+        label: "Roles",
+        icon: Shield,
+        onSelect: () => setEditingRoles(o),
       },
       { kind: "separator", id: "sep" },
     ];
@@ -313,6 +331,9 @@ export default function OfficersPage() {
       {closing && <DeactivateDialog officer={closing} onClose={() => setClosing(null)} />}
       {reopening && <ReactivateDialog officer={reopening} onClose={() => setReopening(null)} />}
 
+      {editingRoles && (
+        <OfficerRolesDialog officer={editingRoles} onClose={() => setEditingRoles(null)} />
+      )}
       {resetting && (
         <ResetPasswordDialog
           officer={resetting}
@@ -983,6 +1004,106 @@ function IssuedPasswordDialog({
         <Button onClick={onClose} data-testid="password-handed-over">
           {t("officersScreen.password.done")}
         </Button>
+      </ModalFooter>
+    </Modal>
+  );
+}
+
+
+/**
+ * The roles an officer holds, and the ones they could be given.
+ *
+ * The rank role is shown but cannot be touched here: it follows the rank, and
+ * the rank is amended on the form above. Offering it would mean offering a
+ * change the server refuses and the database would undo at the next promotion.
+ */
+function OfficerRolesDialog({ officer, onClose }: { officer: Officer; onClose: () => void }) {
+  const held = useRolesOfOfficer(officer.id);
+  const all = useRoles();
+  const assign = useAssignRole();
+  const unassign = useUnassignRole();
+
+  const heldIds = new Set((held.data ?? []).map((r) => r.id));
+  const assignable = (all.data ?? []).filter((r) => !r.isRankDefault);
+  const problem = (err: unknown) =>
+    err instanceof Error ? err.message : "The server rejected the request";
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Roles — ${officer.name}`}>
+      <div className="space-y-4">
+        <p className="text-sm text-foreground-muted">
+          Rank says how senior {officer.name.split(" ")[0]} is. A role says what they do. The rank
+          role follows the rank and is changed by amending the rank.
+        </p>
+
+        {(held.isPending || all.isPending) && (
+          <p className="text-sm text-foreground-muted">Loading…</p>
+        )}
+
+        <div className="space-y-1.5">
+          {(held.data ?? [])
+            .filter((r) => r.isRankDefault)
+            .map((r) => (
+              <div
+                key={r.id}
+                className="flex items-center justify-between rounded-md border border-border bg-background-secondary px-3 py-2"
+              >
+                <span className="text-sm text-foreground">{r.name}</span>
+                <span className="text-xs text-foreground-subtle">follows the rank</span>
+              </div>
+            ))}
+        </div>
+
+        {assignable.length === 0 && !all.isPending && (
+          <p className="text-sm text-foreground-muted">
+            No roles have been made yet. Create one under Settings → Roles and permissions.
+          </p>
+        )}
+
+        <div className="space-y-1.5">
+          {assignable.map((r) => {
+            const on = heldIds.has(r.id);
+            const busy = assign.isPending || unassign.isPending;
+            return (
+              <div
+                key={r.id}
+                className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm text-foreground">{r.name}</span>
+                  <span className="block truncate text-xs text-foreground-muted">
+                    {r.grantCount} permissions
+                  </span>
+                </span>
+                <Button
+                  size="sm"
+                  variant={on ? "outline" : "default"}
+                  disabled={busy}
+                  onClick={() => {
+                    const run = on ? unassign : assign;
+                    run.mutate(
+                      { officerId: officer.id, roleId: r.id },
+                      {
+                        onSuccess: () =>
+                          toast.success(
+                            on ? "Role withdrawn" : "Role given",
+                            `${officer.name} ${on ? "no longer holds" : "now holds"} ${r.name}.`,
+                          ),
+                        onError: (err) => toast.error("Not changed", problem(err)),
+                      },
+                    );
+                  }}
+                >
+                  {on ? "Withdraw" : "Give"}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <ModalFooter>
+        <Button onClick={onClose}>Done</Button>
       </ModalFooter>
     </Modal>
   );
